@@ -389,26 +389,87 @@ export default function Home() {
             {/* Development team */}
             <p className="text-xs font-semibold uppercase tracking-widest text-stone-500 mb-4">Development Team</p>
             <div className="space-y-4">
-              <div className="bg-stone-800 border border-stone-700 rounded-2xl p-5">
-                <p className="font-semibold text-white mb-0.5">Abhishek Kumar Chaudhary</p>
-                <a
-                  href="https://abhishek-chaudhary.com#contact"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-amber-400 hover:text-amber-300 text-sm transition-colors break-all"
-                >
-                  abhishek-chaudhary.com#contact
-                </a>
+
+              {/* Abhishek — dev / web */}
+              <div className="bg-stone-800 border border-stone-700 rounded-2xl p-5 flex items-center gap-4">
+                <div className="shrink-0 w-14 h-14 rounded-full bg-amber-900/60 border border-amber-700 flex items-center justify-center overflow-hidden">
+                  <svg viewBox="0 0 56 56" fill="none" xmlns="http://www.w3.org/2000/svg" className="w-14 h-14">
+                    {/* body */}
+                    <rect width="56" height="56" rx="28" fill="#78350f" fillOpacity="0.5"/>
+                    {/* torso */}
+                    <rect x="16" y="34" width="24" height="14" rx="4" fill="#92400e"/>
+                    {/* laptop */}
+                    <rect x="18" y="37" width="20" height="12" rx="2" fill="#1c1917"/>
+                    <rect x="19" y="38" width="18" height="9" rx="1" fill="#0ea5e9" fillOpacity="0.7"/>
+                    <rect x="16" y="49" width="24" height="2" rx="1" fill="#44403c"/>
+                    {/* head */}
+                    <circle cx="28" cy="24" r="9" fill="#d97706"/>
+                    {/* hair */}
+                    <path d="M19 22c0-5 4-9 9-9s9 4 9 9" fill="#1c1917"/>
+                    {/* eyes */}
+                    <circle cx="25" cy="24" r="1.2" fill="#1c1917"/>
+                    <circle cx="31" cy="24" r="1.2" fill="#1c1917"/>
+                    {/* smile */}
+                    <path d="M25 27.5 Q28 30 31 27.5" stroke="#1c1917" strokeWidth="1.2" strokeLinecap="round" fill="none"/>
+                  </svg>
+                </div>
+                <div className="min-w-0">
+                  <p className="font-semibold text-white leading-tight">Abhishek Kumar Chaudhary</p>
+                  <p className="text-stone-400 text-xs mb-1.5">Web Developer</p>
+                  <a
+                    href="https://abhishek-chaudhary.com#contact"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1.5 text-amber-400 hover:text-amber-300 text-sm transition-colors break-all"
+                  >
+                    <svg className="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"/>
+                    </svg>
+                    abhishek-chaudhary.com#contact
+                  </a>
+                </div>
               </div>
-              <div className="bg-stone-800 border border-stone-700 rounded-2xl p-5">
-                <p className="font-semibold text-white mb-0.5">Saroj Kumar</p>
-                <a
-                  href="tel:+916205573763"
-                  className="text-amber-400 hover:text-amber-300 text-sm transition-colors"
-                >
-                  +91 6205573763
-                </a>
+
+              {/* Saroj — library manager */}
+              <div className="bg-stone-800 border border-stone-700 rounded-2xl p-5 flex items-center gap-4">
+                <div className="shrink-0 w-14 h-14 rounded-full bg-emerald-900/60 border border-emerald-700 flex items-center justify-center overflow-hidden">
+                  <svg viewBox="0 0 56 56" fill="none" xmlns="http://www.w3.org/2000/svg" className="w-14 h-14">
+                    <rect width="56" height="56" rx="28" fill="#064e3b" fillOpacity="0.5"/>
+                    {/* body */}
+                    <rect x="16" y="34" width="24" height="14" rx="4" fill="#065f46"/>
+                    {/* book held */}
+                    <rect x="22" y="37" width="12" height="9" rx="1.5" fill="#d97706"/>
+                    <line x1="28" y1="37" x2="28" y2="46" stroke="#92400e" strokeWidth="1"/>
+                    {/* head */}
+                    <circle cx="28" cy="24" r="9" fill="#b45309"/>
+                    {/* hair */}
+                    <path d="M19 22c0-5 4-9 9-9s9 4 9 9" fill="#1c1917"/>
+                    {/* glasses */}
+                    <rect x="22" y="22.5" width="5" height="3.5" rx="1.5" stroke="#d1d5db" strokeWidth="1" fill="none"/>
+                    <rect x="29" y="22.5" width="5" height="3.5" rx="1.5" stroke="#d1d5db" strokeWidth="1" fill="none"/>
+                    <line x1="27" y1="24.2" x2="29" y2="24.2" stroke="#d1d5db" strokeWidth="1"/>
+                    {/* eyes */}
+                    <circle cx="24.5" cy="24.2" r="0.9" fill="#1c1917"/>
+                    <circle cx="31.5" cy="24.2" r="0.9" fill="#1c1917"/>
+                    {/* smile */}
+                    <path d="M25 27.5 Q28 30 31 27.5" stroke="#1c1917" strokeWidth="1.2" strokeLinecap="round" fill="none"/>
+                  </svg>
+                </div>
+                <div className="min-w-0">
+                  <p className="font-semibold text-white leading-tight">Saroj Kumar</p>
+                  <p className="text-stone-400 text-xs mb-1.5">Library Manager</p>
+                  <a
+                    href="tel:+916205573763"
+                    className="inline-flex items-center gap-1.5 text-amber-400 hover:text-amber-300 text-sm transition-colors"
+                  >
+                    <svg className="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"/>
+                    </svg>
+                    +91 6205573763
+                  </a>
+                </div>
               </div>
+
             </div>
           </div>
           <form className="bg-stone-800 rounded-2xl p-8 space-y-5 border border-stone-700">
