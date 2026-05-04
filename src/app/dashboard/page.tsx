@@ -9,6 +9,7 @@ import {
   getStats,
   planName,
 } from "@/lib/members";
+import AttendanceMiniWidget from "@/components/dashboard/AttendanceMiniWidget";
 
 export const metadata = { title: "Overview" };
 
@@ -246,6 +247,9 @@ export default function DashboardOverview() {
           </div>
         </div>
       </section>
+
+      {/* Today's attendance */}
+      <AttendanceMiniWidget />
 
       {/* Recent payments */}
       <section className="rounded-2xl border border-ink-100 bg-white shadow-card">
