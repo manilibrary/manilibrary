@@ -18,7 +18,8 @@ const jetBrainsMono = JetBrains_Mono({
 export const metadata: Metadata = {
   metadataBase: new URL(libraryInfo.contact.website),
   title: {
-    default: `${libraryInfo.name} — ${libraryInfo.tagline}`,
+    // default: `${libraryInfo.name} — ${libraryInfo.tagline}`,
+    default: `${libraryInfo.name}`,
     template: `%s · ${libraryInfo.name}`,
   },
   description: libraryInfo.shortDescription,
