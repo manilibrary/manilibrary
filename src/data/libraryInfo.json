@@ -1,0 +1,138 @@
+{
+  "name": "Mani Library",
+  "tagline": "A quiet place to read, study, and grow — open 24/7.",
+  "shortDescription": "A modern self-study library and reading hall in the heart of Madhubani — air-conditioned, distraction-free, and open round the clock.",
+  "established": 2020,
+  "capacity": 200,
+  "hours": "24 hours · 7 days a week",
+  "currency": "INR",
+  "currencySymbol": "₹",
+  "owner": {
+    "name": "Mani Kumar",
+    "role": "Founder & Owner",
+    "phone": "+91 7004381520",
+    "email": "support@manilibrary.com"
+  },
+  "manager": {
+    "name": "Saroj Kumar",
+    "role": "Library Manager",
+    "phone": "+91 62055 73763",
+    "email": "support@manilibrary.com"
+  },
+  "address": {
+    "line1": "Near Townclub",
+    "line2": "Madhubani",
+    "city": "Madhubani",
+    "state": "Bihar",
+    "pincode": "847211",
+    "country": "India",
+    "mapsUrl": "https://share.google/OHsMaf0PIOUinqM1L"
+  },
+  "contact": {
+    "primaryPhone": "+91 7004381520",
+    "supportEmail": "support@manilibrary.com",
+    "website": "https://manilibrary.com"
+  },
+  "social": {
+    "instagram": "https://instagram.com/manilibrary",
+    "facebook": "https://facebook.com/manilibrary",
+    "whatsapp": "https://wa.me/916205573763"
+  },
+  "facilities": [
+    {
+      "id": "ac",
+      "title": "Air Conditioned Hall",
+      "description": "Climate-controlled rooms keep you comfortable through every season."
+    },
+    {
+      "id": "247",
+      "title": "Open 24 / 7",
+      "description": "Study late, study early — your seat is yours, any hour of the day."
+    },
+    {
+      "id": "wifi",
+      "title": "High-speed Wi-Fi",
+      "description": "Stable fibre internet across every corner for online learning."
+    },
+    {
+      "id": "power",
+      "title": "Personal Power Outlet",
+      "description": "Every cabin has its own socket and reading light."
+    },
+    {
+      "id": "lockers",
+      "title": "Personal Lockers",
+      "description": "Lockable storage so you can leave your books and belongings safely."
+    },
+    {
+      "id": "water",
+      "title": "RO Water & Pantry",
+      "description": "Filtered drinking water, tea/coffee corner and clean washrooms."
+    },
+    {
+      "id": "silent",
+      "title": "Pin-drop Silent Zone",
+      "description": "Acoustic-treated cabins for deep, focused study sessions."
+    },
+    {
+      "id": "discussion",
+      "title": "Discussion Room",
+      "description": "Bookable rooms for group study and mock interviews."
+    }
+  ],
+  "plans": [
+    {
+      "id": "half-day",
+      "name": "Half Day",
+      "price": 600,
+      "duration": "per month",
+      "hours": "6 hrs / day",
+      "features": [
+        "Choice of morning or evening shift",
+        "Personal seat",
+        "Wi-Fi & power outlet",
+        "Drinking water"
+      ]
+    },
+    {
+      "id": "full-day",
+      "name": "Full Day",
+      "price": 1000,
+      "duration": "per month",
+      "hours": "12 hrs / day",
+      "features": [
+        "Reserved cabin seat",
+        "Personal locker",
+        "Wi-Fi & power outlet",
+        "Tea / coffee corner"
+      ],
+      "popular": true
+    },
+    {
+      "id": "247",
+      "name": "24 / 7 Pass",
+      "price": 1500,
+      "duration": "per month",
+      "hours": "24 hrs / day",
+      "features": [
+        "Round-the-clock access",
+        "Premium cabin",
+        "Personal locker",
+        "Discussion room hours",
+        "Priority support"
+      ]
+    }
+  ],
+  "developers": [
+    {
+      "name": "Abhishek Kumar Chaudhary",
+      "role": "Web Developer",
+      "url": "https://abhishek-chaudhary.com#contact",
+      "label": "abhishek-chaudhary.com"
+    }
+  ],
+  "demoCredentials": {
+    "admin": { "email": "admin@manilibrary.com", "password": "admin123" },
+    "member": { "email": "member@manilibrary.com", "password": "member123" }
+  }
+}

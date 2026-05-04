@@ -1,26 +1,134 @@
 @import "tailwindcss";
 
+/* =========================================================
+   Design Tokens — Mani Library
+   Brand identity colors (only White, Gray, Electric Azure)
+   ========================================================= */
+@theme {
+  /* Typography */
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, -apple-system,
+    "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-mono: var(--font-jetbrains-mono), ui-monospace, SFMono-Regular,
+    "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+
+  /* Surface */
+  --color-surface: #ffffff;
+  --color-surface-muted: #f7f9fc;
+  --color-surface-sunken: #f1f4f9;
+
+  /* Neutral / Gray ramp */
+  --color-ink-50: #f7f9fc;
+  --color-ink-100: #eef1f6;
+  --color-ink-200: #e1e6ee;
+  --color-ink-300: #c7cfdb;
+  --color-ink-400: #98a2b3;
+  --color-ink-500: #667085;
+  --color-ink-600: #475467;
+  --color-ink-700: #344054;
+  --color-ink-800: #1d2939;
+  --color-ink-900: #101828;
+
+  /* Brand — Electric Azure ramp (#0160D0 base) */
+  --color-azure-50: #e6f0fb;
+  --color-azure-100: #cce1f7;
+  --color-azure-200: #99c3ef;
+  --color-azure-300: #66a6e7;
+  --color-azure-400: #3388df;
+  --color-azure-500: #0160d0;
+  --color-azure-600: #014da6;
+  --color-azure-700: #013a7d;
+  --color-azure-800: #002653;
+  --color-azure-900: #00132a;
+
+  /* Semantic shortcuts */
+  --color-brand: #0160d0;
+  --color-brand-hover: #014da6;
+  --color-border: #e1e6ee;
+  --color-border-strong: #c7cfdb;
+
+  /* Radius */
+  --radius-xs: 6px;
+  --radius-sm: 10px;
+  --radius-md: 14px;
+  --radius-lg: 20px;
+  --radius-xl: 28px;
+
+  /* Shadows */
+  --shadow-card: 0 1px 2px 0 rgba(16, 24, 40, 0.04),
+    0 1px 3px 0 rgba(16, 24, 40, 0.06);
+  --shadow-card-hover: 0 4px 8px -2px rgba(16, 24, 40, 0.06),
+    0 8px 24px -4px rgba(16, 24, 40, 0.08);
+  --shadow-focus: 0 0 0 4px rgba(1, 96, 208, 0.18);
+}
+
+/* =========================================================
+   Base styles
+   ========================================================= */
 :root {
+  color-scheme: light;
   --background: #ffffff;
-  --foreground: #171717;
+  --foreground: #101828;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+html {
+  scroll-behavior: smooth;
+  scroll-padding-top: 5rem;
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-sans);
+  font-feature-settings: "cv11", "ss01", "ss03";
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Selection */
+::selection {
+  background: var(--color-azure-100);
+  color: var(--color-azure-800);
+}
+
+/* Custom thin scrollbar */
+.scrollbar-thin::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  background: var(--color-ink-200);
+  border-radius: 999px;
+}
+.scrollbar-thin::-webkit-scrollbar-thumb:hover {
+  background: var(--color-ink-300);
+}
+
+/* Subtle grid pattern used as hero/section background accent */
+.bg-grid {
+  background-image: linear-gradient(
+      to right,
+      rgba(16, 24, 40, 0.05) 1px,
+      transparent 1px
+    ),
+    linear-gradient(to bottom, rgba(16, 24, 40, 0.05) 1px, transparent 1px);
+  background-size: 48px 48px;
+}
+
+.bg-grid-azure {
+  background-image: linear-gradient(
+      to right,
+      rgba(1, 96, 208, 0.08) 1px,
+      transparent 1px
+    ),
+    linear-gradient(to bottom, rgba(1, 96, 208, 0.08) 1px, transparent 1px);
+  background-size: 56px 56px;
+}
+
+/* Soft radial glow used behind hero */
+.bg-azure-glow {
+  background: radial-gradient(
+    1200px 500px at 50% -10%,
+    rgba(1, 96, 208, 0.18),
+    transparent 60%
+  );
 }

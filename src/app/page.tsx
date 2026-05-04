@@ -1,532 +1,590 @@
-"use client";
+import Link from "next/link";
+import Navbar from "@/components/Navbar";
+import Footer from "@/components/Footer";
+import libraryInfo from "@/data/libraryInfo.json";
 
-import { useState } from "react";
+export default function HomePage() {
+  return (
+    <>
+      <Navbar />
+      <main className="flex-1">
+        <Hero />
+        <Stats />
+        <Facilities />
+        <About />
+        <Plans />
+        <Contact />
+      </main>
+      <Footer />
+    </>
+  );
+}
 
-const books = [
-  {
-    id: 1,
-    title: "The Great Gatsby",
-    author: "F. Scott Fitzgerald",
-    genre: "Fiction",
-    available: true,
-    cover: "bg-amber-200",
-  },
-  {
-    id: 2,
-    title: "To Kill a Mockingbird",
-    author: "Harper Lee",
-    genre: "Fiction",
-    available: false,
-    cover: "bg-sky-200",
-  },
-  {
-    id: 3,
-    title: "Sapiens",
-    author: "Yuval Noah Harari",
-    genre: "Non-Fiction",
-    available: true,
-    cover: "bg-emerald-200",
-  },
-  {
-    id: 4,
-    title: "Dune",
-    author: "Frank Herbert",
-    genre: "Sci-Fi",
-    available: true,
-    cover: "bg-orange-200",
-  },
-  {
-    id: 5,
-    title: "1984",
-    author: "George Orwell",
-    genre: "Dystopian",
-    available: false,
-    cover: "bg-rose-200",
-  },
-  {
-    id: 6,
-    title: "Atomic Habits",
-    author: "James Clear",
-    genre: "Self-Help",
-    available: true,
-    cover: "bg-violet-200",
-  },
-  {
-    id: 7,
-    title: "The Alchemist",
-    author: "Paulo Coelho",
-    genre: "Fiction",
-    available: true,
-    cover: "bg-yellow-200",
-  },
-  {
-    id: 8,
-    title: "Thinking, Fast and Slow",
-    author: "Daniel Kahneman",
-    genre: "Non-Fiction",
-    available: true,
-    cover: "bg-teal-200",
-  },
-  {
-    id: 9,
-    title: "The Hobbit",
-    author: "J.R.R. Tolkien",
-    genre: "Fantasy",
-    available: false,
-    cover: "bg-lime-200",
-  },
-];
+/* ---------------------------------------------------------- */
+/*  Hero                                                       */
+/* ---------------------------------------------------------- */
 
-const genres = ["All", "Fiction", "Non-Fiction", "Sci-Fi", "Dystopian", "Self-Help", "Fantasy"];
+function Hero() {
+  return (
+    <section className="relative overflow-hidden bg-white">
+      <div className="absolute inset-0 bg-grid-azure [mask-image:linear-gradient(to_bottom,white,transparent_85%)]" />
+      <div className="absolute inset-0 bg-azure-glow" />
 
-const stats = [
-  { label: "Books in Collection", value: "12,400+" },
-  { label: "Active Members", value: "3,200+" },
-  { label: "Books Borrowed Today", value: "148" },
-  { label: "Years of Service", value: "25" },
-];
+      <div className="relative mx-auto max-w-7xl px-5 pb-20 pt-16 md:px-8 md:pb-28 md:pt-24">
+        <div className="mx-auto max-w-3xl text-center">
+          <span className="inline-flex items-center gap-2 rounded-full border border-azure-200 bg-azure-50 px-3 py-1 text-xs font-semibold uppercase tracking-widest text-azure-700">
+            <span className="h-1.5 w-1.5 rounded-full bg-azure-500" />
+            Open 24 / 7 in Madhubani
+          </span>
+          <h1 className="mt-6 text-4xl font-semibold leading-[1.1] tracking-tight text-ink-900 md:text-6xl">
+            A focused space to{" "}
+            <span className="text-azure-500">study, read, and grow.</span>
+          </h1>
+          <p className="mx-auto mt-6 max-w-xl text-base leading-relaxed text-ink-600 md:text-lg">
+            {libraryInfo.shortDescription}
+          </p>
+          <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
+            <Link
+              href="/login?role=member"
+              className="inline-flex items-center gap-2 rounded-full bg-azure-500 px-6 py-3 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-azure-600"
+            >
+              Reserve your seat
+              <svg
+                className="h-4 w-4"
+                viewBox="0 0 20 20"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M5 10h10m0 0-4-4m4 4-4 4"
+                />
+              </svg>
+            </Link>
+            <a
+              href="#facilities"
+              className="inline-flex items-center gap-2 rounded-full border border-ink-200 bg-white px-6 py-3 text-sm font-semibold text-ink-700 transition-colors hover:border-ink-300 hover:bg-ink-50"
+            >
+              Explore facilities
+            </a>
+          </div>
+          <p className="mt-6 font-mono text-xs uppercase tracking-widest text-ink-500">
+            est_2020 // capacity_{libraryInfo.capacity} // shifts_24x7
+          </p>
+        </div>
 
-export default function Home() {
-  const [selectedGenre, setSelectedGenre] = useState("All");
-  const [search, setSearch] = useState("");
-  const [menuOpen, setMenuOpen] = useState(false);
+        <div className="relative mx-auto mt-14 max-w-5xl">
+          <div className="rounded-2xl border border-ink-100 bg-white p-1 shadow-card">
+            <div className="overflow-hidden rounded-xl border border-ink-100">
+              <div className="grid grid-cols-3 gap-px bg-ink-100">
+                {[
+                  { label: "Quiet zones", value: "8" },
+                  { label: "Cabins", value: "120" },
+                  { label: "Always open", value: "24/7" },
+                ].map((item) => (
+                  <div
+                    key={item.label}
+                    className="bg-white px-6 py-8 text-center"
+                  >
+                    <p className="font-mono text-3xl font-semibold tracking-tight text-azure-500 md:text-4xl">
+                      {item.value}
+                    </p>
+                    <p className="mt-2 text-xs uppercase tracking-widest text-ink-500">
+                      {item.label}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
 
-  const filtered = books.filter((b) => {
-    const matchesGenre = selectedGenre === "All" || b.genre === selectedGenre;
-    const matchesSearch =
-      b.title.toLowerCase().includes(search.toLowerCase()) ||
-      b.author.toLowerCase().includes(search.toLowerCase());
-    return matchesGenre && matchesSearch;
-  });
+/* ---------------------------------------------------------- */
+/*  Stats                                                      */
+/* ---------------------------------------------------------- */
+
+function Stats() {
+  const stats = [
+    { value: "500+", label: "Members" },
+    { value: "120", label: "Seats" },
+    { value: "98%", label: "Renewal rate" },
+    { value: "5★", label: "Rated by students" },
+  ];
 
   return (
-    <div className="min-h-screen bg-stone-50 text-stone-800 font-sans">
-      {/* Navbar */}
-      <nav className="sticky top-0 z-50 bg-white/90 backdrop-blur border-b border-stone-200 shadow-sm">
-        <div className="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <span className="text-2xl">📚</span>
-            <span className="text-xl font-bold text-stone-900 tracking-tight">
-              mani<span className="text-amber-600">library</span>
-            </span>
-          </div>
-          {/* Desktop nav */}
-          <div className="hidden md:flex items-center gap-8 text-sm font-medium text-stone-600">
-            <a href="#about" className="hover:text-amber-600 transition-colors">About</a>
-            <a href="#catalogue" className="hover:text-amber-600 transition-colors">Catalogue</a>
-            <a href="#membership" className="hover:text-amber-600 transition-colors">Membership</a>
-            <a href="#contact" className="hover:text-amber-600 transition-colors">Contact</a>
-          </div>
-          <a
-            href="#membership"
-            className="hidden md:inline-flex items-center gap-2 bg-amber-600 hover:bg-amber-700 text-white text-sm font-semibold px-5 py-2.5 rounded-full transition-colors"
+    <section className="border-y border-ink-100 bg-surface-muted">
+      <div className="mx-auto grid max-w-7xl grid-cols-2 gap-px bg-ink-100 px-0 md:grid-cols-4 md:px-0">
+        {stats.map((s) => (
+          <div
+            key={s.label}
+            className="bg-surface-muted px-6 py-8 text-center"
           >
-            Join Now
-          </a>
-          {/* Mobile hamburger */}
-          <button
-            className="md:hidden p-2 rounded-lg hover:bg-stone-100 transition-colors"
-            onClick={() => setMenuOpen(!menuOpen)}
-          >
-            <span className="text-xl">{menuOpen ? "✕" : "☰"}</span>
-          </button>
-        </div>
-        {/* Mobile menu */}
-        {menuOpen && (
-          <div className="md:hidden border-t border-stone-100 bg-white px-6 py-4 flex flex-col gap-4 text-sm font-medium text-stone-700">
-            <a href="#about" onClick={() => setMenuOpen(false)} className="hover:text-amber-600">About</a>
-            <a href="#catalogue" onClick={() => setMenuOpen(false)} className="hover:text-amber-600">Catalogue</a>
-            <a href="#membership" onClick={() => setMenuOpen(false)} className="hover:text-amber-600">Membership</a>
-            <a href="#contact" onClick={() => setMenuOpen(false)} className="hover:text-amber-600">Contact</a>
-            <a href="#membership" className="bg-amber-600 text-white text-center py-2 rounded-full">Join Now</a>
+            <p className="text-3xl font-semibold tracking-tight text-ink-900">
+              {s.value}
+            </p>
+            <p className="mt-1 text-sm text-ink-500">{s.label}</p>
           </div>
-        )}
-      </nav>
+        ))}
+      </div>
+    </section>
+  );
+}
 
-      {/* Hero */}
-      <section className="relative overflow-hidden bg-gradient-to-br from-stone-900 via-stone-800 to-amber-900 text-white">
-        <div className="absolute inset-0 opacity-10 pointer-events-none"
-          style={{ backgroundImage: "url(\"data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='1'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E\")" }}
-        />
-        <div className="relative max-w-6xl mx-auto px-6 py-28 md:py-36">
-          <p className="text-amber-400 text-sm font-semibold tracking-widest uppercase mb-4">
-            Welcome to manilibrary.com
+/* ---------------------------------------------------------- */
+/*  Facilities                                                 */
+/* ---------------------------------------------------------- */
+
+function Facilities() {
+  return (
+    <section id="facilities" className="bg-white">
+      <div className="mx-auto max-w-7xl px-5 py-20 md:px-8 md:py-28">
+        <div className="mx-auto max-w-2xl text-center">
+          <p className="text-xs font-semibold uppercase tracking-widest text-azure-500">
+            Facilities
           </p>
-          <h1 className="text-4xl md:text-6xl font-extrabold leading-tight tracking-tight max-w-3xl mb-6">
-            Your neighbourhood library, <span className="text-amber-400">reimagined.</span>
-          </h1>
-          <p className="text-stone-300 text-lg md:text-xl max-w-xl leading-relaxed mb-10">
-            Discover thousands of books, reserve your next read online, and join a community of curious minds — all in one place.
+          <h2 className="mt-3 text-3xl font-semibold tracking-tight text-ink-900 md:text-4xl">
+            Everything you need to focus.
+          </h2>
+          <p className="mt-4 text-base text-ink-600">
+            Thoughtfully designed for serious learners — from civil services
+            aspirants to college students.
           </p>
-          <div className="flex flex-wrap gap-4">
-            <a
-              href="#catalogue"
-              className="bg-amber-500 hover:bg-amber-400 text-stone-900 font-bold px-7 py-3.5 rounded-full transition-colors text-sm shadow-lg"
-            >
-              Browse Catalogue
-            </a>
-            <a
-              href="#membership"
-              className="border border-white/30 hover:bg-white/10 text-white font-semibold px-7 py-3.5 rounded-full transition-colors text-sm"
-            >
-              Become a Member
-            </a>
-          </div>
         </div>
-      </section>
 
-      {/* Stats */}
-      <section className="bg-amber-600 text-white">
-        <div className="max-w-6xl mx-auto px-6 py-10 grid grid-cols-2 md:grid-cols-4 gap-6 text-center">
-          {stats.map((s) => (
-            <div key={s.label}>
-              <p className="text-3xl font-extrabold">{s.value}</p>
-              <p className="text-amber-100 text-sm mt-1">{s.label}</p>
-            </div>
+        <div className="mt-14 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          {libraryInfo.facilities.map((f) => (
+            <article
+              key={f.id}
+              className="group rounded-2xl border border-ink-100 bg-white p-6 transition-all hover:border-azure-200 hover:shadow-card-hover"
+            >
+              <div className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-azure-50 text-azure-500 transition-colors group-hover:bg-azure-500 group-hover:text-white">
+                <FacilityIcon id={f.id} />
+              </div>
+              <h3 className="mt-5 text-base font-semibold text-ink-900">
+                {f.title}
+              </h3>
+              <p className="mt-2 text-sm leading-relaxed text-ink-600">
+                {f.description}
+              </p>
+            </article>
           ))}
         </div>
-      </section>
+      </div>
+    </section>
+  );
+}
 
-      {/* About */}
-      <section id="about" className="max-w-6xl mx-auto px-6 py-20 md:py-28">
-        <div className="grid md:grid-cols-2 gap-12 items-center">
-          <div>
-            <p className="text-amber-600 text-sm font-semibold tracking-widest uppercase mb-3">About Us</p>
-            <h2 className="text-3xl md:text-4xl font-bold text-stone-900 leading-snug mb-5">
-              More than a library — a place to grow.
-            </h2>
-            <p className="text-stone-500 leading-relaxed mb-4">
-              ManiLibrary has been a cornerstone of the community for over 25 years. We believe that access to knowledge should be free, welcoming, and joyful for everyone regardless of age or background.
-            </p>
-            <p className="text-stone-500 leading-relaxed">
-              From quiet reading nooks to vibrant book clubs and author talks, our doors are open six days a week. Our digital catalogue lets you search, reserve, and track your borrowing history from anywhere.
-            </p>
-          </div>
-          <div className="grid grid-cols-2 gap-4">
+function FacilityIcon({ id }: { id: string }) {
+  const stroke = "currentColor";
+  const common = {
+    viewBox: "0 0 24 24",
+    fill: "none",
+    stroke,
+    strokeWidth: 1.8,
+    strokeLinecap: "round" as const,
+    strokeLinejoin: "round" as const,
+    className: "h-5 w-5",
+  };
+
+  switch (id) {
+    case "ac":
+      return (
+        <svg {...common}>
+          <path d="M3 8h18M3 16h18M12 4v16M7 8l-2 4 2 4M17 8l2 4-2 4" />
+        </svg>
+      );
+    case "247":
+      return (
+        <svg {...common}>
+          <circle cx="12" cy="12" r="9" />
+          <path d="M12 7v5l3 2" />
+        </svg>
+      );
+    case "wifi":
+      return (
+        <svg {...common}>
+          <path d="M5 12.55a11 11 0 0 1 14 0M8.5 16.05a6 6 0 0 1 7 0M12 20h.01" />
+        </svg>
+      );
+    case "power":
+      return (
+        <svg {...common}>
+          <path d="M13 2 4 14h7l-1 8 9-12h-7l1-8Z" />
+        </svg>
+      );
+    case "lockers":
+      return (
+        <svg {...common}>
+          <rect x="4" y="3" width="16" height="18" rx="2" />
+          <path d="M8 8h.01M8 14h.01M16 12h.01" />
+          <path d="M12 3v18" />
+        </svg>
+      );
+    case "water":
+      return (
+        <svg {...common}>
+          <path d="M12 3s6 7 6 12a6 6 0 0 1-12 0c0-5 6-12 6-12Z" />
+        </svg>
+      );
+    case "silent":
+      return (
+        <svg {...common}>
+          <path d="M11 5 6 9H3v6h3l5 4V5Z" />
+          <path d="m22 9-6 6M16 9l6 6" />
+        </svg>
+      );
+    case "discussion":
+      return (
+        <svg {...common}>
+          <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2Z" />
+        </svg>
+      );
+    default:
+      return (
+        <svg {...common}>
+          <circle cx="12" cy="12" r="9" />
+        </svg>
+      );
+  }
+}
+
+/* ---------------------------------------------------------- */
+/*  About                                                      */
+/* ---------------------------------------------------------- */
+
+function About() {
+  return (
+    <section id="about" className="bg-surface-muted">
+      <div className="mx-auto grid max-w-7xl gap-12 px-5 py-20 md:grid-cols-2 md:gap-16 md:px-8 md:py-28">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-widest text-azure-500">
+            About {libraryInfo.name}
+          </p>
+          <h2 className="mt-3 text-3xl font-semibold tracking-tight text-ink-900 md:text-4xl">
+            A neighbourhood library, built for the next generation.
+          </h2>
+          <p className="mt-5 text-base leading-relaxed text-ink-600">
+            Founded in {libraryInfo.established} by {libraryInfo.owner.name},
+            {" "}
+            {libraryInfo.name} began as a single hall with twenty seats. Today
+            it hosts over a hundred students preparing for competitive exams,
+            board exams and college coursework — all under one quiet roof.
+          </p>
+          <p className="mt-4 text-base leading-relaxed text-ink-600">
+            We focus on the things that matter: clean air, dependable power, a
+            comfortable seat, and a community that takes its goals seriously.
+          </p>
+
+          <dl className="mt-8 grid grid-cols-2 gap-4">
             {[
-              { icon: "🏛️", title: "Physical Library", desc: "Open Mon–Sat, 9 AM – 8 PM" },
-              { icon: "💻", title: "Online Catalogue", desc: "Search & reserve 24/7" },
-              { icon: "📖", title: "Book Clubs", desc: "Weekly themed reading groups" },
-              { icon: "🎙️", title: "Author Talks", desc: "Monthly literary events" },
+              { label: "Founded", value: libraryInfo.established },
+              { label: "Capacity", value: libraryInfo.capacity },
+              { label: "Hours", value: libraryInfo.hours },
+              { label: "Location", value: libraryInfo.address.city },
             ].map((item) => (
-              <div key={item.title} className="bg-white rounded-2xl p-6 shadow-sm border border-stone-100 hover:shadow-md transition-shadow">
-                <div className="text-3xl mb-3">{item.icon}</div>
-                <h3 className="font-semibold text-stone-800 mb-1">{item.title}</h3>
-                <p className="text-stone-500 text-sm">{item.desc}</p>
+              <div
+                key={item.label}
+                className="rounded-xl border border-ink-100 bg-white px-4 py-3"
+              >
+                <dt className="font-mono text-[10px] uppercase tracking-widest text-ink-500">
+                  {item.label}
+                </dt>
+                <dd className="mt-1 text-sm font-semibold text-ink-900">
+                  {item.value}
+                </dd>
               </div>
             ))}
-          </div>
+          </dl>
         </div>
-      </section>
 
-      {/* Catalogue */}
-      <section id="catalogue" className="bg-stone-100 py-20 md:py-28">
-        <div className="max-w-6xl mx-auto px-6">
-          <div className="text-center mb-12">
-            <p className="text-amber-600 text-sm font-semibold tracking-widest uppercase mb-3">Our Collection</p>
-            <h2 className="text-3xl md:text-4xl font-bold text-stone-900 mb-4">Browse the Catalogue</h2>
-            <p className="text-stone-500 max-w-xl mx-auto">
-              Search through our curated selection. Green badge means available for borrowing right now.
+        <div className="relative">
+          <div className="rounded-2xl border border-ink-100 bg-white p-8 shadow-card">
+            <p className="font-mono text-xs uppercase tracking-widest text-azure-500">
+              // owner_note
             </p>
-          </div>
-
-          {/* Search + Filter */}
-          <div className="flex flex-col md:flex-row gap-4 mb-8">
-            <input
-              type="text"
-              placeholder="Search by title or author…"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="flex-1 bg-white border border-stone-200 rounded-full px-5 py-3 text-sm text-stone-800 placeholder-stone-400 focus:outline-none focus:ring-2 focus:ring-amber-400 shadow-sm"
-            />
-            <div className="flex flex-wrap gap-2">
-              {genres.map((g) => (
-                <button
-                  key={g}
-                  onClick={() => setSelectedGenre(g)}
-                  className={`px-4 py-2 rounded-full text-sm font-medium transition-colors border ${
-                    selectedGenre === g
-                      ? "bg-amber-600 text-white border-amber-600"
-                      : "bg-white text-stone-600 border-stone-200 hover:border-amber-400"
-                  }`}
-                >
-                  {g}
-                </button>
-              ))}
+            <blockquote className="mt-4 text-lg leading-relaxed text-ink-800">
+              &ldquo;We built {libraryInfo.name} because every serious student
+              deserves a quiet seat, a stable power outlet, and a community
+              that respects silence. That promise hasn&rsquo;t changed in five
+              years.&rdquo;
+            </blockquote>
+            <div className="mt-6 flex items-center gap-3 border-t border-ink-100 pt-5">
+              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-azure-500 font-mono text-sm font-semibold text-white">
+                {libraryInfo.owner.name
+                  .split(" ")
+                  .map((p) => p[0])
+                  .join("")}
+              </div>
+              <div>
+                <p className="text-sm font-semibold text-ink-900">
+                  {libraryInfo.owner.name}
+                </p>
+                <p className="text-xs text-ink-500">{libraryInfo.owner.role}</p>
+              </div>
             </div>
           </div>
-
-          {/* Book Grid */}
-          {filtered.length === 0 ? (
-            <p className="text-center text-stone-400 py-16">No books match your search.</p>
-          ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
-              {filtered.map((book) => (
-                <div
-                  key={book.id}
-                  className="bg-white rounded-2xl overflow-hidden shadow-sm border border-stone-100 hover:shadow-md transition-shadow group"
-                >
-                  <div className={`${book.cover} h-36 flex items-end p-4`}>
-                    <span className="text-4xl select-none">📗</span>
-                  </div>
-                  <div className="p-5">
-                    <div className="flex items-start justify-between gap-2 mb-1">
-                      <h3 className="font-semibold text-stone-900 leading-snug group-hover:text-amber-700 transition-colors">
-                        {book.title}
-                      </h3>
-                      <span
-                        className={`shrink-0 text-xs font-semibold px-2 py-0.5 rounded-full ${
-                          book.available
-                            ? "bg-emerald-100 text-emerald-700"
-                            : "bg-red-100 text-red-600"
-                        }`}
-                      >
-                        {book.available ? "Available" : "Borrowed"}
-                      </span>
-                    </div>
-                    <p className="text-stone-500 text-sm mb-3">{book.author}</p>
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs bg-stone-100 text-stone-500 px-3 py-1 rounded-full">
-                        {book.genre}
-                      </span>
-                      {book.available && (
-                        <button className="text-xs font-semibold text-amber-600 hover:text-amber-800 transition-colors">
-                          Reserve →
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
         </div>
-      </section>
+      </div>
+    </section>
+  );
+}
 
-      {/* Membership */}
-      <section id="membership" className="max-w-6xl mx-auto px-6 py-20 md:py-28">
-        <div className="text-center mb-14">
-          <p className="text-amber-600 text-sm font-semibold tracking-widest uppercase mb-3">Membership</p>
-          <h2 className="text-3xl md:text-4xl font-bold text-stone-900 mb-4">Choose your plan</h2>
-          <p className="text-stone-500 max-w-md mx-auto">All plans include full access to the physical library. Upgrade for more borrows and perks.</p>
+/* ---------------------------------------------------------- */
+/*  Plans                                                      */
+/* ---------------------------------------------------------- */
+
+function Plans() {
+  return (
+    <section id="plans" className="bg-white">
+      <div className="mx-auto max-w-7xl px-5 py-20 md:px-8 md:py-28">
+        <div className="mx-auto max-w-2xl text-center">
+          <p className="text-xs font-semibold uppercase tracking-widest text-azure-500">
+            Membership
+          </p>
+          <h2 className="mt-3 text-3xl font-semibold tracking-tight text-ink-900 md:text-4xl">
+            Simple plans, no surprises.
+          </h2>
+          <p className="mt-4 text-base text-ink-600">
+            Pick the shift that fits your schedule. Upgrade or downgrade any
+            time.
+          </p>
         </div>
-        <div className="grid md:grid-cols-3 gap-8">
-          {[
-            {
-              name: "Basic",
-              price: "Free",
-              desc: "Perfect for casual readers.",
-              features: ["2 books at a time", "Online catalogue access", "Monthly newsletter"],
-              highlight: false,
-            },
-            {
-              name: "Reader",
-              price: "₹149/mo",
-              desc: "Most popular choice.",
-              features: ["5 books at a time", "Priority reservations", "Book club access", "eBook lending"],
-              highlight: true,
-            },
-            {
-              name: "Scholar",
-              price: "₹299/mo",
-              desc: "For the dedicated bibliophile.",
-              features: ["Unlimited books", "Research assistance", "Author event seats", "Home delivery"],
-              highlight: false,
-            },
-          ].map((plan) => (
-            <div
-              key={plan.name}
-              className={`rounded-2xl p-8 border flex flex-col ${
-                plan.highlight
-                  ? "bg-amber-600 text-white border-amber-600 shadow-xl scale-105"
-                  : "bg-white border-stone-200 shadow-sm hover:shadow-md transition-shadow"
-              }`}
-            >
-              <p className={`text-sm font-semibold uppercase tracking-widest mb-2 ${plan.highlight ? "text-amber-200" : "text-amber-600"}`}>
-                {plan.name}
-              </p>
-              <p className={`text-4xl font-extrabold mb-1 ${plan.highlight ? "text-white" : "text-stone-900"}`}>
-                {plan.price}
-              </p>
-              <p className={`text-sm mb-6 ${plan.highlight ? "text-amber-100" : "text-stone-500"}`}>{plan.desc}</p>
-              <ul className="space-y-2 mb-8 flex-1">
-                {plan.features.map((f) => (
-                  <li key={f} className={`flex items-center gap-2 text-sm ${plan.highlight ? "text-amber-50" : "text-stone-600"}`}>
-                    <span className={plan.highlight ? "text-amber-200" : "text-amber-500"}>✓</span> {f}
-                  </li>
-                ))}
-              </ul>
-              <button
-                className={`w-full py-3 rounded-full font-semibold text-sm transition-colors ${
-                  plan.highlight
-                    ? "bg-white text-amber-700 hover:bg-amber-50"
-                    : "bg-amber-600 text-white hover:bg-amber-700"
+
+        <div className="mt-14 grid gap-6 lg:grid-cols-3">
+          {libraryInfo.plans.map((plan) => {
+            const popular = "popular" in plan && plan.popular;
+            return (
+              <article
+                key={plan.id}
+                className={`relative flex flex-col rounded-2xl border bg-white p-7 ${
+                  popular
+                    ? "border-azure-500 shadow-card-hover ring-1 ring-azure-500"
+                    : "border-ink-100 shadow-card"
                 }`}
               >
-                Get Started
-              </button>
-            </div>
-          ))}
+                {popular && (
+                  <span className="absolute -top-3 left-7 inline-flex items-center rounded-full bg-azure-500 px-3 py-1 text-[10px] font-semibold uppercase tracking-widest text-white">
+                    Most popular
+                  </span>
+                )}
+                <header>
+                  <p className="font-mono text-xs uppercase tracking-widest text-ink-500">
+                    {plan.hours}
+                  </p>
+                  <h3 className="mt-2 text-xl font-semibold text-ink-900">
+                    {plan.name}
+                  </h3>
+                  <p className="mt-4 flex items-baseline gap-1.5">
+                    <span className="text-4xl font-semibold tracking-tight text-ink-900">
+                      {libraryInfo.currencySymbol}
+                      {plan.price.toLocaleString("en-IN")}
+                    </span>
+                    <span className="text-sm text-ink-500">
+                      / {plan.duration.replace("per ", "")}
+                    </span>
+                  </p>
+                </header>
+                <ul className="mt-6 flex-1 space-y-3 border-t border-ink-100 pt-6">
+                  {plan.features.map((f) => (
+                    <li key={f} className="flex items-start gap-2.5 text-sm">
+                      <svg
+                        className="mt-0.5 h-4 w-4 shrink-0 text-azure-500"
+                        viewBox="0 0 20 20"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2.4"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          d="m4.5 10.5 3.5 3.5 7.5-8"
+                        />
+                      </svg>
+                      <span className="text-ink-700">{f}</span>
+                    </li>
+                  ))}
+                </ul>
+                <Link
+                  href="/login?role=member"
+                  className={`mt-7 inline-flex w-full items-center justify-center rounded-full px-5 py-2.5 text-sm font-semibold transition-colors ${
+                    popular
+                      ? "bg-azure-500 text-white hover:bg-azure-600"
+                      : "border border-ink-200 text-ink-800 hover:border-ink-300 hover:bg-ink-50"
+                  }`}
+                >
+                  Choose {plan.name}
+                </Link>
+              </article>
+            );
+          })}
         </div>
-      </section>
+      </div>
+    </section>
+  );
+}
 
-      {/* Contact */}
-      <section id="contact" className="bg-stone-900 text-white py-20 md:py-28">
-        <div className="max-w-6xl mx-auto px-6 grid md:grid-cols-2 gap-12 items-start">
+/* ---------------------------------------------------------- */
+/*  Contact                                                    */
+/* ---------------------------------------------------------- */
+
+function Contact() {
+  const phoneHref = `tel:${libraryInfo.contact.primaryPhone.replace(/\s/g, "")}`;
+  const mailHref = `mailto:${libraryInfo.contact.supportEmail}`;
+  const addr = libraryInfo.address;
+
+  return (
+    <section id="contact" className="bg-surface-muted">
+      <div className="mx-auto max-w-7xl px-5 py-20 md:px-8 md:py-28">
+        <div className="grid gap-12 md:grid-cols-2">
           <div>
-            <p className="text-amber-400 text-sm font-semibold tracking-widest uppercase mb-3">Get in Touch</p>
-            <h2 className="text-3xl md:text-4xl font-bold mb-5 leading-snug">We'd love to hear from you.</h2>
-            <p className="text-stone-400 leading-relaxed mb-6">
-              Whether you have questions about membership, want to donate books, or just want to say hello — our team is here.
+            <p className="text-xs font-semibold uppercase tracking-widest text-azure-500">
+              Get in touch
+            </p>
+            <h2 className="mt-3 text-3xl font-semibold tracking-tight text-ink-900 md:text-4xl">
+              Visit us, or just say hello.
+            </h2>
+            <p className="mt-4 max-w-md text-base text-ink-600">
+              Drop by for a tour, or call us for any membership question. We
+              reply quickly.
             </p>
 
-            {/* Address */}
-            <div className="flex items-start gap-3 text-stone-300 text-sm mb-8">
-              <span className="mt-0.5">📍</span>
-              <span>Mani Library, Near Townclub, Madhubani, Bihar</span>
-            </div>
-
-            {/* Development team */}
-            <p className="text-xs font-semibold uppercase tracking-widest text-stone-500 mb-4">Development Team</p>
-            <div className="space-y-4">
-
-              {/* Abhishek — dev / web */}
-              <div className="bg-stone-800 border border-stone-700 rounded-2xl p-5 flex items-center gap-4">
-                <div className="shrink-0 w-14 h-14 rounded-full bg-amber-900/60 border border-amber-700 flex items-center justify-center overflow-hidden">
-                  <svg viewBox="0 0 56 56" fill="none" xmlns="http://www.w3.org/2000/svg" className="w-14 h-14">
-                    {/* body */}
-                    <rect width="56" height="56" rx="28" fill="#78350f" fillOpacity="0.5"/>
-                    {/* torso */}
-                    <rect x="16" y="34" width="24" height="14" rx="4" fill="#92400e"/>
-                    {/* laptop */}
-                    <rect x="18" y="37" width="20" height="12" rx="2" fill="#1c1917"/>
-                    <rect x="19" y="38" width="18" height="9" rx="1" fill="#0ea5e9" fillOpacity="0.7"/>
-                    <rect x="16" y="49" width="24" height="2" rx="1" fill="#44403c"/>
-                    {/* head */}
-                    <circle cx="28" cy="24" r="9" fill="#d97706"/>
-                    {/* hair */}
-                    <path d="M19 22c0-5 4-9 9-9s9 4 9 9" fill="#1c1917"/>
-                    {/* eyes */}
-                    <circle cx="25" cy="24" r="1.2" fill="#1c1917"/>
-                    <circle cx="31" cy="24" r="1.2" fill="#1c1917"/>
-                    {/* smile */}
-                    <path d="M25 27.5 Q28 30 31 27.5" stroke="#1c1917" strokeWidth="1.2" strokeLinecap="round" fill="none"/>
-                  </svg>
-                </div>
-                <div className="min-w-0">
-                  <p className="font-semibold text-white leading-tight">Abhishek Kumar Chaudhary</p>
-                  <p className="text-stone-400 text-xs mb-1.5">Web Developer</p>
-                  <a
-                    href="https://abhishek-chaudhary.com#contact"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1.5 text-amber-400 hover:text-amber-300 text-sm transition-colors break-all"
-                  >
-                    <svg className="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"/>
-                    </svg>
-                    abhishek-chaudhary.com#contact
-                  </a>
-                </div>
-              </div>
-
-              {/* Saroj — library manager */}
-              <div className="bg-stone-800 border border-stone-700 rounded-2xl p-5 flex items-center gap-4">
-                <div className="shrink-0 w-14 h-14 rounded-full bg-emerald-900/60 border border-emerald-700 flex items-center justify-center overflow-hidden">
-                  <svg viewBox="0 0 56 56" fill="none" xmlns="http://www.w3.org/2000/svg" className="w-14 h-14">
-                    <rect width="56" height="56" rx="28" fill="#064e3b" fillOpacity="0.5"/>
-                    {/* body */}
-                    <rect x="16" y="34" width="24" height="14" rx="4" fill="#065f46"/>
-                    {/* book held */}
-                    <rect x="22" y="37" width="12" height="9" rx="1.5" fill="#d97706"/>
-                    <line x1="28" y1="37" x2="28" y2="46" stroke="#92400e" strokeWidth="1"/>
-                    {/* head */}
-                    <circle cx="28" cy="24" r="9" fill="#b45309"/>
-                    {/* hair */}
-                    <path d="M19 22c0-5 4-9 9-9s9 4 9 9" fill="#1c1917"/>
-                    {/* glasses */}
-                    <rect x="22" y="22.5" width="5" height="3.5" rx="1.5" stroke="#d1d5db" strokeWidth="1" fill="none"/>
-                    <rect x="29" y="22.5" width="5" height="3.5" rx="1.5" stroke="#d1d5db" strokeWidth="1" fill="none"/>
-                    <line x1="27" y1="24.2" x2="29" y2="24.2" stroke="#d1d5db" strokeWidth="1"/>
-                    {/* eyes */}
-                    <circle cx="24.5" cy="24.2" r="0.9" fill="#1c1917"/>
-                    <circle cx="31.5" cy="24.2" r="0.9" fill="#1c1917"/>
-                    {/* smile */}
-                    <path d="M25 27.5 Q28 30 31 27.5" stroke="#1c1917" strokeWidth="1.2" strokeLinecap="round" fill="none"/>
-                  </svg>
-                </div>
-                <div className="min-w-0">
-                  <p className="font-semibold text-white leading-tight">Saroj Kumar</p>
-                  <p className="text-stone-400 text-xs mb-1.5">Library Manager</p>
-                  <a
-                    href="tel:+916205573763"
-                    className="inline-flex items-center gap-1.5 text-amber-400 hover:text-amber-300 text-sm transition-colors"
-                  >
-                    <svg className="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"/>
-                    </svg>
-                    +91 6205573763
-                  </a>
-                </div>
-              </div>
-
+            <div className="mt-8 space-y-4">
+              <ContactRow
+                title="Address"
+                value={`${addr.line1}, ${addr.city}, ${addr.state} ${addr.pincode}`}
+                href={addr.mapsUrl}
+              />
+              <ContactRow
+                title="Phone"
+                value={libraryInfo.contact.primaryPhone}
+                href={phoneHref}
+              />
+              <ContactRow
+                title="Email"
+                value={libraryInfo.contact.supportEmail}
+                href={mailHref}
+              />
+              <ContactRow
+                title="Hours"
+                value={libraryInfo.hours}
+              />
             </div>
           </div>
-          <form className="bg-stone-800 rounded-2xl p-8 space-y-5 border border-stone-700">
-            <div className="grid sm:grid-cols-2 gap-4">
-              <div>
-                <label className="text-xs text-stone-400 uppercase tracking-widest block mb-1.5">Name</label>
-                <input
-                  type="text"
-                  placeholder="Your name"
-                  className="w-full bg-stone-700 border border-stone-600 rounded-xl px-4 py-3 text-sm text-white placeholder-stone-400 focus:outline-none focus:ring-2 focus:ring-amber-500"
-                />
-              </div>
-              <div>
-                <label className="text-xs text-stone-400 uppercase tracking-widest block mb-1.5">Email</label>
-                <input
-                  type="email"
-                  placeholder="you@email.com"
-                  className="w-full bg-stone-700 border border-stone-600 rounded-xl px-4 py-3 text-sm text-white placeholder-stone-400 focus:outline-none focus:ring-2 focus:ring-amber-500"
-                />
-              </div>
-            </div>
-            <div>
-              <label className="text-xs text-stone-400 uppercase tracking-widest block mb-1.5">Subject</label>
-              <input
-                type="text"
-                placeholder="How can we help?"
-                className="w-full bg-stone-700 border border-stone-600 rounded-xl px-4 py-3 text-sm text-white placeholder-stone-400 focus:outline-none focus:ring-2 focus:ring-amber-500"
-              />
-            </div>
-            <div>
-              <label className="text-xs text-stone-400 uppercase tracking-widest block mb-1.5">Message</label>
-              <textarea
-                rows={4}
-                placeholder="Write your message…"
-                className="w-full bg-stone-700 border border-stone-600 rounded-xl px-4 py-3 text-sm text-white placeholder-stone-400 focus:outline-none focus:ring-2 focus:ring-amber-500 resize-none"
-              />
-            </div>
-            <button
-              type="submit"
-              className="w-full bg-amber-500 hover:bg-amber-400 text-stone-900 font-bold py-3.5 rounded-full transition-colors text-sm"
-            >
-              Send Message
-            </button>
-          </form>
-        </div>
-      </section>
 
-      {/* Footer */}
-      <footer className="bg-stone-950 text-stone-500 text-sm py-8 text-center">
-        <div className="flex items-center justify-center gap-2 mb-2">
-          <span className="text-lg">📚</span>
-          <span className="font-semibold text-stone-300">
-            mani<span className="text-amber-500">library</span>.com
-          </span>
+          <div className="rounded-2xl border border-ink-100 bg-white p-7 shadow-card">
+            <h3 className="text-lg font-semibold text-ink-900">
+              Quick enquiry
+            </h3>
+            <p className="mt-1 text-sm text-ink-600">
+              Send us a note and we&rsquo;ll get back the same day.
+            </p>
+            <form
+              className="mt-6 space-y-4"
+              action={mailHref}
+              method="post"
+              encType="text/plain"
+            >
+              <Field name="name" label="Name" placeholder="Your name" />
+              <Field
+                name="email"
+                label="Email"
+                type="email"
+                placeholder="you@email.com"
+              />
+              <Field
+                name="phone"
+                label="Phone"
+                type="tel"
+                placeholder="+91 ..."
+              />
+              <div>
+                <label className="mb-1.5 block font-mono text-[10px] uppercase tracking-widest text-ink-500">
+                  Message
+                </label>
+                <textarea
+                  name="message"
+                  rows={4}
+                  placeholder="How can we help?"
+                  className="w-full resize-none rounded-xl border border-ink-200 bg-white px-4 py-3 text-sm text-ink-900 placeholder-ink-400 outline-none transition focus:border-azure-500 focus:ring-4 focus:ring-azure-500/15"
+                />
+              </div>
+              <button
+                type="submit"
+                className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-azure-500 px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-azure-600"
+              >
+                Send message
+              </button>
+            </form>
+          </div>
         </div>
-        <p>© {new Date().getFullYear()} ManiLibrary. Built with love for books.</p>
-      </footer>
+      </div>
+    </section>
+  );
+}
+
+function ContactRow({
+  title,
+  value,
+  href,
+}: {
+  title: string;
+  value: string;
+  href?: string;
+}) {
+  const inner = (
+    <>
+      <p className="font-mono text-[10px] uppercase tracking-widest text-ink-500">
+        {title}
+      </p>
+      <p className="mt-1 text-sm font-medium text-ink-800">{value}</p>
+    </>
+  );
+
+  return (
+    <div className="rounded-xl border border-ink-100 bg-white px-4 py-3 transition-colors hover:border-azure-200">
+      {href ? (
+        <a href={href} target={href.startsWith("http") ? "_blank" : undefined} rel="noopener noreferrer">
+          {inner}
+        </a>
+      ) : (
+        inner
+      )}
+    </div>
+  );
+}
+
+function Field({
+  name,
+  label,
+  type = "text",
+  placeholder,
+}: {
+  name: string;
+  label: string;
+  type?: string;
+  placeholder?: string;
+}) {
+  return (
+    <div>
+      <label
+        htmlFor={name}
+        className="mb-1.5 block font-mono text-[10px] uppercase tracking-widest text-ink-500"
+      >
+        {label}
+      </label>
+      <input
+        id={name}
+        name={name}
+        type={type}
+        placeholder={placeholder}
+        className="w-full rounded-xl border border-ink-200 bg-white px-4 py-3 text-sm text-ink-900 placeholder-ink-400 outline-none transition focus:border-azure-500 focus:ring-4 focus:ring-azure-500/15"
+      />
     </div>
   );
 }
