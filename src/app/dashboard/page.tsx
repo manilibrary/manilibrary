@@ -1,6 +1,7 @@
 import Link from "next/link";
 import PageHeader from "@/components/dashboard/PageHeader";
 import StatusBadge from "@/components/dashboard/StatusBadge";
+import TableScroll from "@/components/dashboard/TableScroll";
 import {
   daysUntil,
   formatCurrency,
@@ -137,24 +138,21 @@ export default function DashboardOverview() {
             </Link>
           </div>
 
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+          <TableScroll>
+            <table className="w-full border-separate border-spacing-0 text-sm">
               <thead>
-                <tr className="border-b border-ink-100 text-left font-mono text-[10px] uppercase tracking-widest text-ink-500">
-                  <th className="px-6 py-3 font-medium">Member</th>
-                  <th className="px-3 py-3 font-medium">Plan</th>
-                  <th className="px-3 py-3 font-medium">Seat</th>
-                  <th className="px-3 py-3 font-medium">Expires</th>
-                  <th className="px-6 py-3 text-right font-medium">In</th>
+                <tr className="text-left font-mono text-[10px] uppercase tracking-widest text-ink-500">
+                  <th className="sticky-col border-b border-ink-100 px-5 py-3 font-medium">Member</th>
+                  <th className="border-b border-ink-100 px-3 py-3 font-medium">Plan</th>
+                  <th className="border-b border-ink-100 px-3 py-3 font-medium">Seat</th>
+                  <th className="border-b border-ink-100 px-3 py-3 font-medium">Expires</th>
+                  <th className="border-b border-ink-100 px-5 py-3 text-right font-medium">In</th>
                 </tr>
               </thead>
               <tbody>
                 {expiring.length === 0 ? (
                   <tr>
-                    <td
-                      colSpan={5}
-                      className="px-6 py-10 text-center text-sm text-ink-500"
-                    >
+                    <td colSpan={5} className="px-6 py-10 text-center text-sm text-ink-500">
                       All clear — no renewals due in the next week.
                     </td>
                   </tr>
@@ -163,39 +161,28 @@ export default function DashboardOverview() {
                     const d = daysUntil(m.expiryDate);
                     const tone = d <= 2 ? "warn" : "neutral";
                     return (
-                      <tr
-                        key={m.id}
-                        className="border-b border-ink-50 last:border-0 hover:bg-surface-muted"
-                      >
-                        <td className="px-6 py-3">
+                      <tr key={m.id}>
+                        <td className="sticky-col whitespace-nowrap border-b border-ink-50 px-5 py-3">
                           <div className="flex items-center gap-3">
                             <Avatar name={m.name} />
-                            <div>
-                              <p className="font-medium text-ink-900">
-                                {m.name}
-                              </p>
-                              <p className="font-mono text-[11px] text-ink-500">
-                                {m.id}
-                              </p>
+                            <div className="min-w-0">
+                              <p className="truncate font-medium text-ink-900">{m.name}</p>
+                              <p className="truncate font-mono text-[11px] text-ink-500">{m.id}</p>
                             </div>
                           </div>
                         </td>
-                        <td className="px-3 py-3 text-ink-700">
+                        <td className="whitespace-nowrap border-b border-ink-50 px-3 py-3 text-ink-700">
                           {planName(m.plan)}
                         </td>
-                        <td className="px-3 py-3 font-mono text-xs text-ink-600">
+                        <td className="whitespace-nowrap border-b border-ink-50 px-3 py-3 font-mono text-xs text-ink-600">
                           {m.seatNo}
                         </td>
-                        <td className="px-3 py-3 text-ink-600">
+                        <td className="whitespace-nowrap border-b border-ink-50 px-3 py-3 text-ink-600">
                           {formatDate(m.expiryDate)}
                         </td>
-                        <td className="px-6 py-3 text-right">
+                        <td className="whitespace-nowrap border-b border-ink-50 px-5 py-3 text-right">
                           <StatusBadge tone={tone} dot>
-                            {d <= 0
-                              ? "today"
-                              : d === 1
-                              ? "1 day"
-                              : `${d} days`}
+                            {d <= 0 ? "today" : d === 1 ? "1 day" : `${d} days`}
                           </StatusBadge>
                         </td>
                       </tr>
@@ -204,7 +191,7 @@ export default function DashboardOverview() {
                 )}
               </tbody>
             </table>
-          </div>
+          </TableScroll>
         </div>
 
         {/* Quick info card */}
@@ -270,53 +257,46 @@ export default function DashboardOverview() {
           </Link>
         </div>
 
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
+        <TableScroll>
+          <table className="w-full border-separate border-spacing-0 text-sm">
             <thead>
-              <tr className="border-b border-ink-100 text-left font-mono text-[10px] uppercase tracking-widest text-ink-500">
-                <th className="px-6 py-3 font-medium">Member</th>
-                <th className="px-3 py-3 font-medium">Plan</th>
-                <th className="px-3 py-3 font-medium">Method</th>
-                <th className="px-3 py-3 font-medium">Date</th>
-                <th className="px-6 py-3 text-right font-medium">Amount</th>
+              <tr className="text-left font-mono text-[10px] uppercase tracking-widest text-ink-500">
+                <th className="sticky-col border-b border-ink-100 px-5 py-3 font-medium">Member</th>
+                <th className="border-b border-ink-100 px-3 py-3 font-medium">Plan</th>
+                <th className="border-b border-ink-100 px-3 py-3 font-medium">Method</th>
+                <th className="border-b border-ink-100 px-3 py-3 font-medium">Date</th>
+                <th className="border-b border-ink-100 px-5 py-3 text-right font-medium">Amount</th>
               </tr>
             </thead>
             <tbody>
               {recent.map((m) => (
-                <tr
-                  key={m.id}
-                  className="border-b border-ink-50 last:border-0 hover:bg-surface-muted"
-                >
-                  <td className="px-6 py-3">
+                <tr key={m.id}>
+                  <td className="sticky-col whitespace-nowrap border-b border-ink-50 px-5 py-3">
                     <div className="flex items-center gap-3">
                       <Avatar name={m.name} />
-                      <div>
-                        <p className="font-medium text-ink-900">{m.name}</p>
-                        <p className="font-mono text-[11px] text-ink-500">
-                          {m.id}
-                        </p>
+                      <div className="min-w-0">
+                        <p className="truncate font-medium text-ink-900">{m.name}</p>
+                        <p className="truncate font-mono text-[11px] text-ink-500">{m.id}</p>
                       </div>
                     </div>
                   </td>
-                  <td className="px-3 py-3 text-ink-700">
+                  <td className="whitespace-nowrap border-b border-ink-50 px-3 py-3 text-ink-700">
                     {planName(m.plan)}
                   </td>
-                  <td className="px-3 py-3">
-                    <StatusBadge tone="neutral">
-                      {m.lastPayment.method}
-                    </StatusBadge>
+                  <td className="whitespace-nowrap border-b border-ink-50 px-3 py-3">
+                    <StatusBadge tone="neutral">{m.lastPayment.method}</StatusBadge>
                   </td>
-                  <td className="px-3 py-3 text-ink-600">
+                  <td className="whitespace-nowrap border-b border-ink-50 px-3 py-3 text-ink-600">
                     {formatDate(m.lastPayment.date)}
                   </td>
-                  <td className="px-6 py-3 text-right font-mono font-semibold text-ink-900">
+                  <td className="whitespace-nowrap border-b border-ink-50 px-5 py-3 text-right font-mono font-semibold text-ink-900">
                     {formatCurrency(m.lastPayment.amount)}
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
-        </div>
+        </TableScroll>
       </section>
     </div>
   );

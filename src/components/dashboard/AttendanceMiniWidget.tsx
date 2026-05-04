@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import StatusBadge from "./StatusBadge";
+import TableScroll from "./TableScroll";
 import { hasTime, sortRecords, statusLabel, todayDMY, type PunchRecord } from "@/lib/attendance";
 
 type State = "loading" | "ok" | "error";
@@ -98,15 +99,15 @@ export default function AttendanceMiniWidget() {
           Fetching punch data…
         </div>
       ) : (
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
+        <TableScroll>
+          <table className="w-full border-separate border-spacing-0 text-sm">
             <thead>
-              <tr className="border-b border-ink-100 text-left font-mono text-[10px] uppercase tracking-widest text-ink-500">
-                <th className="px-6 py-3 font-medium">Employee</th>
-                <th className="px-3 py-3 font-medium">Status</th>
-                <th className="px-3 py-3 font-medium">Check In</th>
-                <th className="px-3 py-3 font-medium">Check Out</th>
-                <th className="px-6 py-3 font-medium">Work Time</th>
+              <tr className="text-left font-mono text-[10px] uppercase tracking-widest text-ink-500">
+                <th className="sticky-col border-b border-ink-100 px-5 py-3 font-medium">Employee</th>
+                <th className="border-b border-ink-100 px-3 py-3 font-medium">Status</th>
+                <th className="border-b border-ink-100 px-3 py-3 font-medium">Check In</th>
+                <th className="border-b border-ink-100 px-3 py-3 font-medium">Check Out</th>
+                <th className="border-b border-ink-100 px-5 py-3 font-medium">Work Time</th>
               </tr>
             </thead>
             <tbody>
@@ -118,34 +119,34 @@ export default function AttendanceMiniWidget() {
                 </tr>
               ) : (
                 preview.map((r, i) => (
-                  <tr key={`${r.Empcode}-${i}`} className="border-b border-ink-50 last:border-0 hover:bg-surface-muted">
-                    <td className="px-6 py-3">
+                  <tr key={`${r.Empcode}-${i}`}>
+                    <td className="sticky-col whitespace-nowrap border-b border-ink-50 px-5 py-3">
                       <div className="flex items-center gap-3">
                         <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full font-mono text-xs font-semibold ${r.Status === "P" ? "bg-azure-100 text-azure-700" : "bg-ink-100 text-ink-600"}`}>
-                          {r.Name.split(" ").map((p) => p[0]).slice(0, 2).join("")}
+                          {r.Name.split(" ").map((p) => p[0]).slice(0, 2).join("").toUpperCase()}
                         </span>
-                        <div>
-                          <p className="font-medium text-ink-900">{r.Name}</p>
-                          <p className="font-mono text-[11px] text-ink-500">#{r.Empcode}</p>
+                        <div className="min-w-0">
+                          <p className="truncate font-medium text-ink-900">{r.Name}</p>
+                          <p className="truncate font-mono text-[11px] text-ink-500">#{r.Empcode}</p>
                         </div>
                       </div>
                     </td>
-                    <td className="px-3 py-3">
+                    <td className="whitespace-nowrap border-b border-ink-50 px-3 py-3">
                       <StatusBadge tone={r.Status === "P" ? "azure" : r.Status === "A" ? "danger" : "neutral"} dot>
                         {statusLabel(r.Status)}
                       </StatusBadge>
                     </td>
-                    <td className="px-3 py-3 font-mono text-ink-800">
+                    <td className="whitespace-nowrap border-b border-ink-50 px-3 py-3 font-mono text-ink-800">
                       {hasTime(r.INTime) ? r.INTime : <span className="text-ink-300">—</span>}
                     </td>
-                    <td className="px-3 py-3 font-mono text-ink-800">
+                    <td className="whitespace-nowrap border-b border-ink-50 px-3 py-3 font-mono text-ink-800">
                       {hasTime(r.OUTTime) ? r.OUTTime : r.Status === "P" ? (
                         <span className="text-[11px] text-ink-400">Still in</span>
                       ) : (
                         <span className="text-ink-300">—</span>
                       )}
                     </td>
-                    <td className="px-6 py-3 font-mono text-ink-700">
+                    <td className="whitespace-nowrap border-b border-ink-50 px-5 py-3 font-mono text-ink-700">
                       {hasTime(r.WorkTime) ? r.WorkTime : <span className="text-ink-300">—</span>}
                     </td>
                   </tr>
@@ -153,7 +154,7 @@ export default function AttendanceMiniWidget() {
               )}
             </tbody>
           </table>
-        </div>
+        </TableScroll>
       )}
 
       {todayRecords.length > 6 && (

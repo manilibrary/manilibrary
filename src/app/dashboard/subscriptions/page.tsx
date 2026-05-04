@@ -1,5 +1,6 @@
 import PageHeader from "@/components/dashboard/PageHeader";
 import StatusBadge from "@/components/dashboard/StatusBadge";
+import TableScroll from "@/components/dashboard/TableScroll";
 import {
   daysUntil,
   formatCurrency,
@@ -161,15 +162,15 @@ function SubsTable({
   mode: Mode;
 }) {
   return (
-    <div className="overflow-x-auto">
-      <table className="w-full text-sm">
+    <TableScroll>
+      <table className="w-full border-separate border-spacing-0 text-sm">
         <thead>
-          <tr className="border-b border-ink-100 text-left font-mono text-[10px] uppercase tracking-widest text-ink-500">
-            <th className="px-6 py-3 font-medium">Member</th>
-            <th className="px-3 py-3 font-medium">Plan</th>
-            <th className="px-3 py-3 font-medium">Seat</th>
-            <th className="px-3 py-3 font-medium">Expires</th>
-            <th className="px-6 py-3 text-right font-medium">
+          <tr className="text-left font-mono text-[10px] uppercase tracking-widest text-ink-500">
+            <th className="sticky-col border-b border-ink-100 px-5 py-3 font-medium">Member</th>
+            <th className="border-b border-ink-100 px-3 py-3 font-medium">Plan</th>
+            <th className="border-b border-ink-100 px-3 py-3 font-medium">Seat</th>
+            <th className="border-b border-ink-100 px-3 py-3 font-medium">Expires</th>
+            <th className="border-b border-ink-100 px-5 py-3 text-right font-medium">
               {mode === "expired" ? "Lapsed" : "Status"}
             </th>
           </tr>
@@ -178,29 +179,28 @@ function SubsTable({
           {rows.map((m) => {
             const d = daysUntil(m.expiryDate);
             return (
-              <tr
-                key={m.id}
-                className="border-b border-ink-50 last:border-0 hover:bg-surface-muted"
-              >
-                <td className="px-6 py-3">
+              <tr key={m.id}>
+                <td className="sticky-col whitespace-nowrap border-b border-ink-50 px-5 py-3">
                   <div className="flex items-center gap-3">
                     <Avatar name={m.name} />
-                    <div>
-                      <p className="font-medium text-ink-900">{m.name}</p>
-                      <p className="font-mono text-[11px] text-ink-500">
+                    <div className="min-w-0">
+                      <p className="truncate font-medium text-ink-900">{m.name}</p>
+                      <p className="truncate font-mono text-[11px] text-ink-500">
                         {m.id} · {m.phone}
                       </p>
                     </div>
                   </div>
                 </td>
-                <td className="px-3 py-3 text-ink-700">{planName(m.plan)}</td>
-                <td className="px-3 py-3 font-mono text-xs text-ink-600">
+                <td className="whitespace-nowrap border-b border-ink-50 px-3 py-3 text-ink-700">
+                  {planName(m.plan)}
+                </td>
+                <td className="whitespace-nowrap border-b border-ink-50 px-3 py-3 font-mono text-xs text-ink-600">
                   {m.seatNo}
                 </td>
-                <td className="px-3 py-3 text-ink-600">
+                <td className="whitespace-nowrap border-b border-ink-50 px-3 py-3 text-ink-600">
                   {formatDate(m.expiryDate)}
                 </td>
-                <td className="px-6 py-3 text-right">
+                <td className="whitespace-nowrap border-b border-ink-50 px-5 py-3 text-right">
                   {mode === "expired" ? (
                     <StatusBadge tone="danger" dot>
                       {Math.abs(d)} days ago
@@ -222,7 +222,7 @@ function SubsTable({
           })}
         </tbody>
       </table>
-    </div>
+    </TableScroll>
   );
 }
 

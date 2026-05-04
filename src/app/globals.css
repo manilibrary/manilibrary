@@ -103,6 +103,41 @@ body {
   background: var(--color-ink-300);
 }
 
+/* =========================================================
+   Table utilities — sticky first column ("freeze pane")
+   Used across dashboard tables so the identity column stays
+   visible while users scroll horizontally on small screens.
+   ========================================================= */
+.sticky-col {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  background: #ffffff;
+}
+
+/* Soft right-edge shadow on the sticky column to visually
+   separate it from the scrolling content next to it. */
+.sticky-col::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  right: -8px;
+  bottom: 0;
+  width: 8px;
+  background: linear-gradient(
+    to right,
+    rgba(16, 24, 40, 0.06),
+    transparent
+  );
+  pointer-events: none;
+}
+
+/* Header sticky-col sits above body sticky-col */
+thead .sticky-col {
+  z-index: 2;
+  background: #ffffff;
+}
+
 /* Subtle grid pattern used as hero/section background accent */
 .bg-grid {
   background-image: linear-gradient(

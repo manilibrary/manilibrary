@@ -1,6 +1,7 @@
 import Link from "next/link";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
+import StatsCounter from "@/components/StatsCounter";
 import libraryInfo from "@/data/libraryInfo.json";
 
 export default function HomePage() {
@@ -9,7 +10,7 @@ export default function HomePage() {
       <Navbar />
       <main className="flex-1">
         <Hero />
-        <Stats />
+        <StatsCounter />
         <Facilities />
         <About />
         <Plans />
@@ -105,36 +106,6 @@ function Hero() {
   );
 }
 
-/* ---------------------------------------------------------- */
-/*  Stats                                                      */
-/* ---------------------------------------------------------- */
-
-function Stats() {
-  const stats = [
-    { value: "500+", label: "Members" },
-    { value: "120", label: "Seats" },
-    { value: "98%", label: "Renewal rate" },
-    { value: "5★", label: "Rated by students" },
-  ];
-
-  return (
-    <section className="border-y border-ink-100 bg-surface-muted">
-      <div className="mx-auto grid max-w-7xl grid-cols-2 gap-px bg-ink-100 px-0 md:grid-cols-4 md:px-0">
-        {stats.map((s) => (
-          <div
-            key={s.label}
-            className="bg-surface-muted px-6 py-8 text-center"
-          >
-            <p className="text-3xl font-semibold tracking-tight text-ink-900">
-              {s.value}
-            </p>
-            <p className="mt-1 text-sm text-ink-500">{s.label}</p>
-          </div>
-        ))}
-      </div>
-    </section>
-  );
-}
 
 /* ---------------------------------------------------------- */
 /*  Facilities                                                 */
