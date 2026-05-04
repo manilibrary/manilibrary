@@ -1,5 +1,6 @@
 import PageHeader from "@/components/dashboard/PageHeader";
 import StatusBadge from "@/components/dashboard/StatusBadge";
+import TableScroll from "@/components/dashboard/TableScroll";
 import {
   formatCurrency,
   formatDate,
@@ -98,62 +99,52 @@ export default function PaymentsPage() {
           </span>
         </div>
 
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
+        <TableScroll>
+          <table className="w-full border-separate border-spacing-0 text-sm">
             <thead>
-              <tr className="border-b border-ink-100 text-left font-mono text-[10px] uppercase tracking-widest text-ink-500">
-                <th className="px-6 py-3 font-medium">Member</th>
-                <th className="px-3 py-3 font-medium">Plan</th>
-                <th className="px-3 py-3 font-medium">Status</th>
-                <th className="px-3 py-3 font-medium">Last payment</th>
-                <th className="px-6 py-3 text-right font-medium">Amount due</th>
+              <tr className="text-left font-mono text-[10px] uppercase tracking-widest text-ink-500">
+                <th className="sticky-col border-b border-ink-100 px-5 py-3 font-medium">Member</th>
+                <th className="border-b border-ink-100 px-3 py-3 font-medium">Plan</th>
+                <th className="border-b border-ink-100 px-3 py-3 font-medium">Status</th>
+                <th className="border-b border-ink-100 px-3 py-3 font-medium">Last payment</th>
+                <th className="border-b border-ink-100 px-5 py-3 text-right font-medium">Amount due</th>
               </tr>
             </thead>
             <tbody>
               {dueList.length === 0 ? (
                 <tr>
-                  <td
-                    colSpan={5}
-                    className="px-6 py-12 text-center text-sm text-ink-500"
-                  >
+                  <td colSpan={5} className="px-6 py-12 text-center text-sm text-ink-500">
                     All payments collected. Nothing pending.
                   </td>
                 </tr>
               ) : (
                 dueList.map((m) => (
-                  <tr
-                    key={m.id}
-                    className="border-b border-ink-50 last:border-0 hover:bg-surface-muted"
-                  >
-                    <td className="px-6 py-3">
+                  <tr key={m.id}>
+                    <td className="sticky-col whitespace-nowrap border-b border-ink-50 px-5 py-3">
                       <div className="flex items-center gap-3">
                         <Avatar name={m.name} />
-                        <div>
-                          <p className="font-medium text-ink-900">{m.name}</p>
-                          <p className="font-mono text-[11px] text-ink-500">
+                        <div className="min-w-0">
+                          <p className="truncate font-medium text-ink-900">{m.name}</p>
+                          <p className="truncate font-mono text-[11px] text-ink-500">
                             {m.id} · {m.phone}
                           </p>
                         </div>
                       </div>
                     </td>
-                    <td className="px-3 py-3 text-ink-700">
+                    <td className="whitespace-nowrap border-b border-ink-50 px-3 py-3 text-ink-700">
                       {planName(m.plan)}
                     </td>
-                    <td className="px-3 py-3">
+                    <td className="whitespace-nowrap border-b border-ink-50 px-3 py-3">
                       {m.paymentStatus === "overdue" ? (
-                        <StatusBadge tone="danger" dot>
-                          Overdue
-                        </StatusBadge>
+                        <StatusBadge tone="danger" dot>Overdue</StatusBadge>
                       ) : (
-                        <StatusBadge tone="warn" dot>
-                          Due
-                        </StatusBadge>
+                        <StatusBadge tone="warn" dot>Due</StatusBadge>
                       )}
                     </td>
-                    <td className="px-3 py-3 text-ink-600">
+                    <td className="whitespace-nowrap border-b border-ink-50 px-3 py-3 text-ink-600">
                       {formatDate(m.lastPayment.date)}
                     </td>
-                    <td className="px-6 py-3 text-right">
+                    <td className="whitespace-nowrap border-b border-ink-50 px-5 py-3 text-right">
                       <p className="font-mono font-semibold text-ink-900">
                         {formatCurrency(m.lastPayment.amount)}
                       </p>
@@ -169,7 +160,7 @@ export default function PaymentsPage() {
               )}
             </tbody>
           </table>
-        </div>
+        </TableScroll>
       </section>
 
       {/* History */}
@@ -183,54 +174,47 @@ export default function PaymentsPage() {
           </p>
         </div>
 
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
+        <TableScroll>
+          <table className="w-full border-separate border-spacing-0 text-sm">
             <thead>
-              <tr className="border-b border-ink-100 text-left font-mono text-[10px] uppercase tracking-widest text-ink-500">
-                <th className="px-6 py-3 font-medium">Receipt</th>
-                <th className="px-3 py-3 font-medium">Member</th>
-                <th className="px-3 py-3 font-medium">Plan</th>
-                <th className="px-3 py-3 font-medium">Method</th>
-                <th className="px-3 py-3 font-medium">Date</th>
-                <th className="px-6 py-3 text-right font-medium">Amount</th>
+              <tr className="text-left font-mono text-[10px] uppercase tracking-widest text-ink-500">
+                <th className="sticky-col border-b border-ink-100 px-5 py-3 font-medium">Receipt</th>
+                <th className="border-b border-ink-100 px-3 py-3 font-medium">Member</th>
+                <th className="border-b border-ink-100 px-3 py-3 font-medium">Plan</th>
+                <th className="border-b border-ink-100 px-3 py-3 font-medium">Method</th>
+                <th className="border-b border-ink-100 px-3 py-3 font-medium">Date</th>
+                <th className="border-b border-ink-100 px-5 py-3 text-right font-medium">Amount</th>
               </tr>
             </thead>
             <tbody>
               {sorted.map((m, i) => (
-                <tr
-                  key={m.id}
-                  className="border-b border-ink-50 last:border-0 hover:bg-surface-muted"
-                >
-                  <td className="px-6 py-3 font-mono text-xs text-ink-600">
+                <tr key={m.id}>
+                  <td className="sticky-col whitespace-nowrap border-b border-ink-50 px-5 py-3 font-mono text-xs text-ink-600">
                     RCT-{(2000 + i).toString().padStart(4, "0")}
                   </td>
-                  <td className="px-3 py-3">
+                  <td className="whitespace-nowrap border-b border-ink-50 px-3 py-3">
                     <div className="flex items-center gap-2.5">
                       <Avatar name={m.name} small />
-                      <span className="font-medium text-ink-800">
-                        {m.name}
-                      </span>
+                      <span className="font-medium text-ink-800">{m.name}</span>
                     </div>
                   </td>
-                  <td className="px-3 py-3 text-ink-700">
+                  <td className="whitespace-nowrap border-b border-ink-50 px-3 py-3 text-ink-700">
                     {planName(m.plan)}
                   </td>
-                  <td className="px-3 py-3">
-                    <StatusBadge tone="neutral">
-                      {m.lastPayment.method}
-                    </StatusBadge>
+                  <td className="whitespace-nowrap border-b border-ink-50 px-3 py-3">
+                    <StatusBadge tone="neutral">{m.lastPayment.method}</StatusBadge>
                   </td>
-                  <td className="px-3 py-3 text-ink-600">
+                  <td className="whitespace-nowrap border-b border-ink-50 px-3 py-3 text-ink-600">
                     {formatDate(m.lastPayment.date)}
                   </td>
-                  <td className="px-6 py-3 text-right font-mono font-semibold text-ink-900">
+                  <td className="whitespace-nowrap border-b border-ink-50 px-5 py-3 text-right font-mono font-semibold text-ink-900">
                     {formatCurrency(m.lastPayment.amount)}
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
-        </div>
+        </TableScroll>
       </section>
     </div>
   );

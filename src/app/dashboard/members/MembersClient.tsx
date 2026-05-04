@@ -2,10 +2,10 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import StatusBadge from "@/components/dashboard/StatusBadge";
+import TableScroll from "@/components/dashboard/TableScroll";
 import {
   formatDMY,
   hasTime,
-  sortRecords,
   statusLabel,
   type PunchRecord,
 } from "@/lib/attendance";
@@ -134,15 +134,15 @@ export default function MembersClient() {
 
       <div className="rounded-2xl border border-ink-100 bg-white shadow-card">
         {/* Toolbar */}
-        <div className="flex flex-col gap-3 border-b border-ink-100 p-4 md:flex-row md:items-center md:justify-between">
-          <div className="flex flex-wrap items-center gap-2">
-            <div className="flex gap-1 rounded-full border border-ink-100 bg-surface-muted p-1">
+        <div className="flex flex-col gap-3 border-b border-ink-100 p-4 lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex items-center gap-2">
+            <div className="flex gap-1 overflow-x-auto rounded-full border border-ink-100 bg-surface-muted p-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
               {(["all", "P", "A", "HD", "WO"] as const).map((s) => (
                 <button
                   key={s}
                   type="button"
                   onClick={() => setStatusFilter(s)}
-                  className={`rounded-full px-3.5 py-1.5 text-xs font-semibold transition-colors ${
+                  className={`shrink-0 rounded-full px-3 py-1.5 text-xs font-semibold transition-colors ${
                     statusFilter === s
                       ? "bg-white text-ink-900 shadow-sm"
                       : "text-ink-500 hover:text-ink-800"
@@ -151,20 +151,20 @@ export default function MembersClient() {
                   {s === "all" ? `All (${countFor("all")})`
                     : s === "P" ? `Present (${countFor("P")})`
                     : s === "A" ? `Absent (${countFor("A")})`
-                    : s === "HD" ? `Half day (${countFor("HD")})`
-                    : `Week off (${countFor("WO")})`}
+                    : s === "HD" ? `Half (${countFor("HD")})`
+                    : `WO (${countFor("WO")})`}
                 </button>
               ))}
             </div>
             {latestDate && (
-              <span className="rounded-full border border-azure-200 bg-azure-50 px-3 py-1.5 font-mono text-[10px] font-semibold text-azure-700">
-                status as of {formatDMY(latestDate)}
+              <span className="hidden shrink-0 rounded-full border border-azure-200 bg-azure-50 px-3 py-1.5 font-mono text-[10px] font-semibold text-azure-700 md:inline-block">
+                as of {formatDMY(latestDate)}
               </span>
             )}
           </div>
 
           <div className="flex items-center gap-2">
-            <label className="relative block w-full md:max-w-xs">
+            <label className="relative block w-full lg:w-72">
               <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-ink-400">
                 <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
                   <circle cx="11" cy="11" r="7" />
@@ -181,7 +181,7 @@ export default function MembersClient() {
             <button
               type="button"
               onClick={load}
-              className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-ink-200 text-ink-600 hover:bg-ink-50"
+              className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-ink-200 text-ink-600 hover:bg-ink-50"
               title="Refresh"
             >
               <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
@@ -192,17 +192,17 @@ export default function MembersClient() {
           </div>
         </div>
 
-        {/* Table */}
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
+        {/* Scrollable table with sticky first column */}
+        <TableScroll>
+          <table className="w-full border-separate border-spacing-0 text-sm">
             <thead>
-              <tr className="border-b border-ink-100 text-left font-mono text-[10px] uppercase tracking-widest text-ink-500">
-                <th className="px-6 py-3 font-medium">Employee</th>
-                <th className="px-3 py-3 font-medium">Latest status</th>
-                <th className="px-3 py-3 font-medium">Check in</th>
-                <th className="px-3 py-3 font-medium">Check out</th>
-                <th className="px-3 py-3 font-medium">Work time</th>
-                <th className="px-6 py-3 font-medium">Remark</th>
+              <tr className="text-left font-mono text-[10px] uppercase tracking-widest text-ink-500">
+                <th className="sticky-col border-b border-ink-100 px-5 py-3 font-medium">Employee</th>
+                <th className="border-b border-ink-100 px-3 py-3 font-medium">Latest status</th>
+                <th className="border-b border-ink-100 px-3 py-3 font-medium">Check in</th>
+                <th className="border-b border-ink-100 px-3 py-3 font-medium">Check out</th>
+                <th className="border-b border-ink-100 px-3 py-3 font-medium">Work time</th>
+                <th className="border-b border-ink-100 px-5 py-3 font-medium">Remark</th>
               </tr>
             </thead>
             <tbody>
@@ -217,22 +217,19 @@ export default function MembersClient() {
                   const latest = latestDate ? e.records.get(latestDate) : undefined;
                   const status = latest?.Status ?? "—";
                   return (
-                    <tr
-                      key={e.empcode}
-                      className="border-b border-ink-50 last:border-0 transition-colors hover:bg-surface-muted"
-                    >
-                      <td className="px-6 py-3.5">
+                    <tr key={e.empcode}>
+                      <td className="sticky-col whitespace-nowrap border-b border-ink-50 px-5 py-3.5">
                         <div className="flex items-center gap-3">
                           <Avatar name={e.name} status={status} />
-                          <div>
-                            <p className="font-medium text-ink-900">{e.name}</p>
-                            <p className="font-mono text-[11px] text-ink-500">
+                          <div className="min-w-0">
+                            <p className="truncate font-medium text-ink-900">{e.name}</p>
+                            <p className="truncate font-mono text-[11px] text-ink-500">
                               #{e.empcode}
                             </p>
                           </div>
                         </div>
                       </td>
-                      <td className="px-3 py-3.5">
+                      <td className="whitespace-nowrap border-b border-ink-50 px-3 py-3.5">
                         {latest ? (
                           <StatusBadge tone={toneFor(latest.Status)} dot>
                             {statusLabel(latest.Status)}
@@ -241,24 +238,24 @@ export default function MembersClient() {
                           <span className="text-ink-300 text-xs">No data</span>
                         )}
                       </td>
-                      <td className="px-3 py-3.5 font-mono text-ink-800">
+                      <td className="whitespace-nowrap border-b border-ink-50 px-3 py-3.5 font-mono text-ink-800">
                         {latest && hasTime(latest.INTime)
                           ? latest.INTime
                           : <span className="text-ink-300">—</span>}
                       </td>
-                      <td className="px-3 py-3.5 font-mono text-ink-800">
+                      <td className="whitespace-nowrap border-b border-ink-50 px-3 py-3.5 font-mono text-ink-800">
                         {latest && hasTime(latest.OUTTime)
                           ? latest.OUTTime
                           : latest?.Status === "P"
                           ? <span className="text-[11px] text-ink-400">Still in</span>
                           : <span className="text-ink-300">—</span>}
                       </td>
-                      <td className="px-3 py-3.5 font-mono text-ink-700">
+                      <td className="whitespace-nowrap border-b border-ink-50 px-3 py-3.5 font-mono text-ink-700">
                         {latest && hasTime(latest.WorkTime)
                           ? latest.WorkTime
                           : <span className="text-ink-300">—</span>}
                       </td>
-                      <td className="px-6 py-3.5 font-mono text-[11px] text-ink-500">
+                      <td className="whitespace-nowrap border-b border-ink-50 px-5 py-3.5 font-mono text-[11px] text-ink-500">
                         {latest?.Remark && latest.Remark !== "--"
                           ? latest.Remark
                           : ""}
@@ -269,18 +266,16 @@ export default function MembersClient() {
               )}
             </tbody>
           </table>
-        </div>
+        </TableScroll>
 
-        <div className="flex items-center justify-between border-t border-ink-100 px-6 py-3 text-xs text-ink-500">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-t border-ink-100 px-5 py-3 text-xs text-ink-500">
           <span className="font-mono">
             {filtered.length} of {employees.length} employees
           </span>
-          {source === "live" && (
-            <span className="inline-flex items-center gap-1.5 rounded-full border border-azure-200 bg-azure-50 px-2.5 py-1 font-mono text-[10px] font-semibold text-azure-700">
-              <span className="h-1.5 w-1.5 rounded-full bg-azure-500" />
-              live data
-            </span>
-          )}
+          <span className="inline-flex items-center gap-1.5 rounded-full border border-azure-200 bg-azure-50 px-2.5 py-1 font-mono text-[10px] font-semibold text-azure-700">
+            <span className="h-1.5 w-1.5 rounded-full bg-azure-500" />
+            {source === "live" ? "live data" : "sample data"}
+          </span>
         </div>
       </div>
     </div>
