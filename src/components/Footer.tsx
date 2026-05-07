@@ -90,8 +90,11 @@ export default function Footer() {
           <p>
             © {year} {libraryInfo.name}. All rights reserved.
           </p>
-          <p className="font-mono">
-            built_by{" "}
+          <p className="inline-flex items-center gap-1.5 font-mono text-xs">
+            <svg className="h-3.5 w-3.5 shrink-0 text-ink-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="16 18 22 12 16 6" /><polyline points="8 6 2 12 8 18" />
+            </svg>
+            Built by{" "}
             {libraryInfo.developers.map((d, i) => (
               <span key={d.name}>
                 {i > 0 && ", "}
