@@ -74,8 +74,11 @@ export default function LoginForm() {
         </header>
 
         <div className="mx-auto w-full max-w-md py-10">
-          <p className="font-mono text-xs uppercase tracking-widest text-azure-500">
-            // sign_in
+          <p className="inline-flex items-center gap-1.5 font-mono text-xs uppercase tracking-widest text-azure-500">
+            <svg className="h-3.5 w-3.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="3" y="11" width="18" height="11" rx="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" />
+            </svg>
+            Sign In
           </p>
           <h1 className="mt-2 text-3xl font-semibold tracking-tight text-ink-900">
             Welcome back
@@ -184,8 +187,11 @@ export default function LoginForm() {
           </form>
 
           <div className="mt-6 rounded-xl border border-dashed border-azure-200 bg-azure-50/60 p-4 text-xs text-ink-700">
-            <p className="font-mono text-[10px] uppercase tracking-widest text-azure-700">
-              demo_credentials
+            <p className="inline-flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-widest text-azure-700">
+              <svg className="h-3 w-3 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="7.5" cy="15.5" r="5.5" /><path d="m21 2-9.6 9.6M15.5 7.5l2.3 2.3a1 1 0 0 0 1.4 0l2.1-2.1a1 1 0 0 0 0-1.4L19 4" />
+              </svg>
+              Demo Credentials
             </p>
             <dl className="mt-2 grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 font-mono">
               <dt className="text-ink-500">email</dt>
@@ -207,9 +213,20 @@ export default function LoginForm() {
           </p>
         </div>
 
-        <footer className="text-center font-mono text-[10px] uppercase tracking-widest text-ink-400">
-          {libraryInfo.address.city}, {libraryInfo.address.state} //{" "}
-          {libraryInfo.hours}
+        <footer className="flex items-center justify-center gap-3 font-mono text-[10px] uppercase tracking-widest text-ink-400">
+          <span className="inline-flex items-center gap-1">
+            <svg className="h-3 w-3 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M20 10c0 6-8 12-8 12S4 16 4 10a8 8 0 0 1 16 0Z" /><circle cx="12" cy="10" r="3" />
+            </svg>
+            {libraryInfo.address.city}, {libraryInfo.address.state}
+          </span>
+          <span aria-hidden>·</span>
+          <span className="inline-flex items-center gap-1">
+            <svg className="h-3 w-3 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" />
+            </svg>
+            {libraryInfo.hours}
+          </span>
         </footer>
       </section>
 
@@ -224,8 +241,11 @@ export default function LoginForm() {
           }}
         />
         <div className="relative flex h-full flex-col justify-between p-12 text-white">
-          <div className="font-mono text-xs uppercase tracking-widest text-azure-200">
-            // {libraryInfo.name.toLowerCase().replace(" ", "_")}
+          <div className="inline-flex items-center gap-1.5 font-mono text-xs uppercase tracking-widest text-azure-200">
+            <svg className="h-3.5 w-3.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" /><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
+            </svg>
+            {libraryInfo.name}
           </div>
 
           <div>
@@ -252,8 +272,11 @@ export default function LoginForm() {
           </div>
 
           <div className="rounded-2xl border border-white/10 bg-white/5 p-5 backdrop-blur">
-            <p className="font-mono text-[10px] uppercase tracking-widest text-azure-200">
-              live_status
+            <p className="inline-flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-widest text-azure-200">
+              <svg className="h-3 w-3 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
+              </svg>
+              Live Status
             </p>
             <div className="mt-3 grid grid-cols-3 gap-4 text-center">
               <Stat label="Seats" value={String(libraryInfo.capacity)} />
