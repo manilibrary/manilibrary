@@ -40,7 +40,6 @@ export default function MembershipHubGreeting() {
           {resolveMemberSeatDisplayLabel({
             plan_kind: membership.plan_kind,
             seat_number: membership.seat_number,
-            seat_label: membership.seat_label,
           })}
         </span>{" "}
         <span className="font-mono text-[11px] text-emerald-800/80">

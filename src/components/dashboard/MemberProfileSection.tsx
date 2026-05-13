@@ -4,7 +4,7 @@ import { useCallback, useRef, useState } from "react";
 
 type Props = {
   fullName: string;
-  memberNumber: number;
+  deviceUserId: number;
   phone: string | null;
   verificationStatus: string;
   avatarUrl: string | null;
@@ -20,7 +20,7 @@ function initials(name: string): string {
 
 export default function MemberProfileSection({
   fullName,
-  memberNumber,
+  deviceUserId,
   phone,
   verificationStatus,
   avatarUrl,
@@ -141,9 +141,9 @@ export default function MemberProfileSection({
             <dd className="mt-1 font-medium text-ink-900">{fullName}</dd>
           </div>
           <div>
-            <dt className="font-mono text-[10px] uppercase tracking-widest text-ink-500">Member number</dt>
+            <dt className="font-mono text-[10px] uppercase tracking-widest text-ink-500">Device user ID</dt>
             <dd className="mt-1 font-mono text-lg font-semibold text-azure-600">
-              {String(memberNumber).padStart(4, "0")}
+              {String(deviceUserId).padStart(4, "0")}
             </dd>
           </div>
           {phone ? (

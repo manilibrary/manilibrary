@@ -25,7 +25,7 @@ export type LibraryWorkbookStats = {
 
 type ProfileRow = {
   user_id: string;
-  member_number: number;
+  device_user_id: number;
   full_name: string;
   phone: string | null;
   email: string | null;
@@ -41,9 +41,7 @@ type MembershipRow = {
   user_id: string;
   plan_kind: string;
   status: string;
-  seat_number: number | null;
-  /** Present only if DB has `memberships.seat_label` (optional migration). */
-  seat_label?: string | null;
+  seat_number: string | number | null;
   starts_at: string | null;
   ends_at: string | null;
   valid_from: string | null;
@@ -56,7 +54,6 @@ function membershipSeatDisplay(m: MembershipRow): string {
   return resolveMemberSeatDisplayLabel({
     plan_kind: m.plan_kind,
     seat_number: m.seat_number,
-    seat_label: m.seat_label,
   });
 }
 
@@ -75,7 +72,7 @@ type PaymentRow = {
 type AttendanceHistoryRow = {
   library_day_ymd: string;
   date_dmy: string;
-  member_number: number;
+  device_user_id: number;
   empcode: string;
   full_name: string | null;
   seat_label: string;
@@ -96,7 +93,7 @@ function chunkArray<T>(arr: T[], size: number): T[][] {
   return out;
 }
 
-function empcodeFromMemberNumber(n: number): string {
+function empcodeFromDeviceUserId(n: number): string {
   return String(n).padStart(4, "0");
 }
 
@@ -196,12 +193,12 @@ async function fetchAllAttendanceForRange(
     const { data, error } = await admin
       .from("attendance_history_entries")
       .select(
-        "library_day_ymd, date_dmy, member_number, empcode, full_name, seat_label, in_time, out_time, work_time, status, status_ui, status_ui_label, remark, source, archived_at",
+        "library_day_ymd, date_dmy, device_user_id, empcode, full_name, seat_label, in_time, out_time, work_time, status, status_ui, status_ui_label, remark, source, archived_at",
       )
       .gte("library_day_ymd", lo)
       .lte("library_day_ymd", hi)
       .order("library_day_ymd", { ascending: true })
-      .order("member_number", { ascending: true })
+      .order("device_user_id", { ascending: true })
       .range(offset, offset + limit - 1);
 
     if (error) {
@@ -235,10 +232,10 @@ export async function buildLibraryExportWorkbook(
   const { data: profilesRaw, error: pe } = await admin
     .from("profiles")
     .select(
-      "user_id, member_number, full_name, phone, email, verification_status, created_at, device_enrolled_at, is_admin, is_superadmin",
+      "user_id, device_user_id, full_name, phone, email, verification_status, created_at, device_enrolled_at, is_admin, is_superadmin",
     )
     .or("is_superadmin.is.null,is_superadmin.eq.false")
-    .order("member_number", { ascending: true });
+    .order("device_user_id", { ascending: true });
 
   if (pe) throw new Error(pe.message);
   const profiles = (profilesRaw ?? []) as ProfileRow[];
@@ -281,7 +278,7 @@ export async function buildLibraryExportWorkbook(
   const { rows: attendanceRows, capped: attendanceCapped } = await fetchAllAttendanceForRange(admin, lo, hi);
 
   const profileByUser = new Map(profiles.map((p) => [p.user_id, p]));
-  const profileByMember = new Map(profiles.map((p) => [p.member_number, p]));
+  const profileByMember = new Map(profiles.map((p) => [p.device_user_id, p]));
 
   const workbook = new ExcelJS.Workbook();
   workbook.creator = "Mani Library";
@@ -325,9 +322,9 @@ export async function buildLibraryExportWorkbook(
     views: [{ state: "frozen", ySplit: 1, showGridLines: true }],
   });
   const dirHeaders = [
-    "Member #",
     "Empcode",
     "Full name",
+    "Device user ID",
     "Email",
     "Phone",
     "Verification",
@@ -341,16 +338,16 @@ export async function buildLibraryExportWorkbook(
   ];
   dir.addRow(dirHeaders);
   applyHeaderRow(dir, 1);
-  setColumnWidths(dir, [10, 10, 26, 30, 14, 12, 11, 20, 20, 36, 14, 16, 14]);
+  setColumnWidths(dir, [10, 26, 10, 30, 14, 12, 11, 20, 20, 36, 14, 16, 14]);
 
   const dirRows: (string | number)[][] = [];
   for (const p of profiles) {
     const m = pickDirectoryMembership(p.user_id, memberships, libraryToday);
     const seat = m ? membershipSeatDisplay(m) : "—";
     dirRows.push([
-      p.member_number,
-      empcodeFromMemberNumber(p.member_number),
+      empcodeFromDeviceUserId(p.device_user_id),
       p.full_name,
+      p.device_user_id,
       p.email ?? "",
       p.phone ?? "",
       p.verification_status ?? "",
@@ -375,56 +372,53 @@ export async function buildLibraryExportWorkbook(
     views: [{ state: "frozen", ySplit: 1, showGridLines: true }],
   });
   const memHeaders = [
-    "Member #",
     "Full name",
     "Plan",
+    "Device user ID",
     "Status",
-    "Seat #",
-    "Seat label",
+    "Seat",
     "Window",
     "Created",
     "Notes",
   ];
   memSheet.addRow(memHeaders);
   applyHeaderRow(memSheet, 1);
-  setColumnWidths(memSheet, [10, 24, 12, 14, 8, 12, 42, 20, 36]);
+  setColumnWidths(memSheet, [24, 12, 10, 14, 14, 42, 20, 36]);
 
   const memBody = memberships
     .map((m) => {
       const prof = profileByUser.get(m.user_id);
       return {
-        memberNumber: prof?.member_number ?? "",
+        deviceUserId: prof?.device_user_id ?? "",
         fullName: prof?.full_name ?? "",
         plan: m.plan_kind,
         status: m.status,
-        seatNum: m.seat_number ?? "",
-        seatLabel: membershipSeatDisplay(m),
+        seat: membershipSeatDisplay(m),
         window: membershipWindowLabel(m),
         created: formatInLibraryTz(m.created_at),
         notes: (m.notes ?? "").replace(/\s+/g, " ").slice(0, 500),
       };
     })
     .sort((a, b) => {
-      const an = Number(a.memberNumber) || 0;
-      const bn = Number(b.memberNumber) || 0;
+      const an = Number(a.deviceUserId) || 0;
+      const bn = Number(b.deviceUserId) || 0;
       if (an !== bn) return an - bn;
       return String(b.created).localeCompare(String(a.created));
     });
   memSheet.addRows(
     memBody.map((row) => [
-      row.memberNumber,
       row.fullName,
       row.plan,
+      row.deviceUserId,
       row.status,
-      row.seatNum,
-      row.seatLabel,
+      row.seat,
       row.window,
       row.created,
       row.notes,
     ]),
   );
   if (memBody.length > 0) {
-    memSheet.autoFilter = { from: "A1", to: `I${memBody.length + 1}` };
+    memSheet.autoFilter = { from: "A1", to: `H${memBody.length + 1}` };
     zebraBody(memSheet, 2, memBody.length + 1);
   }
 
@@ -434,8 +428,8 @@ export async function buildLibraryExportWorkbook(
   });
   const payHeaders = [
     "Date",
-    "Member #",
     "Name",
+    "Device user ID",
     "Amount (₹)",
     "Currency",
     "Status",
@@ -445,13 +439,13 @@ export async function buildLibraryExportWorkbook(
   ];
   paySheet.addRow(payHeaders);
   applyHeaderRow(paySheet, 1);
-  setColumnWidths(paySheet, [20, 10, 22, 12, 8, 10, 14, 28, 38]);
+  setColumnWidths(paySheet, [20, 22, 10, 12, 8, 10, 14, 28, 38]);
 
   const payBody = payments.map((p) => {
     const prof = profileByUser.get(p.user_id);
     return {
       dt: formatInLibraryTz(p.created_at),
-      memberNumber: prof?.member_number ?? "",
+      deviceUserId: prof?.device_user_id ?? "",
       nm: prof?.full_name ?? "",
       amt: Number(p.amount_rupees),
       cur: p.currency,
@@ -462,7 +456,7 @@ export async function buildLibraryExportWorkbook(
     };
   });
   paySheet.addRows(
-    payBody.map((row) => [row.dt, row.memberNumber, row.nm, row.amt, row.cur, row.st, row.pr, row.ref, row.mid]),
+    payBody.map((row) => [row.dt, row.nm, row.deviceUserId, row.amt, row.cur, row.st, row.pr, row.ref, row.mid]),
   );
   paySheet.getColumn(4).numFmt = "₹#,##0";
   if (payBody.length > 0) {
@@ -477,8 +471,8 @@ export async function buildLibraryExportWorkbook(
   const attHeaders = [
     "Library date",
     "Device date",
-    "Member #",
     "Empcode",
+    "Device user ID",
     "Name",
     "Seat",
     "In",
@@ -497,7 +491,7 @@ export async function buildLibraryExportWorkbook(
   const attBody = attendanceRows.map((r) => ({
     d: r.library_day_ymd,
     dd: r.date_dmy,
-    mn: r.member_number,
+    mn: r.device_user_id,
     ec: r.empcode,
     nm: r.full_name ?? "",
     st: r.seat_label,
@@ -511,7 +505,7 @@ export async function buildLibraryExportWorkbook(
     ar: formatInLibraryTz(r.archived_at),
   }));
   att.addRows(
-    attBody.map((row) => [row.d, row.dd, row.mn, row.ec, row.nm, row.st, row.in, row.out, row.wk, row.raw, row.ui, row.rm, row.src, row.ar]),
+    attBody.map((row) => [row.d, row.dd, row.ec, row.mn, row.nm, row.st, row.in, row.out, row.wk, row.raw, row.ui, row.rm, row.src, row.ar]),
   );
   if (attBody.length > 0) {
     att.autoFilter = { from: "A1", to: `N${attBody.length + 1}` };
@@ -520,7 +514,7 @@ export async function buildLibraryExportWorkbook(
 
   const rowCountByMember = new Map<number, number>();
   for (const r of attendanceRows) {
-    rowCountByMember.set(r.member_number, (rowCountByMember.get(r.member_number) ?? 0) + 1);
+    rowCountByMember.set(r.device_user_id, (rowCountByMember.get(r.device_user_id) ?? 0) + 1);
   }
 
   // --- Attendance summary (per member in range) ---
@@ -528,9 +522,9 @@ export async function buildLibraryExportWorkbook(
     views: [{ state: "frozen", ySplit: 1, showGridLines: true }],
   });
   const sumHeaders = [
-    "Member #",
     "Empcode",
     "Name",
+    "Device user ID",
     "Rows in period",
     "Distinct days",
     "Days present",
@@ -540,10 +534,10 @@ export async function buildLibraryExportWorkbook(
   ];
   sumSheet.addRow(sumHeaders);
   applyHeaderRow(sumSheet, 1);
-  setColumnWidths(sumSheet, [10, 10, 24, 14, 14, 14, 18, 12, 12]);
+  setColumnWidths(sumSheet, [10, 24, 10, 14, 14, 14, 18, 12, 12]);
 
   type Agg = {
-    member_number: number;
+    device_user_id: number;
     name: string;
     days: Set<string>;
     presentDays: Set<string>;
@@ -551,16 +545,16 @@ export async function buildLibraryExportWorkbook(
   };
   const agg = new Map<number, Agg>();
   for (const r of attendanceRows) {
-    let a = agg.get(r.member_number);
+    let a = agg.get(r.device_user_id);
     if (!a) {
       a = {
-        member_number: r.member_number,
-        name: r.full_name ?? profileByMember.get(r.member_number)?.full_name ?? "",
+        device_user_id: r.device_user_id,
+        name: r.full_name ?? profileByMember.get(r.device_user_id)?.full_name ?? "",
         days: new Set(),
         presentDays: new Set(),
         pendingDays: new Set(),
       };
-      agg.set(r.member_number, a);
+      agg.set(r.device_user_id, a);
     }
     a.days.add(r.library_day_ymd);
     if (r.status_ui === "present") a.presentDays.add(r.library_day_ymd);
@@ -572,10 +566,10 @@ export async function buildLibraryExportWorkbook(
     .map((a) => {
       const sortedDays = [...a.days].sort();
       return {
-        mn: a.member_number,
-        ec: empcodeFromMemberNumber(a.member_number),
+        mn: a.device_user_id,
+        ec: empcodeFromDeviceUserId(a.device_user_id),
         nm: a.name,
-        rows: rowCountByMember.get(a.member_number) ?? 0,
+        rows: rowCountByMember.get(a.device_user_id) ?? 0,
         days: a.days.size,
         pres: a.presentDays.size,
         pend: a.pendingDays.size,
@@ -585,7 +579,7 @@ export async function buildLibraryExportWorkbook(
     })
     .sort((a, b) => a.mn - b.mn);
 
-  sumSheet.addRows(sumRows.map((row) => [row.mn, row.ec, row.nm, row.rows, row.days, row.pres, row.pend, row.fd, row.ld]));
+  sumSheet.addRows(sumRows.map((row) => [row.ec, row.nm, row.mn, row.rows, row.days, row.pres, row.pend, row.fd, row.ld]));
   if (sumRows.length > 0) {
     sumSheet.autoFilter = { from: "A1", to: `I${sumRows.length + 1}` };
     zebraBody(sumSheet, 2, sumRows.length + 1);

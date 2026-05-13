@@ -6,7 +6,7 @@ import { useCallback, useEffect, useState } from "react";
 type DailyItem = {
   date: string;
   empcode: string;
-  member_number: number | null;
+  device_user_id: number | null;
   full_name: string | null;
   seat_number: number | null;
   seat_label: string;
@@ -19,7 +19,7 @@ type DailyItem = {
 
 type PunchItem = {
   empcode: string;
-  member_number: number | null;
+  device_user_id: number | null;
   full_name: string | null;
   punch_date: string;
   flag: string | null;
@@ -132,7 +132,7 @@ export default function AdminAttendanceOverview() {
                   {r.full_name ?? "Unknown member"}
                 </p>
                 <p className="truncate font-mono text-[10px] text-ink-500">
-                  #{r.member_number ?? r.empcode}
+                  #{r.device_user_id ?? r.empcode}
                   {r.seat_label && r.seat_label !== "—" ? ` · seat ${r.seat_label}` : ""}
                 </p>
                 {r.coverage_warning ? (
@@ -192,7 +192,7 @@ export default function AdminAttendanceOverview() {
                   {r.full_name ?? "Unknown member"}
                 </p>
                 <p className="truncate font-mono text-[10px] text-ink-500">
-                  #{r.member_number ?? r.empcode}
+                  #{r.device_user_id ?? r.empcode}
                 </p>
               </div>
               <span className="flex-shrink-0 font-mono text-xs text-ink-700">

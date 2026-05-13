@@ -7,7 +7,7 @@ import { formatDateDMY } from "@/lib/etime/dates";
 type DailyItem = {
   date: string;
   empcode: string;
-  member_number: number | null;
+  device_user_id: number | null;
   full_name: string | null;
   seat_number: number | null;
   seat_label: string;
@@ -24,7 +24,7 @@ type DailyItem = {
 
 type PunchItem = {
   empcode: string;
-  member_number: number | null;
+  device_user_id: number | null;
   full_name: string | null;
   punch_date: string;
   flag: string | null;
@@ -204,7 +204,7 @@ export default function AdminAttendancePanel() {
             </p>
             <p className="mt-0.5 text-sm text-ink-600">
               Pulled from eTimeOffice. Only library members (matched to{" "}
-              <span className="font-mono">profiles.member_number</span>) are shown — device-only enrolments are hidden.
+              <span className="font-mono">profiles.device_user_id</span>) are shown — device-only enrolments are hidden.
             </p>
           </div>
           <div className="ml-auto flex flex-wrap items-end gap-3">
@@ -272,7 +272,8 @@ export default function AdminAttendancePanel() {
               <tr>
                 <th className="px-4 py-3">Date</th>
                 <th className="px-4 py-3">Member</th>
-                <th className="px-4 py-3">Empcode / #</th>
+                <th className="px-4 py-3">Device user ID</th>
+                <th className="px-4 py-3">Empcode</th>
                 <th className="px-4 py-3">Seat</th>
                 <th className="px-4 py-3">In</th>
                 <th className="px-4 py-3">Out</th>
@@ -283,7 +284,7 @@ export default function AdminAttendancePanel() {
             <tbody className="divide-y divide-ink-100">
               {items.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="px-4 py-6 text-center text-sm text-ink-500">
+                  <td colSpan={9} className="px-4 py-6 text-center text-sm text-ink-500">
                     {busy ? "Loading…" : "No rows yet."}
                   </td>
                 </tr>
@@ -293,11 +294,9 @@ export default function AdminAttendancePanel() {
                     <td className="px-4 py-3 font-mono text-xs">{r.date}</td>
                     <td className="px-4 py-3">{r.full_name ?? "—"}</td>
                     <td className="px-4 py-3 font-mono text-xs">
-                      {r.empcode}
-                      {r.member_number != null
-                        ? ` · ${String(r.member_number).padStart(4, "0")}`
-                        : ""}
+                      {r.device_user_id != null ? String(r.device_user_id).padStart(4, "0") : "—"}
                     </td>
+                    <td className="px-4 py-3 font-mono text-xs">{r.empcode}</td>
                     <td className="px-4 py-3 align-top">
                       <div className="font-mono">{r.seat_label ?? "—"}</div>
                       {r.coverage_warning ? (
@@ -369,6 +368,7 @@ export default function AdminAttendancePanel() {
               <tr>
                 <th className="px-4 py-3">Time</th>
                 <th className="px-4 py-3">Member</th>
+                <th className="px-4 py-3">Device user ID</th>
                 <th className="px-4 py-3">Empcode</th>
                 <th className="px-4 py-3">Flag</th>
                 <th className="px-4 py-3">Card</th>
@@ -377,7 +377,7 @@ export default function AdminAttendancePanel() {
             <tbody className="divide-y divide-ink-100">
               {livePunches.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="px-4 py-6 text-center text-sm text-ink-500">
+                  <td colSpan={6} className="px-4 py-6 text-center text-sm text-ink-500">
                     {liveBusy ? "Loading…" : "No recent punches."}
                   </td>
                 </tr>
@@ -389,6 +389,9 @@ export default function AdminAttendancePanel() {
                   >
                     <td className="px-4 py-3 font-mono text-xs">{r.punch_date}</td>
                     <td className="px-4 py-3">{r.full_name ?? "—"}</td>
+                    <td className="px-4 py-3 font-mono text-xs">
+                      {r.device_user_id != null ? String(r.device_user_id).padStart(4, "0") : "—"}
+                    </td>
                     <td className="px-4 py-3 font-mono text-xs">{r.empcode}</td>
                     <td className="px-4 py-3">
                       <span className="inline-flex rounded-full bg-ink-100 px-2 py-0.5 text-[11px] font-medium text-ink-700">

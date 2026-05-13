@@ -1,4 +1,5 @@
 import { apiError, apiSuccess } from "@/lib/api/json-response";
+import { formatProfileMemberLabel } from "@/lib/membership/profile-label";
 import { requireLibrarySuperAdmin } from "@/lib/supabase/require-library-super-admin";
 import { createSupabaseServiceRoleClient } from "@/lib/supabase/service-role";
 
@@ -31,7 +32,7 @@ export async function GET(request: Request) {
 
   if (/^\d{1,4}$/.test(q)) {
     const n = parseInt(q, 10);
-    const { data: profs } = await admin.from("profiles").select("user_id").eq("member_number", n).limit(20);
+    const { data: profs } = await admin.from("profiles").select("user_id").eq("device_user_id", n).limit(20);
     const ids = (profs ?? []).map((p) => p.user_id);
     if (ids.length > 0) {
       query = admin
@@ -43,7 +44,7 @@ export async function GET(request: Request) {
         .order("created_at", { ascending: false })
         .limit(200);
     } else {
-      return apiSuccess("No memberships found for that member number.", { items: [] });
+      return apiSuccess("No memberships found for that device user id.", { items: [] });
     }
   }
 
@@ -53,20 +54,23 @@ export async function GET(request: Request) {
   }
 
   const userIds = Array.from(new Set((items ?? []).map((r) => r.user_id).filter(Boolean)));
-  const emailByUser: Record<string, string> = {};
+  const labelByUser: Record<string, string> = {};
+  const deviceByUser: Record<string, number> = {};
   if (userIds.length > 0) {
     const { data: profs } = await admin
       .from("profiles")
-      .select("user_id, full_name, member_number, email")
+      .select("user_id, full_name, device_user_id, email")
       .in("user_id", userIds);
     for (const p of profs ?? []) {
-      emailByUser[p.user_id] = p.email ?? p.full_name ?? String(p.member_number);
+      labelByUser[p.user_id] = formatProfileMemberLabel(p);
+      deviceByUser[p.user_id] = p.device_user_id;
     }
   }
 
   const mapped = (items ?? []).map((r) => ({
     ...r,
-    member_label: emailByUser[r.user_id] ?? r.user_id,
+    member_label: labelByUser[r.user_id] ?? r.user_id,
+    device_user_id: deviceByUser[r.user_id] ?? null,
   }));
 
   return apiSuccess(`Loaded ${mapped.length} membership row(s) for superadmin.`, { items: mapped });

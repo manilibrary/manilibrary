@@ -2,7 +2,7 @@
 -- Mani Library — eTimeOffice punch / attendance storage (device → Supabase)
 -- Run after public.profiles exists (schema-profiles.sql).
 --
--- Maps device Empcode to profiles.member_number (same integer; use leading
+-- Maps device Empcode to profiles.device_user_id (same integer; use leading
 -- zeros on device only). If codes differ, use public.etime_empcode_map
 -- (schema-etime-empcode-map.sql) before syncing.
 --
@@ -12,7 +12,7 @@
 
 create table if not exists public.etime_attendance_daily (
   id            bigserial primary key,
-  member_number int not null references public.profiles (member_number) on update cascade,
+  device_user_id int not null references public.profiles (device_user_id) on update cascade,
   work_date     date not null,
   in_time       text,
   out_time      text,
@@ -25,7 +25,7 @@ create table if not exists public.etime_attendance_daily (
   erl_out       text,
   raw           jsonb not null,
   fetched_at    timestamptz not null default now(),
-  unique (member_number, work_date)
+  unique (device_user_id, work_date)
 );
 
 create index if not exists etime_attendance_daily_work_date_idx
@@ -33,11 +33,11 @@ create index if not exists etime_attendance_daily_work_date_idx
 
 create table if not exists public.etime_punch_raw (
   id            bigserial primary key,
-  member_number int not null references public.profiles (member_number) on update cascade,
+  device_user_id int not null references public.profiles (device_user_id) on update cascade,
   punch_at      timestamptz not null,
   mcid          text not null default '',
   raw           jsonb not null,
-  unique (member_number, punch_at, mcid)
+  unique (device_user_id, punch_at, mcid)
 );
 
 create index if not exists etime_punch_raw_punch_at_idx
@@ -50,7 +50,7 @@ drop policy if exists etime_attendance_daily_select on public.etime_attendance_d
 create policy etime_attendance_daily_select on public.etime_attendance_daily
   for select to authenticated
   using (
-    member_number = (select p.member_number from public.profiles p where p.user_id = auth.uid())
+    device_user_id = (select p.device_user_id from public.profiles p where p.user_id = auth.uid())
     or coalesce((select p.is_admin from public.profiles p where p.user_id = auth.uid()), false)
   );
 
@@ -58,7 +58,7 @@ drop policy if exists etime_punch_raw_select on public.etime_punch_raw;
 create policy etime_punch_raw_select on public.etime_punch_raw
   for select to authenticated
   using (
-    member_number = (select p.member_number from public.profiles p where p.user_id = auth.uid())
+    device_user_id = (select p.device_user_id from public.profiles p where p.user_id = auth.uid())
     or coalesce((select p.is_admin from public.profiles p where p.user_id = auth.uid()), false)
   );
 

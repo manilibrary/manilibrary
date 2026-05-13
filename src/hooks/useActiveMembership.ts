@@ -8,9 +8,7 @@ export type ActiveMembershipShape = {
   id: string;
   plan_kind: string;
   status: string;
-  seat_number: number | null;
-  /** Persisted F(n)/S(n) when present (see `resolveMemberSeatDisplayLabel`). */
-  seat_label?: string | null;
+  seat_number: string | number | null;
   starts_at: string | null;
   ends_at: string | null;
   valid_from: string | null;

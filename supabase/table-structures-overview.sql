@@ -1,0 +1,318 @@
+-- =============================================================================
+-- MANI LIBRARY — DATABASE STRUCTURE REFERENCE (documentation only; do not run)
+-- =============================================================================
+-- Every application table (and one sequence) defined by SQL in this repo’s
+-- `supabase/` folder. Supabase-managed tables (e.g. auth.users, storage.objects)
+-- are not created here but are referenced by foreign keys.
+--
+-- RUN ORDER (typical fresh project)
+--   1. schema-profiles.sql
+--   2. schema-membership-kyc-payments.sql
+--   3. add-profile-intake-kyc.sql
+--   4. add-is-superadmin.sql
+--   5. schema-etime-punch.sql              (optional)
+--   6. schema-etime-empcode-map.sql        (optional)
+--   7. attendance-day-archive.sql          (optional)
+--   8. library-export-audit.sql
+--   (+ migrations / one-offs as needed: migrate-*.sql, enforce-seat-exclusivity, etc.)
+--
+-- TABLE INDEX (all public tables from repo DDL)
+--   profiles
+--   verification_requests
+--   verification_documents
+--   memberships
+--   payments
+--   etime_attendance_daily     [optional]
+--   etime_punch_raw            [optional]
+--   etime_empcode_map          [optional]
+--   attendance_day_snapshots   [optional]
+--   attendance_history_entries [optional]
+--   library_export_audit
+--
+-- SEQUENCE
+--   device_user_id_seq  (used by handle_new_user for profiles.device_user_id)
+-- =============================================================================
+
+
+-- =============================================================================
+-- SEQUENCE
+-- =============================================================================
+-- public.device_user_id_seq
+--   integer, start 1, increment 1, minvalue 0, maxvalue 9999, no cycle
+--   (see schema-profiles.sql; name was member_number_seq in older projects)
+
+
+-- =============================================================================
+-- public.profiles
+-- =============================================================================
+-- Source: schema-profiles.sql + schema-membership-kyc-payments.sql (verification_*)
+--         + add-profile-intake-kyc.sql + add-is-superadmin.sql
+--
+-- | column                    | type        | null | default / notes |
+-- |---------------------------|-------------|------|-------------------|
+-- | user_id                   | uuid        | NO   | PK → auth.users(id) ON DELETE RESTRICT |
+-- | device_user_id            | int         | NO   | UNIQUE, CHECK 0..9999, FK target from child tables |
+-- | full_name                 | text        | NO   | |
+-- | phone                     | text        | YES  | |
+-- | email                     | text        | YES  | |
+-- | avatar_url                | text        | YES  | |
+-- | device_enrolled_at        | timestamptz | YES  | |
+-- | enrolled_by               | uuid        | YES  | → auth.users(id) |
+-- | is_admin                  | boolean     | NO   | DEFAULT false |
+-- | is_superadmin             | boolean     | NO   | DEFAULT false (add-is-superadmin.sql) |
+-- | verification_status       | text        | NO   | DEFAULT 'none'; CHECK none|pending|approved|rejected|resubmit |
+-- | verification_submitted_at | timestamptz | YES  | |
+-- | verification_reviewed_at  | timestamptz | YES  | |
+-- | verification_reviewed_by  | uuid        | YES  | → auth.users(id) (add-profile-intake-kyc.sql) |
+-- | aadhaar_last_four         | text        | YES  | CHECK null or ^[0-9]{4}$ |
+-- | student_roll_number       | text        | YES  | |
+-- | institution_type          | text        | YES  | CHECK null or school|college|freelance|other |
+-- | preparing_for             | text        | YES  | |
+-- | created_at                | timestamptz | NO   | DEFAULT now() |
+-- | updated_at                | timestamptz | NO   | DEFAULT now() |
+--
+-- Indexes: profiles_device_user_id_idx (device_user_id)
+-- Triggers: on_auth_user_created → handle_new_user; trg_profiles_lock_device_user_id
+
+
+-- =============================================================================
+-- public.verification_requests
+-- =============================================================================
+-- Source: schema-membership-kyc-payments.sql
+--
+-- | column               | type        | null | default / notes |
+-- |----------------------|-------------|------|-------------------|
+-- | id                   | uuid        | NO   | PK, DEFAULT gen_random_uuid() |
+-- | user_id              | uuid        | NO   | → auth.users(id) ON DELETE CASCADE |
+-- | device_user_id       | int         | NO   | → profiles(device_user_id) ON UPDATE CASCADE |
+-- | status               | text        | NO   | DEFAULT 'pending'; CHECK pending|approved|rejected|resubmit |
+-- | submitted_at         | timestamptz | NO   | DEFAULT now() |
+-- | reviewed_at          | timestamptz | YES  | |
+-- | reviewed_by          | uuid        | YES  | → auth.users(id) |
+-- | admin_internal_note  | text        | YES  | |
+-- | student_message      | text        | YES  | |
+-- | created_at           | timestamptz | NO   | DEFAULT now() |
+-- | updated_at           | timestamptz | NO   | DEFAULT now() |
+--
+-- Indexes: verification_requests_one_pending_per_user (unique partial user_id WHERE status=pending)
+--          verification_requests_user_idx, verification_requests_status_idx,
+--          verification_requests_device_user_id_idx
+-- RLS: enabled; policies vr_*
+
+
+-- =============================================================================
+-- public.verification_documents
+-- =============================================================================
+-- Source: schema-membership-kyc-payments.sql
+--
+-- | column          | type        | null | default / notes |
+-- |-----------------|-------------|------|-------------------|
+-- | id              | uuid        | NO   | PK, DEFAULT gen_random_uuid() |
+-- | verification_id | uuid        | NO   | → verification_requests(id) ON DELETE CASCADE |
+-- | device_user_id  | int         | NO   | → profiles(device_user_id) ON UPDATE CASCADE |
+-- | doc_type        | text        | NO   | CHECK aadhaar_front|aadhaar_back|student_id |
+-- | storage_bucket  | text        | NO   | DEFAULT 'kyc-private' |
+-- | storage_path    | text        | NO   | |
+-- | content_type    | text        | YES  | |
+-- | uploaded_at     | timestamptz | NO   | DEFAULT now() |
+--
+-- UNIQUE (verification_id, doc_type)
+-- Indexes: verification_documents_verification_idx, verification_documents_device_user_id_idx
+-- RLS: enabled; policies vd_*
+
+
+-- =============================================================================
+-- public.memberships
+-- =============================================================================
+-- Source: schema-membership-kyc-payments.sql (+ payment_id column after payments exists)
+--
+-- | column        | type        | null | default / notes |
+-- |---------------|-------------|------|-------------------|
+-- | id            | uuid        | NO   | PK, DEFAULT gen_random_uuid() |
+-- | user_id       | uuid        | NO   | → auth.users(id) ON DELETE CASCADE |
+-- | device_user_id| int         | NO   | → profiles(device_user_id) ON UPDATE CASCADE |
+-- | plan_kind     | text        | NO   | CHECK short_term|long_term |
+-- | status        | text        | NO   | DEFAULT pending_payment; CHECK pending_payment|active|expired|cancelled |
+-- | seat_number   | text        | YES  | active: F(n)/S(n). pending_payment: literal Not applicable; planned token in payments.metadata.planned_seat_token |
+-- | starts_at     | timestamptz | YES  | short_term window |
+-- | ends_at       | timestamptz | YES  | short_term window |
+-- | valid_from    | date        | YES  | long_term window |
+-- | valid_until   | date        | YES  | long_term window |
+-- | notes         | text        | YES  | |
+-- | created_at    | timestamptz | NO   | DEFAULT now() |
+-- | updated_at    | timestamptz | NO   | DEFAULT now() |
+-- | payment_id    | uuid        | YES  | → payments(id) ON DELETE SET NULL |
+--
+-- CHECK: memberships_short_term_window, memberships_long_term_window
+-- EXCLUDE (btree_gist, partial WHERE status=active + seat): memberships_seat_no_overlap_short_term, _long_term
+-- Indexes: memberships_user_idx, memberships_device_user_id_idx, memberships_status_idx,
+--          memberships_seat_idx (partial seat_number IS NOT NULL), memberships_payment_idx
+-- Triggers: trg_memberships_updated, trg_memberships_sync_device_user_id
+-- RLS: enabled; policies mb_*
+
+
+-- =============================================================================
+-- public.payments
+-- =============================================================================
+-- Source: schema-membership-kyc-payments.sql
+--
+-- | column              | type        | null | default / notes |
+-- |---------------------|-------------|------|-------------------|
+-- | id                  | uuid        | NO   | PK, DEFAULT gen_random_uuid() |
+-- | user_id             | uuid        | NO   | → auth.users(id) ON DELETE CASCADE |
+-- | device_user_id      | int         | NO   | → profiles(device_user_id) ON UPDATE CASCADE |
+-- | membership_id       | uuid        | YES  | → memberships(id) ON DELETE SET NULL |
+-- | amount_rupees       | bigint      | NO   | CHECK >= 0; whole INR |
+-- | currency            | text        | NO   | DEFAULT 'INR' |
+-- | provider            | text        | YES  | e.g. razorpay |
+-- | provider_payment_id | text        | YES  | |
+-- | status              | text        | NO   | DEFAULT pending; CHECK pending|paid|failed|refunded |
+-- | metadata            | jsonb       | NO   | DEFAULT '{}'; keys e.g. razorpay_order_id, razorpay_payment_id, planned_seat_token (checkout) |
+-- | created_at          | timestamptz | NO   | DEFAULT now() |
+-- | updated_at          | timestamptz | NO   | DEFAULT now() |
+--
+-- Indexes: payments_user_idx, payments_device_user_id_idx, payments_membership_idx,
+--          payments_provider_id_idx (provider, provider_payment_id)
+-- Triggers: trg_payments_updated, trg_payments_sync_device_user_id
+-- RLS: enabled; policies pay_*
+
+
+-- =============================================================================
+-- public.etime_attendance_daily  [OPTIONAL — schema-etime-punch.sql]
+-- =============================================================================
+--
+-- | column         | type        | null | default / notes |
+-- |----------------|-------------|------|-------------------|
+-- | id             | bigint      | NO   | PK, bigserial |
+-- | device_user_id | int         | NO   | → profiles(device_user_id) ON UPDATE CASCADE |
+-- | work_date      | date        | NO   | |
+-- | in_time        | text        | YES  | |
+-- | out_time       | text        | YES  | |
+-- | work_time      | text        | YES  | |
+-- | overtime       | text        | YES  | |
+-- | break_time     | text        | YES  | |
+-- | status         | text        | YES  | |
+-- | remark         | text        | YES  | |
+-- | late_in        | text        | YES  | |
+-- | erl_out        | text        | YES  | |
+-- | raw            | jsonb       | NO   | |
+-- | fetched_at     | timestamptz | NO   | DEFAULT now() |
+--
+-- UNIQUE (device_user_id, work_date)
+-- Index: etime_attendance_daily_work_date_idx
+-- RLS: enabled; policy etime_attendance_daily_select
+
+
+-- =============================================================================
+-- public.etime_punch_raw  [OPTIONAL — schema-etime-punch.sql]
+-- =============================================================================
+--
+-- | column         | type        | null | default / notes |
+-- |----------------|-------------|------|-------------------|
+-- | id             | bigint      | NO   | PK, bigserial |
+-- | device_user_id | int         | NO   | → profiles(device_user_id) ON UPDATE CASCADE |
+-- | punch_at       | timestamptz | NO   | |
+-- | mcid           | text        | NO   | DEFAULT '' |
+-- | raw            | jsonb       | NO   | |
+--
+-- UNIQUE (device_user_id, punch_at, mcid)
+-- Index: etime_punch_raw_punch_at_idx
+-- RLS: enabled; policy etime_punch_raw_select
+
+
+-- =============================================================================
+-- public.etime_empcode_map  [OPTIONAL — schema-etime-empcode-map.sql]
+-- =============================================================================
+--
+-- | column         | type        | null | default / notes |
+-- |----------------|-------------|------|-------------------|
+-- | empcode        | text        | NO   | PK |
+-- | device_user_id | int         | NO   | → profiles(device_user_id) ON UPDATE CASCADE ON DELETE CASCADE |
+-- | notes          | text        | YES  | |
+-- | created_at     | timestamptz | NO   | DEFAULT now() |
+--
+-- Index: etime_empcode_map_device_user_id_idx
+-- RLS: enabled; policy etime_empcode_map_select
+
+
+-- =============================================================================
+-- public.attendance_day_snapshots  [OPTIONAL — attendance-day-archive.sql]
+-- =============================================================================
+--
+-- | column               | type        | null | default / notes |
+-- |----------------------|-------------|------|-------------------|
+-- | id                   | uuid        | NO   | PK, DEFAULT gen_random_uuid() |
+-- | library_day_ymd      | date        | NO   | |
+-- | device_from_dmy      | text        | NO   | |
+-- | device_to_dmy        | text        | NO   | |
+-- | source               | text        | NO   | |
+-- | items                | jsonb       | NO   | |
+-- | skipped_unregistered | int         | NO   | DEFAULT 0 |
+-- | archived_at          | timestamptz | NO   | DEFAULT now() |
+--
+-- UNIQUE (library_day_ymd)
+-- Index: attendance_day_snapshots_day_idx
+
+
+-- =============================================================================
+-- public.attendance_history_entries  [OPTIONAL — attendance-day-archive.sql]
+-- =============================================================================
+--
+-- | column          | type        | null | default / notes |
+-- |-----------------|-------------|------|-------------------|
+-- | id              | bigint      | NO   | PK, GENERATED ALWAYS AS IDENTITY |
+-- | library_day_ymd | date      | NO   | |
+-- | date_dmy        | text        | NO   | |
+-- | device_user_id  | int         | NO   | denormalized; no FK in reference DDL |
+-- | empcode         | text        | NO   | |
+-- | full_name       | text        | YES  | |
+-- | seat_label      | text        | NO   | DEFAULT '—' |
+-- | in_time         | text        | NO   | DEFAULT '' |
+-- | out_time        | text        | NO   | DEFAULT '' |
+-- | work_time       | text        | NO   | DEFAULT '' |
+-- | status          | text        | NO   | DEFAULT '' |
+-- | status_ui       | text        | NO   | DEFAULT 'other' |
+-- | status_ui_label | text        | NO   | DEFAULT '—' |
+-- | remark          | text        | NO   | DEFAULT '' |
+-- | source          | text        | NO   | |
+-- | archived_at     | timestamptz | NO   | DEFAULT now() |
+--
+-- Indexes: attendance_history_entries_day_idx, attendance_history_entries_device_user_idx
+
+
+-- =============================================================================
+-- public.library_export_audit
+-- =============================================================================
+-- Source: library-export-audit.sql
+--
+-- | column             | type        | null | default / notes |
+-- |--------------------|-------------|------|-------------------|
+-- | id                 | uuid        | NO   | PK, DEFAULT gen_random_uuid() |
+-- | created_at         | timestamptz | NO   | DEFAULT now() |
+-- | created_by         | uuid        | YES  | → auth.users(id) ON DELETE SET NULL |
+-- | from_ymd           | date        | NO   | |
+-- | to_ymd             | date        | NO   | |
+-- | directory_rows     | int         | NO   | DEFAULT 0 |
+-- | membership_rows    | int         | NO   | DEFAULT 0 |
+-- | payment_rows       | int         | NO   | DEFAULT 0 |
+-- | attendance_rows    | int         | NO   | DEFAULT 0 |
+-- | attendance_capped  | boolean     | NO   | DEFAULT false |
+-- | workbook_bytes     | bigint      | NO   | DEFAULT 0 |
+--
+-- Grants: service_role only (see file)
+
+
+-- =============================================================================
+-- LIVE INTROSPECTION (uncomment and run in Supabase SQL Editor on your project)
+-- =============================================================================
+-- select table_name, ordinal_position, column_name, data_type, is_nullable, column_default
+-- from information_schema.columns
+-- where table_schema = 'public'
+--   and table_name in (
+--     'profiles','verification_requests','verification_documents',
+--     'memberships','payments',
+--     'etime_attendance_daily','etime_punch_raw','etime_empcode_map',
+--     'attendance_day_snapshots','attendance_history_entries',
+--     'library_export_audit'
+--   )
+-- order by table_name, ordinal_position;

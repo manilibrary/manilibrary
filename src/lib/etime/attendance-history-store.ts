@@ -5,7 +5,7 @@ import type { AdminDailyAttendanceItem } from "@/lib/etime/admin-daily-attendanc
 type HistoryRow = {
   library_day_ymd: string;
   date_dmy: string;
-  member_number: number;
+  device_user_id: number;
   empcode: string;
   full_name: string | null;
   seat_label: string;
@@ -42,11 +42,11 @@ export async function replaceAttendanceHistoryForDay(
 
   const rows: HistoryRow[] = [];
   for (const it of items) {
-    if (it.member_number == null || !Number.isFinite(it.member_number)) continue;
+    if (it.device_user_id == null || !Number.isFinite(it.device_user_id)) continue;
     rows.push({
       library_day_ymd: dayYmd,
       date_dmy: it.date,
-      member_number: it.member_number,
+      device_user_id: it.device_user_id,
       empcode: it.empcode,
       full_name: it.full_name,
       seat_label: it.seat_label,

@@ -66,10 +66,10 @@ function isSyntheticPadRow(row: DailyRow): boolean {
   return trivial;
 }
 
-function empcodeMatches(rowEmp: string, memberNumber: number): boolean {
+function empcodeMatches(rowEmp: string, deviceUserId: number): boolean {
   const cleaned = rowEmp.replace(/[^0-9]/g, "");
   if (!cleaned) return false;
-  return parseInt(cleaned, 10) === memberNumber;
+  return parseInt(cleaned, 10) === deviceUserId;
 }
 
 function rowToDaily(r: {
@@ -124,7 +124,7 @@ const SUMMARY_TTL_MS = 30_000;
 const PUNCHES_TTL_MS = 30_000;
 
 async function summaryForRange(
-  memberNumber: number,
+  deviceUserId: number,
   fromDMY: string,
   toDMY: string,
 ): Promise<DailyRow[]> {
@@ -141,11 +141,11 @@ async function summaryForRange(
   });
   if (!all) return [];
   return (all.InOutPunchData ?? [])
-    .filter((r) => empcodeMatches(r.Empcode, memberNumber))
+    .filter((r) => empcodeMatches(r.Empcode, deviceUserId))
     .map((r) => rowToDaily(r));
 }
 
-async function punchesForAnchorDmy(memberNumber: number, anchorDMY: string): Promise<EtimePunchMcidRow[]> {
+async function punchesForAnchorDmy(deviceUserId: number, anchorDMY: string): Promise<EtimePunchMcidRow[]> {
   const bounds = punchBoundsFromDmy(anchorDMY);
   const key = `me-punches:ALL:${bounds.from}:${bounds.to}`;
   const all = await cachedFetch<EtimePunchMcidRow[] | null>(key, PUNCHES_TTL_MS, async () => {
@@ -159,7 +159,7 @@ async function punchesForAnchorDmy(memberNumber: number, anchorDMY: string): Pro
     }
   });
   if (!all) return [];
-  return all.filter((r) => empcodeMatches(r.Empcode, memberNumber));
+  return all.filter((r) => empcodeMatches(r.Empcode, deviceUserId));
 }
 
 export async function GET() {
@@ -181,12 +181,12 @@ export async function GET() {
 
   const { data: profile } = await admin
     .from("profiles")
-    .select("member_number, created_at")
+    .select("device_user_id, created_at")
     .eq("user_id", user.id)
     .maybeSingle();
 
-  if (!profile?.member_number) {
-    return apiError("No member_number on your profile.", 400);
+  if (!profile?.device_user_id) {
+    return apiError("No device_user_id on your profile.", 400);
   }
 
   const { data: membership } = await admin
@@ -198,20 +198,20 @@ export async function GET() {
     .limit(1)
     .maybeSingle();
 
-  const memberNumber = profile.member_number as number;
+  const deviceUserId = profile.device_user_id as number;
   const tz = DEFAULT_LIBRARY_TZ;
   const anchorYmd = attendanceAnchorYmd(new Date(), tz);
   const anchorDMY = ymdToDmy(anchorYmd);
   const floorYmd = historyFloorYmd(anchorYmd, tz, membership as MembershipRow | null, profile.created_at ?? null);
   const fromDMY = ymdToDmy(floorYmd);
 
-  const rangeRows = await summaryForRange(memberNumber, fromDMY, anchorDMY);
+  const rangeRows = await summaryForRange(deviceUserId, fromDMY, anchorDMY);
   const anchorNorm = normDmy(anchorDMY);
 
   let daily: DailyRow | null =
     rangeRows.find((r) => normDmy(r.date) === anchorNorm) ?? null;
 
-  const anchorPunches = await punchesForAnchorDmy(memberNumber, anchorDMY);
+  const anchorPunches = await punchesForAnchorDmy(deviceUserId, anchorDMY);
   const summaryEmpty = !daily || (isDashTime(daily.in_time) && isDashTime(daily.out_time));
   if (summaryEmpty && anchorPunches.length > 0) {
     const derivedList = deriveDailyFromPunches(anchorPunches);
@@ -243,7 +243,7 @@ export async function GET() {
   const hasOut = daily ? !isDashTime(daily.out_time) : false;
 
   return apiSuccess("Today's attendance summary loaded.", {
-    memberNumber,
+    deviceUserId,
     attendanceDate: anchorDMY,
     today: anchorDMY,
     historyFromYmd: floorYmd,

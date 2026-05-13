@@ -30,12 +30,12 @@ export async function GET(request: Request) {
   const { data, error } = await admin
     .from("attendance_history_entries")
     .select(
-      "library_day_ymd, date_dmy, member_number, empcode, full_name, seat_label, in_time, out_time, work_time, status, status_ui, status_ui_label, remark, source, archived_at",
+      "library_day_ymd, date_dmy, device_user_id, empcode, full_name, seat_label, in_time, out_time, work_time, status, status_ui, status_ui_label, remark, source, archived_at",
     )
     .gte("library_day_ymd", lo)
     .lte("library_day_ymd", hi)
     .order("library_day_ymd", { ascending: false })
-    .order("member_number", { ascending: true })
+    .order("device_user_id", { ascending: true })
     .limit(2000);
 
   if (error) {

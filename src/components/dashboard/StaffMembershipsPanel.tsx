@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 
 import MemberKycDocumentsModal, { type MemberKycDetails } from "@/components/dashboard/MemberKycDocumentsModal";
 import { formatDateDdMmYyyy, formatDateTimeDdMmYyyy } from "@/lib/date-format";
+import { MembershipSeatTableCell } from "@/components/membership/MembershipSeatTableCell";
 import { resolveMemberSeatDisplayLabel } from "@/lib/membership/seat-label";
 import { addDaysYmd, DEFAULT_LIBRARY_TZ, todayYmdInTz } from "@/lib/membership/windows";
 
@@ -14,8 +15,7 @@ type MembershipRow = {
   user_id: string;
   plan_kind: string;
   status: string;
-  seat_number: number | null;
-  seat_label: string | null;
+  seat_number: string | number | null;
   starts_at: string | null;
   ends_at: string | null;
   valid_from: string | null;
@@ -28,7 +28,7 @@ type MembershipRow = {
 type ProfileMini = {
   user_id: string;
   full_name: string;
-  member_number: number;
+  device_user_id: number;
   email: string | null;
   verification_status: string;
   aadhaar_last_four: string | null;
@@ -47,27 +47,38 @@ function formatMembershipPeriod(r: MembershipRow): string {
   return "—";
 }
 
+function isMembershipWindowExpired(r: MembershipRow): boolean {
+  return r.window_state === "ended_past";
+}
+
+function isPendingPaymentMembership(r: MembershipRow): boolean {
+  return r.status === "pending_payment";
+}
+
 function windowHint(r: MembershipRow): string | null {
+  if (isMembershipWindowExpired(r)) {
+    const ended = r.plan_kind === "short_term" ? formatDateTimeDdMmYyyy(r.ends_at) : formatDateDdMmYyyy(r.valid_until);
+    return ended ? `Ended ${ended}` : "Period ended";
+  }
   if (r.status !== "active") return null;
   if (r.window_state === "current") return "Current today";
   if (r.window_state === "starts_future") {
     const starts = r.plan_kind === "short_term" ? formatDateTimeDdMmYyyy(r.starts_at) : formatDateDdMmYyyy(r.valid_from);
     return `Starts ${starts}`;
   }
-  if (r.window_state === "ended_past") {
-    const ended = r.plan_kind === "short_term" ? formatDateTimeDdMmYyyy(r.ends_at) : formatDateDdMmYyyy(r.valid_until);
-    return `Ended ${ended}`;
-  }
   if (r.window_state === "unknown") return "Window missing";
   return null;
 }
 
 function MembershipStatusBadge({ s, windowState }: { s: string; windowState?: MembershipWindowState }) {
+  const expired = s === "active" && windowState === "ended_past";
   let cls = "bg-ink-100 text-ink-700";
-  if (s === "active" && windowState === "starts_future") {
+  let label = s.replace(/_/g, " ");
+  if (expired) {
+    cls = "bg-stone-200 text-stone-800";
+    label = "expired";
+  } else if (s === "active" && windowState === "starts_future") {
     cls = "bg-amber-100 text-amber-800";
-  } else if (s === "active" && windowState === "ended_past") {
-    cls = "bg-red-100 text-red-800";
   } else if (s === "active" && (windowState === "current" || !windowState)) {
     cls = "bg-emerald-100 text-emerald-800";
   } else if (s === "pending_payment") {
@@ -77,14 +88,23 @@ function MembershipStatusBadge({ s, windowState }: { s: string; windowState?: Me
   }
   return (
     <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium capitalize ${cls}`}>
-      {s.replace(/_/g, " ")}
+      {label}
     </span>
   );
 }
 
-type VerifyFilter = "all" | "verified" | "pending" | "unverified";
+type MemberBrowseFilter = "all" | "verified" | "pending" | "unverified" | "pending_payment" | "expired";
 
-function matchesVerifyFilter(v: string | undefined, f: VerifyFilter): boolean {
+function matchesMemberBrowseFilter(v: string | undefined, f: MemberBrowseFilter, r: MembershipRow): boolean {
+  const expired = isMembershipWindowExpired(r);
+  const pendingPay = isPendingPaymentMembership(r);
+
+  if (f === "expired") return expired;
+  if (f === "pending_payment") return pendingPay;
+
+  if (expired) return false;
+  if (pendingPay) return false;
+
   const norm = (v || "none").toLowerCase();
   if (f === "all") return true;
   if (f === "verified") return norm === "approved";
@@ -93,11 +113,13 @@ function matchesVerifyFilter(v: string | undefined, f: VerifyFilter): boolean {
   return true;
 }
 
-const FILTER_CHIPS: { id: VerifyFilter; label: string }[] = [
+const FILTER_CHIPS: { id: MemberBrowseFilter; label: string }[] = [
   { id: "all", label: "All" },
   { id: "verified", label: "Verified" },
   { id: "pending", label: "Pending review" },
   { id: "unverified", label: "Unverified" },
+  { id: "pending_payment", label: "Pending payments" },
+  { id: "expired", label: "Expired" },
 ];
 
 export default function StaffMembershipsPanel() {
@@ -105,7 +127,7 @@ export default function StaffMembershipsPanel() {
   const [profiles, setProfiles] = useState<Record<string, ProfileMini>>({});
   const [err, setErr] = useState<string | null>(null);
   const [q, setQ] = useState("");
-  const [verifyFilter, setVerifyFilter] = useState<VerifyFilter>("all");
+  const [browseFilter, setBrowseFilter] = useState<MemberBrowseFilter>("all");
   const [refreshKey, setRefreshKey] = useState(0);
   const [kycPreview, setKycPreview] = useState<{
     userId: string;
@@ -191,22 +213,30 @@ export default function StaffMembershipsPanel() {
     };
   }, [load, refreshKey]);
 
-  const filtered = useMemo(() => {
-    const needle = q.trim().toLowerCase();
+  const chipFiltered = useMemo(() => {
     return rows.filter((r) => {
       const p = profiles[r.user_id];
       const v = p?.verification_status ?? "none";
-      if (!matchesVerifyFilter(v, verifyFilter)) return false;
-      if (!needle) return true;
+      return matchesMemberBrowseFilter(v, browseFilter, r);
+    });
+  }, [rows, profiles, browseFilter]);
+
+  const filtered = useMemo(() => {
+    const needle = q.trim().toLowerCase();
+    if (!needle) return chipFiltered;
+    return chipFiltered.filter((r) => {
+      const p = profiles[r.user_id];
+      const v = p?.verification_status ?? "none";
       const seatLabel = resolveMemberSeatDisplayLabel({
         plan_kind: r.plan_kind,
         seat_number: r.seat_number,
-        seat_label: r.seat_label,
       });
       const period = formatMembershipPeriod(r);
       const hint = windowHint(r) ?? "";
+      const expiredTag = isMembershipWindowExpired(r) ? "expired" : "";
+      const pendingPayTag = isPendingPaymentMembership(r) ? "pending payment" : "";
       const member = p
-        ? `${p.full_name} ${String(p.member_number).padStart(4, "0")} ${p.email ?? ""} ${p.aadhaar_last_four ?? ""} ${p.student_roll_number ?? ""} ${p.institution_type ?? ""} ${p.preparing_for ?? ""} ${v}`
+        ? `${p.full_name} ${String(p.device_user_id).padStart(4, "0")} ${p.email ?? ""} ${p.aadhaar_last_four ?? ""} ${p.student_roll_number ?? ""} ${p.institution_type ?? ""} ${p.preparing_for ?? ""} ${v} ${expiredTag} ${pendingPayTag}`
         : "";
       return (
         member.toLowerCase().includes(needle) ||
@@ -218,7 +248,7 @@ export default function StaffMembershipsPanel() {
         r.status.toLowerCase().includes(needle)
       );
     });
-  }, [rows, profiles, q, verifyFilter]);
+  }, [chipFiltered, profiles, q]);
 
   if (err) {
     return (
@@ -278,9 +308,9 @@ export default function StaffMembershipsPanel() {
           <button
             key={c.id}
             type="button"
-            onClick={() => setVerifyFilter(c.id)}
+            onClick={() => setBrowseFilter(c.id)}
             className={`rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${
-              verifyFilter === c.id
+              browseFilter === c.id
                 ? "bg-azure-600 text-white"
                 : "border border-ink-200 bg-white text-ink-700 hover:bg-ink-50"
             }`}
@@ -298,7 +328,7 @@ export default function StaffMembershipsPanel() {
           onChange={(e) => setQ(e.target.value)}
         />
         <p className="text-xs text-ink-500">
-          {filtered.length} of {rows.length} rows
+          {filtered.length} of {chipFiltered.length} rows
         </p>
       </div>
 
@@ -310,12 +340,12 @@ export default function StaffMembershipsPanel() {
             <thead className="border-b border-ink-100 bg-surface-muted/80 font-mono text-[10px] uppercase tracking-widest text-ink-500">
               <tr>
                 <th className="px-4 py-3">Member</th>
-                <th className="px-4 py-3">#</th>
                 <th className="px-4 py-3">KYC</th>
+                <th className="px-4 py-3">Device user ID</th>
                 <th className="px-4 py-3">Plan</th>
                 <th
                   className="px-4 py-3"
-                  title="F = long-term seat. S = short-term (limited hours) seat."
+                  title="F = long-term, S = short-term. Only active memberships reserve a seat; pending payment shows checkout choice only."
                 >
                   Seat
                 </th>
@@ -343,16 +373,11 @@ export default function StaffMembershipsPanel() {
                     student_roll_number: p?.student_roll_number ?? null,
                     institution_type: p?.institution_type ?? null,
                     preparing_for: p?.preparing_for ?? null,
-                    member_number: p?.member_number ?? null,
+                    device_user_id: p?.device_user_id ?? null,
                   };
                   const modalTitle = p?.full_name
                     ? `${p.full_name}${p?.email ? ` — ${p.email}` : ""}`
                     : (p?.email ?? r.user_id);
-                  const seatLabel = resolveMemberSeatDisplayLabel({
-                    plan_kind: r.plan_kind,
-                    seat_number: r.seat_number,
-                    seat_label: r.seat_label,
-                  });
                   const hint = windowHint(r);
                   return (
                     <tr key={r.id} className="text-ink-800">
@@ -361,9 +386,6 @@ export default function StaffMembershipsPanel() {
                           <div>{p?.full_name ?? "—"}</div>
                           {p?.email ? <div className="text-xs text-ink-500">{p.email}</div> : null}
                         </div>
-                      </td>
-                      <td className="px-4 py-3 font-mono">
-                        {p ? String(p.member_number).padStart(4, "0") : "—"}
                       </td>
                       <td className="px-4 py-3">
                         <button
@@ -381,9 +403,16 @@ export default function StaffMembershipsPanel() {
                           {canVerify ? "Review KYC" : "View"}
                         </button>
                       </td>
+                      <td className="px-4 py-3 font-mono">
+                        {p ? String(p.device_user_id).padStart(4, "0") : "—"}
+                      </td>
                       <td className="px-4 py-3 capitalize">{r.plan_kind.replace(/_/g, " ")}</td>
-                      <td className="px-4 py-3 font-mono" title={r.plan_kind === "long_term" ? "Long-term" : "Short-term"}>
-                        {seatLabel}
+                      <td className="px-4 py-3" title={r.plan_kind === "long_term" ? "Long-term" : "Short-term"}>
+                        <MembershipSeatTableCell
+                          plan_kind={r.plan_kind}
+                          seat_number={r.seat_number}
+                          status={r.status}
+                        />
                       </td>
                       <td className="px-4 py-3">
                         <div className="space-y-1">

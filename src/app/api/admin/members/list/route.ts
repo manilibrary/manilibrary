@@ -19,9 +19,7 @@ type MembershipRow = {
   user_id: string;
   plan_kind: string;
   status: string;
-  seat_number: number | null;
-  /** Optional when DB column `seat_label` exists; otherwise derive from plan_kind + seat_number. */
-  seat_label?: string | null;
+  seat_number: string | number | null;
   starts_at: string | null;
   ends_at: string | null;
   valid_from: string | null;
@@ -37,7 +35,7 @@ type MembershipListRow = MembershipRow & {
 type ProfileMini = {
   user_id: string;
   full_name: string;
-  member_number: number;
+  device_user_id: number;
   email: string | null;
   verification_status: string;
   aadhaar_last_four: string | null;
@@ -120,7 +118,7 @@ export async function GET() {
     const { data: profs, error: pe } = await admin
       .from("profiles")
       .select(
-        "user_id, full_name, member_number, email, verification_status, aadhaar_last_four, student_roll_number, institution_type, preparing_for",
+        "user_id, full_name, device_user_id, email, verification_status, aadhaar_last_four, student_roll_number, institution_type, preparing_for",
       )
       .in("user_id", ids);
     if (pe) {

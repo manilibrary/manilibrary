@@ -11,7 +11,7 @@ where table_schema = 'public'
   and table_name = 'profiles'
   and column_name in (
     'user_id',
-    'member_number',
+    'device_user_id',
     'full_name',
     'phone',
     'email',
@@ -21,12 +21,12 @@ where table_schema = 'public'
   )
 order by column_name;
 
--- Sequence for member numbers (assigned in handle_new_user via nextval)
+-- Sequence for device user ids (assigned in handle_new_user via nextval)
 select exists(
   select 1 from pg_class c
   join pg_namespace n on n.oid = c.relnamespace
-  where n.nspname = 'public' and c.relkind = 'S' and c.relname = 'member_number_seq'
-) as member_number_seq_exists;
+  where n.nspname = 'public' and c.relkind = 'S' and c.relname = 'device_user_id_seq'
+) as device_user_id_seq_exists;
 
 -- Trigger on auth.users → new profile rows
 select tgname, tgrelid::regclass as on_table
@@ -38,4 +38,4 @@ where not tgisinternal
 select tgname, tgrelid::regclass as on_table
 from pg_trigger
 where not tgisinternal
-  and tgname = 'trg_profiles_lock_member_number';
+  and tgname = 'trg_profiles_lock_device_user_id';

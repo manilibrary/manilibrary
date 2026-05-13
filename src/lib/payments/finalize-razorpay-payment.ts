@@ -1,5 +1,10 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
+import {
+  PAYMENT_METADATA_PLANNED_SEAT_KEY,
+  isPendingMembershipSeatPlaceholder,
+} from "@/lib/membership/seat-label";
+
 /**
  * Mark a payment row paid and activate linked membership (same as verify success path).
  * Caller must already have checked signature or Razorpay server-side payment state.
@@ -43,7 +48,7 @@ export async function finalizeRazorpayPaymentRow(
   if (pay.membership_id) {
     const { data: memRow, error: memFetchErr } = await admin
       .from("memberships")
-      .select("id")
+      .select("id, seat_number")
       .eq("id", pay.membership_id)
       .maybeSingle();
 
@@ -58,9 +63,30 @@ export async function finalizeRazorpayPaymentRow(
       };
     }
 
+    const metaBefore = (pay.metadata ?? {}) as Record<string, unknown>;
+    const plannedRaw = metaBefore[PAYMENT_METADATA_PLANNED_SEAT_KEY];
+    const planned =
+      typeof plannedRaw === "string" && plannedRaw.trim().length > 0 ? plannedRaw.trim().replace(/\s/g, "") : null;
+    const memSeat = memRow.seat_number as string | number | null;
+    const fallback =
+      memSeat != null &&
+      String(memSeat).trim().length > 0 &&
+      !isPendingMembershipSeatPlaceholder(memSeat)
+        ? String(memSeat).trim().replace(/\s/g, "")
+        : null;
+    const seatToSet = planned ?? fallback;
+    if (!seatToSet) {
+      return {
+        ok: false,
+        status: 500,
+        error:
+          "Payment marked paid but no seat could be resolved (expected payments.metadata.planned_seat_token or a non-placeholder membership.seat_number).",
+      };
+    }
+
     const { error: upMem } = await admin
       .from("memberships")
-      .update({ status: "active", payment_id: input.paymentId })
+      .update({ status: "active", payment_id: input.paymentId, seat_number: seatToSet })
       .eq("id", pay.membership_id);
 
     if (upMem) {

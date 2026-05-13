@@ -76,7 +76,7 @@ Example: `POST https://abcdefgh.supabase.co/auth/v1/signup`
 
 JSON includes `user` and may include `session` (with `access_token`) if email confirmation is off. If your project requires **email confirmation**, there may be no session until the user confirms — then they use **Login** (section 2).
 
-**Database:** A trigger or backend usually creates `public.profiles` for the new `auth.users` row. If `member_number` is missing, some member APIs will fail until an admin assigns it.
+**Database:** A trigger or backend usually creates `public.profiles` for the new `auth.users` row. If `device_user_id` is missing, some member APIs will fail until an admin assigns it.
 
 ---
 
@@ -352,7 +352,7 @@ GET BASE/api/me/today-attendance
 | Headers | `Cookie` (**required**) |
 | **Body** | none |
 
-Requires `member_number` on `profiles` and eTime configured on the server.
+Requires `device_user_id` on `profiles` and eTime configured on the server. JSON payload includes `deviceUserId` (same value as `profiles.device_user_id`).
 
 ---
 
@@ -505,7 +505,7 @@ GET BASE/api/superadmin/memberships
 
 | Query param | Required? | Notes |
 |-------------|-----------|--------|
-| `q` | No | If 1–4 digits, filters by `member_number`. |
+| `q` | No | If 1–4 digits, filters by `device_user_id`. |
 
 ---
 

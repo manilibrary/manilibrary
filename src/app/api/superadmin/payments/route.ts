@@ -1,4 +1,5 @@
 import { apiError, apiSuccess } from "@/lib/api/json-response";
+import { formatProfileMemberLabel } from "@/lib/membership/profile-label";
 import { requireLibrarySuperAdmin } from "@/lib/supabase/require-library-super-admin";
 import { createSupabaseServiceRoleClient } from "@/lib/supabase/service-role";
 
@@ -39,13 +40,15 @@ export async function GET(request: Request) {
 
   const userIds = [...new Set((rows ?? []).map((r) => (r as { user_id: string }).user_id))];
   const labels: Record<string, string> = {};
+  const deviceByUser: Record<string, number> = {};
   if (userIds.length > 0) {
     const { data: profs } = await admin
       .from("profiles")
-      .select("user_id, full_name, member_number")
+      .select("user_id, full_name, device_user_id")
       .in("user_id", userIds);
     for (const p of profs ?? []) {
-      labels[p.user_id] = `${p.full_name} (#${String(p.member_number).padStart(4, "0")})`;
+      labels[p.user_id] = formatProfileMemberLabel(p);
+      deviceByUser[p.user_id] = p.device_user_id;
     }
   }
 
@@ -63,6 +66,7 @@ export async function GET(request: Request) {
     return {
       ...row,
       member_label: labels[row.user_id] ?? row.user_id,
+      device_user_id: deviceByUser[row.user_id] ?? null,
     };
   });
 

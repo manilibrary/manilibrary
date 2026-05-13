@@ -23,7 +23,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 export type AdminDailyAttendanceItem = {
   date: string;
   empcode: string;
-  member_number: number | null;
+  device_user_id: number | null;
   full_name: string | null;
   seat_number: number | null;
   seat_label: string;
@@ -41,7 +41,7 @@ export type AdminDailyAttendanceItem = {
   status_ui_label: string;
 };
 
-function parseEmpcodeToMemberNumber(emp: string | null | undefined): number | null {
+function parseEmpcodeToDeviceUserId(emp: string | null | undefined): number | null {
   if (!emp) return null;
   const cleaned = emp.replace(/[^0-9]/g, "");
   if (!cleaned) return null;
@@ -166,28 +166,28 @@ export async function loadAdminDailyAttendance(
     rows = [];
   }
 
-  const memberNumbers = Array.from(
+  const deviceUserIds = Array.from(
     new Set(
       rows
-        .map((r) => parseEmpcodeToMemberNumber(r.Empcode))
+        .map((r) => parseEmpcodeToDeviceUserId(r.Empcode))
         .filter((n): n is number => n != null),
     ),
   );
 
-  const profilesById: Record<number, { user_id: string; full_name: string; member_number: number }> = {};
-  const userIdsByMember: Record<number, string> = {};
-  if (memberNumbers.length > 0) {
+  const profilesById: Record<number, { user_id: string; full_name: string; device_user_id: number }> = {};
+  const userIdsByDeviceUserId: Record<number, string> = {};
+  if (deviceUserIds.length > 0) {
     const { data: profs } = await admin
       .from("profiles")
-      .select("user_id, full_name, member_number")
-      .in("member_number", memberNumbers);
+      .select("user_id, full_name, device_user_id")
+      .in("device_user_id", deviceUserIds);
     for (const p of profs ?? []) {
-      profilesById[p.member_number] = p;
-      userIdsByMember[p.member_number] = p.user_id;
+      profilesById[p.device_user_id] = p;
+      userIdsByDeviceUserId[p.device_user_id] = p.user_id;
     }
   }
 
-  const userIds = Object.values(userIdsByMember);
+  const userIds = Object.values(userIdsByDeviceUserId);
   const memsByUser: Record<string, MembershipSeatPickRow[]> = {};
   if (userIds.length > 0) {
     const { data: mems } = await admin
@@ -209,15 +209,15 @@ export async function loadAdminDailyAttendance(
   const rowsBeforeFilter = rows.length;
 
   const items: AdminDailyAttendanceItem[] = rows.flatMap((r) => {
-    const memberNumber = parseEmpcodeToMemberNumber(r.Empcode);
-    if (memberNumber == null) return [];
-    const profile = profilesById[memberNumber];
+    const deviceUserId = parseEmpcodeToDeviceUserId(r.Empcode);
+    if (deviceUserId == null) return [];
+    const profile = profilesById[deviceUserId];
     if (!profile) return [];
     const parsedYmd = dmyToYmd(r.DateString);
     let seat: number | null = null;
     let devReason: string | undefined;
     let seatPlanKind: string | null = null;
-    let persistedSeatLabel: string | null = null;
+    let seatDisplay: string | null = null;
     let coverageWarning: string | null = null;
     if (parsedYmd) {
       const p = pickSeatForLibraryDay(memsByUser[profile.user_id] ?? [], parsedYmd, DEFAULT_LIBRARY_TZ);
@@ -229,12 +229,12 @@ export async function loadAdminDailyAttendance(
           "Punch on this date is outside the member’s active membership window; no seat applies.";
         seat = p.seat;
         seatPlanKind = p.plan_kind;
-        persistedSeatLabel = p.persisted_seat_label;
+        seatDisplay = p.seat_display;
         devReason = p.devReason;
       } else {
         seat = p.seat;
         seatPlanKind = p.plan_kind;
-        persistedSeatLabel = p.persisted_seat_label;
+        seatDisplay = p.seat_display;
         devReason = p.devReason;
       }
     } else {
@@ -250,14 +250,15 @@ export async function loadAdminDailyAttendance(
     const item: AdminDailyAttendanceItem = {
       date: r.DateString,
       empcode: r.Empcode,
-      member_number: memberNumber,
+      device_user_id: deviceUserId,
       full_name: profile.full_name ?? r.Name ?? null,
       seat_number: seat,
-      seat_label: resolveMemberSeatDisplayLabel({
-        plan_kind: seatPlanKind ?? "",
-        seat_number: seat,
-        seat_label: persistedSeatLabel,
-      }),
+      seat_label:
+        seatDisplay && seatDisplay !== "—"
+          ? seatDisplay
+          : seat != null
+            ? resolveMemberSeatDisplayLabel({ plan_kind: seatPlanKind ?? "", seat_number: seat })
+            : "—",
       coverage_warning: coverageWarning,
       in_time: r.INTime,
       out_time: r.OUTTime,

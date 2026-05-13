@@ -2,16 +2,15 @@
 
 import { useEffect, useMemo, useState } from "react";
 
+import { MembershipSeatTableCell } from "@/components/membership/MembershipSeatTableCell";
 import { formatDateDdMmYyyy } from "@/lib/date-format";
-import { resolveMemberSeatDisplayLabel } from "@/lib/membership/seat-label";
 
 type MembershipRow = {
   id: string;
   user_id: string;
   plan_kind: string;
   status: string;
-  seat_number: number | null;
-  seat_label: string | null;
+  seat_number: string | number | null;
   starts_at: string | null;
   ends_at: string | null;
   valid_from: string | null;
@@ -22,7 +21,7 @@ type MembershipRow = {
 type ProfileMini = {
   user_id: string;
   full_name: string;
-  member_number: number;
+  device_user_id: number;
   email: string | null;
 };
 
@@ -190,9 +189,14 @@ export default function StaffSubscriptionsPanel({
           <thead className="border-b border-ink-100 bg-surface-muted/80 font-mono text-[10px] uppercase tracking-widest text-ink-500">
             <tr>
               <th className="px-4 py-3">Member</th>
-              <th className="px-4 py-3">#</th>
               <th className="px-4 py-3">Plan</th>
-              <th className="px-4 py-3">Seat</th>
+              <th className="px-4 py-3">Device user ID</th>
+              <th
+                className="px-4 py-3"
+                title="Only active memberships reserve a seat; pending payment shows checkout choice only."
+              >
+                Seat
+              </th>
               <th className="px-4 py-3">Window</th>
               <th className="px-4 py-3">Status</th>
             </tr>
@@ -214,16 +218,16 @@ export default function StaffSubscriptionsPanel({
                 return (
                   <tr key={r.id} className="text-ink-800">
                     <td className="px-4 py-3">{p?.full_name ?? "—"}</td>
-                    <td className="px-4 py-3 font-mono">
-                      {p ? String(p.member_number).padStart(4, "0") : "—"}
-                    </td>
                     <td className="px-4 py-3 capitalize">{r.plan_kind.replace(/_/g, " ")}</td>
                     <td className="px-4 py-3 font-mono">
-                      {resolveMemberSeatDisplayLabel({
-                        plan_kind: r.plan_kind,
-                        seat_number: r.seat_number,
-                        seat_label: r.seat_label,
-                      })}
+                      {p ? String(p.device_user_id).padStart(4, "0") : "—"}
+                    </td>
+                    <td className="px-4 py-3">
+                      <MembershipSeatTableCell
+                        plan_kind={r.plan_kind}
+                        seat_number={r.seat_number}
+                        status={r.status}
+                      />
                     </td>
                     <td className="px-4 py-3 text-xs text-ink-600">{window}</td>
                     <td className="px-4 py-3">

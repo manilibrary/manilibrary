@@ -1,4 +1,5 @@
 import { apiError, apiSuccess } from "@/lib/api/json-response";
+import { formatProfileMemberLabel } from "@/lib/membership/profile-label";
 import { requireLibrarySuperAdmin } from "@/lib/supabase/require-library-super-admin";
 import { createSupabaseServiceRoleClient } from "@/lib/supabase/service-role";
 
@@ -8,7 +9,7 @@ const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 const PROFILE_SEARCH_SELECT =
-  "user_id, full_name, member_number, email, is_admin, is_superadmin, verification_status, aadhaar_last_four, student_roll_number, institution_type, preparing_for";
+  "user_id, full_name, device_user_id, email, is_admin, is_superadmin, verification_status, aadhaar_last_four, student_roll_number, institution_type, preparing_for";
 
 function safeIlikeFragment(s: string): string {
   return s.replace(/%/g, "").replace(/,/g, "").trim().slice(0, 120);
@@ -101,7 +102,7 @@ export async function GET(request: Request) {
     const { data: profs } = await admin
       .from("profiles")
       .select(PROFILE_SEARCH_SELECT)
-      .eq("member_number", n)
+      .eq("device_user_id", n)
       .limit(20);
     for (const p of profs ?? []) pushProf(p as Prof);
     const ids = (profs ?? []).map((p) => p.user_id).filter(Boolean);
@@ -138,6 +139,34 @@ export async function GET(request: Request) {
       .ilike("provider_payment_id", `%${safeIlikeFragment(qRaw)}%`)
       .limit(10);
     for (const p of fuzzyPay ?? []) pushPay(p as Pay);
+  }
+
+  const labelUserIds = new Set<string>();
+  for (const m of memberships) {
+    const uid = m.user_id as string | undefined;
+    if (uid) labelUserIds.add(uid);
+  }
+  for (const p of payments) {
+    const uid = p.user_id as string | undefined;
+    if (uid) labelUserIds.add(uid);
+  }
+  const labelByUser: Record<string, string> = {};
+  if (labelUserIds.size > 0) {
+    const { data: labelProfs } = await admin
+      .from("profiles")
+      .select("user_id, full_name, device_user_id")
+      .in("user_id", [...labelUserIds]);
+    for (const pr of labelProfs ?? []) {
+      labelByUser[pr.user_id] = formatProfileMemberLabel(pr);
+    }
+  }
+  for (const m of memberships) {
+    const uid = m.user_id as string | undefined;
+    if (uid) m.member_label = labelByUser[uid] ?? uid;
+  }
+  for (const p of payments) {
+    const uid = p.user_id as string | undefined;
+    if (uid) p.member_label = labelByUser[uid] ?? uid;
   }
 
   return apiSuccess("Search complete.", { memberships, profiles, payments });
