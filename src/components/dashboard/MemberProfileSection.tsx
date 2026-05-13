@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useCallback, useRef, useState } from "react";
 
 type Props = {
@@ -92,7 +93,14 @@ export default function MemberProfileSection({
         <div className="flex shrink-0 flex-col items-center gap-3 sm:items-start">
           <div className="relative h-28 w-28 overflow-hidden rounded-2xl border border-ink-100 bg-ink-50 shadow-inner">
             {avatarUrl ? (
-              <img src={avatarUrl} alt="" className="h-full w-full object-cover" />
+              <Image
+                src={avatarUrl}
+                alt=""
+                width={112}
+                height={112}
+                unoptimized
+                className="h-full w-full object-cover"
+              />
             ) : (
               <span className="flex h-full w-full items-center justify-center text-2xl font-semibold text-ink-400">
                 {initials(fullName)}

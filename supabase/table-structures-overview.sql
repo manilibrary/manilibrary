@@ -6,6 +6,7 @@
 -- are not created here but are referenced by foreign keys.
 --
 -- RUN ORDER (typical fresh project)
+--   Or paste once: bootstrap-new-supabase-full.sql (new empty Supabase project).
 --   1. schema-profiles.sql
 --   2. schema-membership-kyc-payments.sql
 --   3. add-profile-intake-kyc.sql
@@ -15,6 +16,7 @@
 --   7. attendance-day-archive.sql          (optional)
 --   8. library-export-audit.sql
 --   (+ migrations / one-offs as needed: migrate-*.sql, enforce-seat-exclusivity, etc.)
+--   After signup: set-admin.sql (staff), set-superadmin.sql (/dashboard/superadmin).
 --
 -- TABLE INDEX (all public tables from repo DDL)
 --   profiles
@@ -39,7 +41,7 @@
 -- =============================================================================
 -- public.device_user_id_seq
 --   integer, start 1, increment 1, minvalue 0, maxvalue 9999, no cycle
---   (see schema-profiles.sql; name was member_number_seq in older projects)
+--   Legacy installs may still have `member_number_seq` until renamed (see migrate / fix SQL).
 
 
 -- =============================================================================

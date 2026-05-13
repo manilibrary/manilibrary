@@ -89,8 +89,8 @@ function Hero() {
         </div>
 
         <div className="relative mx-auto mt-14 max-w-5xl">
-          <div className="rounded-2xl border border-ink-100 bg-white p-1 shadow-card">
-            <div className="overflow-hidden rounded-xl border border-ink-100">
+          <div className="rounded-lg border border-ink-100 bg-white p-1 shadow-card">
+            <div className="overflow-hidden rounded-md border border-ink-100">
               <div className="grid grid-cols-3 gap-px bg-ink-100">
                 {[
                   { label: "Quiet zones", value: "8" },
@@ -140,19 +140,19 @@ function Facilities() {
           </p>
         </div>
 
-        <div className="mt-14 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="mt-10 grid grid-cols-3 gap-2 sm:mt-14 sm:gap-3 md:grid-cols-4 md:gap-4">
           {libraryInfo.facilities.map((f) => (
             <article
               key={f.id}
-              className="group rounded-2xl border border-ink-100 bg-white p-6 transition-all hover:border-azure-200 hover:shadow-card-hover"
+              className="group flex flex-col items-center rounded-md border border-ink-100 bg-white p-3 text-center shadow-sm transition-all hover:border-azure-200 hover:shadow-card-hover sm:p-4 md:items-stretch md:p-6 md:text-left"
             >
-              <div className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-azure-50 text-azure-500 transition-colors group-hover:bg-azure-500 group-hover:text-white">
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-azure-50 text-azure-500 transition-colors group-hover:bg-azure-500 group-hover:text-white sm:h-10 sm:w-10">
                 <FacilityIcon id={f.id} />
               </div>
-              <h3 className="mt-5 text-base font-semibold text-ink-900">
+              <h3 className="mt-2 text-[11px] font-semibold leading-tight text-ink-900 sm:mt-3 sm:text-sm md:mt-5 md:text-base">
                 {f.title}
               </h3>
-              <p className="mt-2 text-sm leading-relaxed text-ink-600">
+              <p className="mt-1 text-[10px] leading-snug text-ink-600 sm:mt-2 sm:text-xs sm:leading-relaxed md:mt-2 md:text-sm md:leading-relaxed">
                 {f.description}
               </p>
             </article>
@@ -215,6 +215,15 @@ function FacilityIcon({ id }: { id: string }) {
           <path d="M12 3s6 7 6 12a6 6 0 0 1-12 0c0-5 6-12 6-12Z" />
         </svg>
       );
+    case "washrooms":
+      return (
+        <svg {...common}>
+          <path d="M7 3h10a2 2 0 0 1 2 2v16H5V5a2 2 0 0 1 2-2z" />
+          <path d="M10 8h4M10 11h4" />
+          <path d="M12 15v5" />
+          <path d="M9 20h6" />
+        </svg>
+      );
     case "silent":
       return (
         <svg {...common}>
@@ -273,7 +282,7 @@ function About() {
             ].map((item) => (
               <div
                 key={item.label}
-                className="rounded-xl border border-ink-100 bg-white px-4 py-3"
+                className="rounded-lg border border-ink-100 bg-white px-4 py-3"
               >
                 <dt className="font-mono text-[10px] uppercase tracking-widest text-ink-500">
                   {item.label}
@@ -287,7 +296,7 @@ function About() {
         </div>
 
         <div className="relative">
-          <div className="rounded-2xl border border-ink-100 bg-white p-8 shadow-card">
+          <div className="rounded-lg border border-ink-100 bg-white p-8 shadow-card">
             <p className="inline-flex items-center gap-1.5 font-mono text-xs uppercase tracking-widest text-azure-500">
               <svg className="h-3.5 w-3.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M3 21c3 0 7-1 7-8V5c0-1.25-.756-2.017-2-2H4c-1.25 0-2 .75-2 1.972V11c0 1.25.75 2 2 2 1 0 1 0 1 1v1c0 1-1 2-2 2s-1 .008-1 1.031V20c0 1 0 1 1 1z" />
@@ -343,13 +352,13 @@ function Plans() {
           </p>
         </div>
 
-        <div className="mt-14 grid gap-6 lg:grid-cols-3">
+        <div className="mt-14 mx-auto grid max-w-4xl gap-6 md:grid-cols-2">
           {libraryInfo.plans.map((plan) => {
             const popular = "popular" in plan && plan.popular;
             return (
               <article
                 key={plan.id}
-                className={`relative flex flex-col rounded-2xl border bg-white p-7 ${
+                className={`relative flex flex-col rounded-lg border bg-white p-7 ${
                   popular
                     ? "border-azure-500 shadow-card-hover ring-1 ring-azure-500"
                     : "border-ink-100 shadow-card"
@@ -458,7 +467,7 @@ function Contact() {
             </div>
           </div>
 
-          <div className="rounded-2xl border border-ink-100 bg-white p-7 shadow-card">
+          <div className="rounded-lg border border-ink-100 bg-white p-7 shadow-card">
             <h3 className="text-lg font-semibold text-ink-900">
               Quick enquiry
             </h3>
@@ -492,7 +501,7 @@ function Contact() {
                   name="message"
                   rows={4}
                   placeholder="How can we help?"
-                  className="w-full resize-none rounded-xl border border-ink-200 bg-white px-4 py-3 text-sm text-ink-900 placeholder-ink-400 outline-none transition focus:border-azure-500 focus:ring-4 focus:ring-azure-500/15"
+                  className="w-full resize-none rounded-md border border-ink-200 bg-white px-4 py-3 text-sm text-ink-900 placeholder-ink-400 outline-none transition focus:border-azure-500 focus:ring-4 focus:ring-azure-500/15"
                 />
               </div>
               <button
@@ -528,7 +537,7 @@ function ContactRow({
   );
 
   return (
-    <div className="rounded-xl border border-ink-100 bg-white px-4 py-3 transition-colors hover:border-azure-200">
+    <div className="rounded-md border border-ink-100 bg-white px-4 py-3 transition-colors hover:border-azure-200">
       {href ? (
         <a href={href} target={href.startsWith("http") ? "_blank" : undefined} rel="noopener noreferrer">
           {inner}
@@ -564,7 +573,7 @@ function Field({
         name={name}
         type={type}
         placeholder={placeholder}
-        className="w-full rounded-xl border border-ink-200 bg-white px-4 py-3 text-sm text-ink-900 placeholder-ink-400 outline-none transition focus:border-azure-500 focus:ring-4 focus:ring-azure-500/15"
+        className="w-full rounded-md border border-ink-200 bg-white px-4 py-3 text-sm text-ink-900 placeholder-ink-400 outline-none transition focus:border-azure-500 focus:ring-4 focus:ring-azure-500/15"
       />
     </div>
   );

@@ -9,6 +9,7 @@ import {
   memberMembershipEndMs,
   memberMembershipValidityEndedByDate,
 } from "@/components/dashboard/MemberActiveMembershipCards";
+import { MemberMembershipCardsSkeleton } from "@/components/ui/ContentSkeletons";
 import { CLIENT_DATA_CACHE_TTL_MS, ddcKey, getClientCache, setClientCache } from "@/lib/client-data-cache";
 import { createClient } from "@/lib/supabase/client";
 
@@ -72,6 +73,7 @@ export default function MemberMyMembershipPage() {
 
   const [rows, setRows] = useState<MemberActivePlanRow[]>([]);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [bootstrap, setBootstrap] = useState(true);
   const [refreshKey, setRefreshKey] = useState(0);
   const [recoverId, setRecoverId] = useState("");
   const [recoverBusy, setRecoverBusy] = useState(false);
@@ -83,33 +85,37 @@ export default function MemberMyMembershipPage() {
     const useCache = refreshKey === 0;
 
     (async () => {
-      const supabase = createClient();
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user || cancelled) return;
+      try {
+        const supabase = createClient();
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
+        if (!user || cancelled) return;
 
-      const kMem = ddcKey.memberships(user.id);
-      if (useCache) {
-        const hit = getClientCache<MemberActivePlanRow[]>(kMem);
-        if (hit) setRows(hit);
+        const kMem = ddcKey.memberships(user.id);
+        if (useCache) {
+          const hit = getClientCache<MemberActivePlanRow[]>(kMem);
+          if (hit) setRows(hit);
+        }
+
+        const { data, error } = await supabase
+          .from("memberships")
+          .select("id, plan_kind, status, seat_number, starts_at, ends_at, valid_from, valid_until, created_at")
+          .eq("user_id", user.id)
+          .order("created_at", { ascending: false });
+
+        if (cancelled) return;
+        if (error) {
+          setLoadError(error.message);
+          return;
+        }
+        setLoadError(null);
+        const nextRows = (data ?? []) as MemberActivePlanRow[];
+        setRows(nextRows);
+        setClientCache(kMem, nextRows, CLIENT_DATA_CACHE_TTL_MS);
+      } finally {
+        if (!cancelled) setBootstrap(false);
       }
-
-      const { data, error } = await supabase
-        .from("memberships")
-        .select("id, plan_kind, status, seat_number, starts_at, ends_at, valid_from, valid_until, created_at")
-        .eq("user_id", user.id)
-        .order("created_at", { ascending: false });
-
-      if (cancelled) return;
-      if (error) {
-        setLoadError(error.message);
-        return;
-      }
-      setLoadError(null);
-      const nextRows = (data ?? []) as MemberActivePlanRow[];
-      setRows(nextRows);
-      setClientCache(kMem, nextRows, CLIENT_DATA_CACHE_TTL_MS);
     })();
     return () => {
       cancelled = true;
@@ -186,7 +192,9 @@ export default function MemberMyMembershipPage() {
           Current membership
         </h2>
 
-        {currentPlans.length > 0 ? (
+        {bootstrap && !loadError ? (
+          <MemberMembershipCardsSkeleton />
+        ) : currentPlans.length > 0 ? (
           <div className="flex flex-col gap-6 xl:flex-row xl:items-stretch">
             <div className="min-w-0 flex-1">
               <MemberActiveMembershipCards plans={currentPlans} />
@@ -231,7 +239,7 @@ export default function MemberMyMembershipPage() {
         )}
       </section>
 
-      {pastPlans.length > 0 ? (
+      {!bootstrap && pastPlans.length > 0 ? (
         <section className="space-y-4" aria-labelledby="past-membership">
           <h2 id="past-membership" className="font-mono text-[10px] uppercase tracking-widest text-ink-500">
             Past membership

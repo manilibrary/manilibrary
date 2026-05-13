@@ -16,8 +16,5 @@ export const EXPO = {
   deskSelectedFill: "#16A34A",
   deskSelectedBorder: "#15803D",
   chairSelected: "#16A34A",
-  chairBlocked: "#94A3B8",
-  deskHomeBorder: "#7C3AED",
-  deskHomeFill: "#F5F3FF",
-  chairHome: "#7C3AED",
+  chairBlocked: "#DC2626",
 } as const;

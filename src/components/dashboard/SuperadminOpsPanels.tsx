@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 
 import MemberKycDocumentsModal, { type MemberKycDetails } from "@/components/dashboard/MemberKycDocumentsModal";
+import { SuperadminHealthSkeleton } from "@/components/ui/ContentSkeletons";
 
 function shortUuid(id: string): string {
   if (id.length <= 12) return id;
@@ -440,7 +441,7 @@ export default function SuperadminOpsPanels() {
               <Flag ok={health.etime.ready} label="Any eTime auth path ready" />
             </div>
           ) : (
-            <p className="mt-4 text-sm text-ink-500">Loading…</p>
+            <SuperadminHealthSkeleton />
           )}
         </section>
 

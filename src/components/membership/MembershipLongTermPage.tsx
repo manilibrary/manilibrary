@@ -1,51 +1,83 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
-import { addDaysYmd, DEFAULT_LIBRARY_TZ, todayYmdInTz } from "@/lib/membership/windows";
+import { useSearchParams } from "next/navigation";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { DEFAULT_LIBRARY_TZ, todayYmdInTz } from "@/lib/membership/windows";
+import { useActiveMembership } from "@/hooks/useActiveMembership";
+import { CLIENT_SEAT_OCC_CACHE_TTL_MS, ddcKey, getClientCache, setClientCache } from "@/lib/client-data-cache";
 import { MEMBER_MEMBERSHIP_PATH } from "@/lib/auth-landing";
-import { LONG_TERM_DURATION_OPTIONS, type LongTermDurationKey } from "@/lib/payments/pricing";
+import { fetchResumableCheckout, type ResumableCheckoutPayload } from "@/lib/membership/resumable-checkout";
+import {
+  LONG_TERM_DURATION_OPTIONS,
+  computeOrderAmountRupees,
+  type LongTermDurationKey,
+} from "@/lib/payments/pricing";
+import { resolveMemberSeatDisplayLabel } from "@/lib/membership/seat-label";
 import libraryInfo from "@/data/libraryInfo.json";
 import ActiveMembershipBanner, { type ActiveMembership } from "./ActiveMembershipBanner";
 import LongTermSeatMap from "./LongTermSeatMap";
 import MembershipCheckoutButton from "./MembershipCheckoutButton";
-import MembershipDesignBanner from "./MembershipDesignBanner";
+import MembershipFlowSteps from "./MembershipFlowSteps";
+import MembershipPendingCheckoutBanner from "./MembershipPendingCheckoutBanner";
+import MembershipIntakeStepPanel from "./MembershipIntakeStepPanel";
 import MembershipLegend from "./MembershipLegend";
-import MembershipSeatMapIntro from "./MembershipSeatMapIntro";
+import MembershipPayTipsDisclosure from "./MembershipPayTipsDisclosure";
+
+type Step = 1 | 2 | 3;
 
 export default function MembershipLongTermPage() {
+  const searchParams = useSearchParams();
+  const fromHub = searchParams.get("from") === "hub";
+  const [step, setStep] = useState<Step>(1);
   const [selected, setSelected] = useState<number | null>(null);
   const [occupied, setOccupied] = useState<number[]>([]);
   const [activeMembership, setActiveMembership] = useState<ActiveMembership | null>(null);
   const [membershipStartDate, setMembershipStartDate] = useState(() => todayYmdInTz(DEFAULT_LIBRARY_TZ));
   const [durationKey, setDurationKey] = useState<LongTermDurationKey>("lt_1m");
-
+  const [pendingResume, setPendingResume] = useState<ResumableCheckoutPayload | null>(null);
+  const [dismissingResume, setDismissingResume] = useState(false);
+  const { membership: hookMembership } = useActiveMembership();
   const durationLabel = useMemo(
     () => LONG_TERM_DURATION_OPTIONS.find((o) => o.key === durationKey)?.label ?? durationKey,
     [durationKey],
   );
-  const today = todayYmdInTz(DEFAULT_LIBRARY_TZ);
-  const maxStart = addDaysYmd(today, 120);
+  const amountInr = useMemo(
+    () => computeOrderAmountRupees("long_term", durationKey) ?? 0,
+    [durationKey],
+  );
+
+  useEffect(() => {
+    const start = searchParams.get("start");
+    const dk = searchParams.get("durationKey");
+    if (start && /^\d{4}-\d{2}-\d{2}$/.test(start)) {
+      setMembershipStartDate(start);
+    }
+    if (dk && LONG_TERM_DURATION_OPTIONS.some((o) => o.key === dk)) {
+      setDurationKey(dk as LongTermDurationKey);
+    }
+  }, [searchParams]);
 
   useEffect(() => {
     let cancelled = false;
+    const occKey = ddcKey.seatOccupancy("long_term", membershipStartDate, durationKey);
+    const cached = getClientCache<number[]>(occKey);
+    if (cached !== null && !cancelled) setOccupied(cached);
     void (async () => {
       try {
-        const res = await fetch("/api/memberships/seat-occupancy?planKind=long_term", { cache: "no-store" });
+        const params = new URLSearchParams({
+          planKind: "long_term",
+          startDate: membershipStartDate,
+          durationKey,
+        });
+        const res = await fetch(`/api/memberships/seat-occupancy?${params.toString()}`, {
+          cache: "no-store",
+          credentials: "same-origin",
+        });
         const j = (await res.json()) as { ok?: boolean; seats?: number[] };
         if (!cancelled && res.ok && j.ok && Array.isArray(j.seats)) {
           setOccupied(j.seats);
-        }
-      } catch {
-        // ignore — seat map still works, DB will enforce exclusivity
-      }
-    })();
-    void (async () => {
-      try {
-        const res = await fetch("/api/memberships/me-active", { cache: "no-store" });
-        const j = (await res.json()) as { ok?: boolean; membership?: ActiveMembership | null };
-        if (!cancelled && res.ok && j.ok && j.membership) {
-          setActiveMembership(j.membership);
+          setClientCache(occKey, j.seats, CLIENT_SEAT_OCC_CACHE_TTL_MS);
         }
       } catch {
         // ignore
@@ -54,130 +86,270 @@ export default function MembershipLongTermPage() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [membershipStartDate, durationKey]);
+
+  useEffect(() => {
+    if (hookMembership) setActiveMembership(hookMembership as ActiveMembership);
+    else setActiveMembership(null);
+  }, [hookMembership]);
+
+  useEffect(() => {
+    if (fromHub) {
+      setPendingResume(null);
+      setStep(1);
+    }
+  }, [fromHub]);
+
+  useEffect(() => {
+    if (fromHub) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const r = await fetchResumableCheckout("long_term");
+        if (cancelled || !r) return;
+        setPendingResume(r);
+        setSelected(r.seatNumber);
+        setMembershipStartDate(r.membershipStartDate);
+        setDurationKey(r.durationKey as LongTermDurationKey);
+        setStep(3);
+      } catch {
+        // ignore
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [fromHub]);
+
+  const resumeCheckoutForPay = useMemo(() => {
+    if (!pendingResume) return null;
+    if (
+      selected === pendingResume.seatNumber &&
+      membershipStartDate === pendingResume.membershipStartDate &&
+      durationKey === pendingResume.durationKey
+    ) {
+      return {
+        paymentId: pendingResume.paymentId,
+        orderId: pendingResume.orderId,
+        amount: pendingResume.amount,
+        currency: pendingResume.currency,
+        keyId: pendingResume.keyId,
+        fingerprint: pendingResume.fingerprint,
+      };
+    }
+    return null;
+  }, [pendingResume, selected, membershipStartDate, durationKey]);
+
+  const dismissPendingResume = useCallback(async () => {
+    if (!pendingResume) return;
+    setDismissingResume(true);
+    try {
+      await fetch("/api/payments/razorpay/mark-checkout-failed", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "same-origin",
+        body: JSON.stringify({
+          payment_id: pendingResume.paymentId,
+          error: { description: "Member chose to start over" },
+        }),
+      });
+      setPendingResume(null);
+      setStep(1);
+      setSelected(null);
+    } finally {
+      setDismissingResume(false);
+    }
+  }, [pendingResume]);
 
   const occupiedSet = useMemo(() => new Set(occupied), [occupied]);
   const hasActive = activeMembership != null;
+  const seatLabel =
+    selected != null
+      ? resolveMemberSeatDisplayLabel({ plan_kind: "long_term", seat_number: selected })
+      : "—";
 
   return (
-    <div className="mx-auto max-w-6xl px-5 py-10 md:px-8 md:py-14">
-      <nav className="mb-6 text-sm">
-        <Link href="/membership" className="text-azure-600 hover:text-azure-700">
+    <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 md:px-8 md:py-12">
+      <nav className="mb-5 hidden text-sm md:block">
+        <Link href="/membership" className="inline-flex items-center text-azure-600 hover:text-azure-700">
           ← Membership
         </Link>
       </nav>
 
       <header className="max-w-2xl">
-        <p className="font-mono text-[10px] uppercase tracking-widest text-azure-500">
-          Long-term
-        </p>
-        <h1 className="mt-1 text-3xl font-semibold tracking-tight text-ink-900 md:text-4xl">
+        <p className="font-mono text-[10px] uppercase tracking-widest text-azure-500">Long-term</p>
+        <h1 className="mt-1 text-2xl font-semibold tracking-tight text-ink-900 sm:text-3xl md:text-4xl">
           Choose your desk — main hall
         </h1>
-        <p className="mt-3 text-sm leading-relaxed text-ink-600">
-          Same 100-seat blueprint as the mobile app: back-to-back blocks with a
-          central aisle. Pick an available desk; long members can later mark a
-          &quot;home&quot; seat when away.
-        </p>
+        <p className="mt-2 text-xs text-ink-500">Pick a seat, then your details and payment.</p>
       </header>
 
       {hasActive && activeMembership ? (
-        <div className="mt-6">
+        <div className="mt-5">
           <ActiveMembershipBanner membership={activeMembership} />
         </div>
       ) : null}
 
       {!hasActive ? (
-        <div className="mt-6 rounded-2xl border border-ink-100 bg-white p-5 shadow-sm">
-          <p className="font-mono text-[10px] uppercase tracking-widest text-ink-500">
-            Membership window
-          </p>
-          <p className="mt-1 text-xs text-ink-600">
-            Choose when your plan starts ({DEFAULT_LIBRARY_TZ}). End date is calculated from the duration below.
-          </p>
-          <div className="mt-4 flex flex-col gap-4 sm:flex-row sm:flex-wrap">
-            <label className="flex flex-col gap-1 text-xs text-ink-600">
-              Start date
-              <input
-                type="date"
-                className="rounded-lg border border-ink-200 px-3 py-2 font-mono text-sm"
-                min={today}
-                max={maxStart}
-                value={membershipStartDate}
-                onChange={(e) => setMembershipStartDate(e.target.value)}
+        <>
+          <MembershipFlowSteps current={step} />
+
+          {pendingResume ? (
+            <div className="mt-5">
+              <MembershipPendingCheckoutBanner
+                resume={pendingResume}
+                durationLabel={
+                  LONG_TERM_DURATION_OPTIONS.find((o) => o.key === pendingResume.durationKey)?.label ??
+                  pendingResume.durationKey
+                }
+                onDismiss={dismissPendingResume}
+                dismissing={dismissingResume}
               />
-            </label>
-            <label className="flex flex-col gap-1 text-xs text-ink-600">
-              Duration
-              <select
-                className="rounded-lg border border-ink-200 px-3 py-2 text-sm"
-                value={durationKey}
-                onChange={(e) => setDurationKey(e.target.value as LongTermDurationKey)}
+            </div>
+          ) : null}
+
+          {step === 1 ? (
+            <div className="mt-5 space-y-5">
+              <div>
+                <p className="font-mono text-[10px] uppercase tracking-widest text-ink-500">Seat colours</p>
+                <div className="mt-2">
+                  <MembershipLegend mode="long" layout="strip" />
+                </div>
+              </div>
+
+              <div id="seat-map" className="scroll-mt-24 rounded-2xl border border-ink-100 bg-white p-3 shadow-card sm:p-5">
+                <div className="mb-3 flex flex-wrap items-end justify-between gap-2">
+                  <div>
+                    <p className="font-mono text-[10px] uppercase tracking-widest text-ink-500">Floor map</p>
+                    <p className="text-xs text-ink-600 sm:text-sm">{libraryInfo.name} · long-term</p>
+                  </div>
+                  <p className="font-mono text-xs text-ink-600">
+                    Selected: <span className="font-semibold text-azure-600">{selected ?? "—"}</span>
+                  </p>
+                </div>
+                <LongTermSeatMap selected={selected} onSelect={setSelected} occupiedSeats={occupiedSet} />
+              </div>
+
+              <button
+                type="button"
+                disabled={selected == null}
+                onClick={() => setStep(2)}
+                className="flex w-full min-h-12 items-center justify-center rounded-full bg-azure-500 px-6 text-sm font-semibold text-white shadow-sm transition hover:bg-azure-600 disabled:cursor-not-allowed disabled:opacity-50"
               >
-                {LONG_TERM_DURATION_OPTIONS.map((o) => (
-                  <option key={o.key} value={o.key}>
-                    {o.label}
-                  </option>
-                ))}
-              </select>
-            </label>
+                Next: details &amp; documents
+              </button>
+            </div>
+          ) : null}
+
+          {(step === 2 || step === 3) && (
+            <>
+              <div className={step === 2 ? "mt-5 space-y-5" : "hidden"} aria-hidden={step !== 2}>
+                <div>
+                  <h2 className="text-lg font-semibold text-ink-900">Your details &amp; optional ID</h2>
+                  <p className="mt-1 text-xs text-ink-500">
+                    Your answers stay on this device until payment; then they sync to your account.
+                  </p>
+                </div>
+                <MembershipIntakeStepPanel deferPersist />
+                <div className="flex flex-col gap-3 sm:flex-row sm:justify-between">
+                  <button
+                    type="button"
+                    onClick={() => setStep(1)}
+                    className="order-2 flex min-h-12 flex-1 items-center justify-center rounded-full border border-ink-200 bg-white px-5 text-sm font-semibold text-ink-800 hover:bg-ink-50 sm:order-1 sm:max-w-xs"
+                  >
+                    Back
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setStep(3)}
+                    className="order-1 flex min-h-12 flex-1 items-center justify-center rounded-full bg-azure-500 px-5 text-sm font-semibold text-white hover:bg-azure-600 sm:order-2 sm:max-w-xs"
+                  >
+                    Next: pay
+                  </button>
+                </div>
+              </div>
+
+              {step === 3 ? (
+            <div className="mt-5 space-y-5">
+              <div className="rounded-2xl border border-ink-100 bg-white p-4 shadow-sm sm:p-5">
+                <h2 className="text-lg font-semibold text-ink-900">Review &amp; pay</h2>
+                <dl className="mt-4 space-y-3 text-sm">
+                  <div className="flex justify-between gap-4 border-b border-ink-100 pb-3">
+                    <dt className="text-ink-500">Seat</dt>
+                    <dd className="font-mono font-semibold text-ink-900">{seatLabel}</dd>
+                  </div>
+                  <div className="flex justify-between gap-4 border-b border-ink-100 pb-3">
+                    <dt className="text-ink-500">Starts</dt>
+                    <dd className="font-mono text-ink-900">{membershipStartDate}</dd>
+                  </div>
+                  <div className="flex justify-between gap-4 border-b border-ink-100 pb-3">
+                    <dt className="text-ink-500">Duration</dt>
+                    <dd className="text-ink-900">{durationLabel}</dd>
+                  </div>
+                  <div className="flex justify-between gap-4 pt-1">
+                    <dt className="text-ink-500">Total</dt>
+                    <dd className="font-semibold text-ink-900">
+                      ₹{amountInr.toLocaleString("en-IN")}
+                    </dd>
+                  </div>
+                </dl>
+                <p className="mt-4 text-xs text-ink-500">
+                  Need different dates or duration?{" "}
+                  <Link href="/membership" className="font-medium text-azure-600 hover:text-azure-700">
+                    Change on the membership hub
+                  </Link>{" "}
+                  ({DEFAULT_LIBRARY_TZ}).
+                </p>
+              </div>
+
+              <MembershipPayTipsDisclosure />
+
+              <MembershipCheckoutButton
+                planKind="long_term"
+                seatNumber={selected}
+                membershipStartDate={membershipStartDate}
+                durationKey={durationKey}
+                durationLabel={durationLabel}
+                fullWidth
+                quietFooter
+                resumeCheckout={resumeCheckoutForPay}
+              />
+
+              <button
+                type="button"
+                onClick={() => setStep(2)}
+                className="flex w-full min-h-12 items-center justify-center rounded-full border border-ink-200 bg-white px-5 text-sm font-semibold text-ink-800 hover:bg-ink-50"
+              >
+                Back to details
+              </button>
+            </div>
+              ) : null}
+            </>
+          )}
+        </>
+      ) : (
+        <div className="mt-6 space-y-4">
+          <MembershipLegend mode="long" layout="strip" />
+          <div id="seat-map" className="scroll-mt-24 rounded-2xl border border-ink-100 bg-white p-3 shadow-card sm:p-5">
+            <div className="mb-3 flex flex-wrap items-end justify-between gap-2">
+              <p className="font-mono text-[10px] uppercase tracking-widest text-ink-500">Floor map</p>
+              <p className="font-mono text-xs text-ink-500">
+                Selected: <span className="font-semibold text-azure-600">{selected ?? "—"}</span>
+              </p>
+            </div>
+            <LongTermSeatMap selected={selected} onSelect={setSelected} occupiedSeats={occupiedSet} />
           </div>
-        </div>
-      ) : null}
-
-      <div className="mt-8 space-y-6">
-        <MembershipDesignBanner />
-        <MembershipSeatMapIntro mode="long" />
-        <MembershipLegend mode="long" />
-      </div>
-
-      <div id="seat-map" className="mt-10 scroll-mt-24 rounded-2xl border border-ink-100 bg-white p-4 shadow-card md:p-6">
-        <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
-          <div>
-            <p className="font-mono text-[10px] uppercase tracking-widest text-ink-500">
-              Floor map
-            </p>
-            <p className="text-sm text-ink-600">{libraryInfo.name} · long-term zone</p>
-          </div>
-          <p className="font-mono text-xs text-ink-500">
-            Selected:{" "}
-            <span className="font-semibold text-azure-600">
-              {selected ?? "—"}
-            </span>
-          </p>
-        </div>
-        <LongTermSeatMap selected={selected} onSelect={setSelected} occupiedSeats={occupiedSet} />
-      </div>
-
-      <div className="sticky bottom-0 z-10 mt-10 border-t border-ink-100 bg-surface-muted/95 py-4 backdrop-blur supports-[backdrop-filter]:bg-surface-muted/80 md:static md:border-0 md:bg-transparent md:py-0">
-        {hasActive ? (
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <p className="text-sm text-ink-600">
-              Tap seats to see numbers; available seats stay selectable for reference. Occupied seats reflect current
-              bookings. Payment is not shown while your membership is active.
-            </p>
+          <div className="flex flex-col gap-3 border-t border-ink-100 pt-4 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-sm text-ink-600">You already have an active plan. Payment is hidden.</p>
             <Link
               href={MEMBER_MEMBERSHIP_PATH}
-              className="inline-flex shrink-0 items-center justify-center rounded-full border border-emerald-200 bg-white px-5 py-2.5 text-sm font-semibold text-emerald-800 hover:bg-emerald-50"
+              className="inline-flex min-h-12 items-center justify-center rounded-full border border-emerald-200 bg-white px-5 text-sm font-semibold text-emerald-800 hover:bg-emerald-50"
             >
               My membership
             </Link>
           </div>
-        ) : (
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <p className="text-sm text-ink-600">
-              Pay securely with Razorpay (test mode) after choosing a seat. Plan duration UI can follow later.
-            </p>
-            <MembershipCheckoutButton
-              planKind="long_term"
-              seatNumber={selected}
-              membershipStartDate={membershipStartDate}
-              durationKey={durationKey}
-              durationLabel={durationLabel}
-            />
-          </div>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   );
 }

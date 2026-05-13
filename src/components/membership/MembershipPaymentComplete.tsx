@@ -2,9 +2,10 @@
 
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import { startTransition, useCallback, useEffect, useState } from "react";
 import { MEMBER_MEMBERSHIP_PATH } from "@/lib/auth-landing";
 import { createClient } from "@/lib/supabase/client";
+import { PaymentCompleteSkeleton } from "@/components/ui/ContentSkeletons";
 
 /**
  * Razorpay may redirect here (callback_url) after some flows and append
@@ -199,13 +200,16 @@ export default function MembershipPaymentComplete() {
   }, [router, searchParams, tryReconcile]);
 
   useEffect(() => {
-    void run();
+    startTransition(() => {
+      void run();
+    });
   }, [run]);
 
   return (
     <div className="mx-auto max-w-lg px-5 py-16 text-center">
       <h1 className="text-xl font-semibold text-ink-900">Payment return</h1>
       <p className="mt-4 text-sm text-ink-600">{message}</p>
+      {status === "working" ? <PaymentCompleteSkeleton /> : null}
       {status === "err" ? (
         <div className="mt-8 space-y-4 text-left">
           <div className="rounded-xl border border-ink-200 bg-ink-50/80 p-4">
@@ -244,7 +248,7 @@ export default function MembershipPaymentComplete() {
             >
               Your membership
             </Link>
-            <div>
+            <div className="hidden md:block">
               <Link href="/membership/long-term" className="text-sm text-azure-600 hover:text-azure-700">
                 ← Back to membership
               </Link>

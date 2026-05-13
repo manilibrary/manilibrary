@@ -7,7 +7,6 @@ import {
   SHORT_TERM_EXTRA_BLOCKED,
   type RowsSeatBlockSpec,
 } from "@/data/seatLayoutShortTerm";
-import { LONG_TERM_BLOCKED } from "@/lib/membershipSeatMock";
 import BenchRowWithMidline from "./BenchRowWithMidline";
 import DeskBayWeb from "./DeskBayWeb";
 import DoorStairsWeb from "./DoorStairsWeb";
@@ -15,12 +14,12 @@ import { EXPO } from "./expoSeatTheme";
 import type { SeatVisual } from "./seatVisual";
 
 function blockedShort(seat: number): boolean {
-  return LONG_TERM_BLOCKED.has(seat) || SHORT_TERM_EXTRA_BLOCKED.has(seat);
+  return SHORT_TERM_EXTRA_BLOCKED.has(seat);
 }
 
 function visualShort(seat: number, selected: number | null, occupiedSeats: Set<number>): SeatVisual {
   if (blockedShort(seat)) return "blocked";
-  if (occupiedSeats.has(seat)) return "occupiedShort";
+  if (occupiedSeats.has(seat)) return "occupiedLong";
   if (selected === seat) return "selected";
   return "available";
 }

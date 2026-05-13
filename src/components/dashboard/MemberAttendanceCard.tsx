@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import { attendanceAnchorYmd, ymdToDmy } from "@/lib/etime/attendance-anchor";
 import { DEFAULT_LIBRARY_TZ } from "@/lib/membership/windows";
+import { AttendanceTodaySkeleton } from "@/components/ui/ContentSkeletons";
 
 type DailyRow = {
   in_time: string;
@@ -209,6 +210,15 @@ export default function MemberAttendanceCard() {
       clearPoll();
     };
   }, [clearPoll, load]);
+
+  if (!err && busy && !data) {
+    return (
+      <div className="space-y-6">
+        <AttendanceTodaySkeleton />
+        <AttendanceTodaySkeleton />
+      </div>
+    );
+  }
 
   if (err) {
     return (

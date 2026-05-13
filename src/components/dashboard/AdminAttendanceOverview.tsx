@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
+import { startTransition, useCallback, useEffect, useState } from "react";
 
 type DailyItem = {
   date: string;
@@ -68,8 +68,14 @@ export default function AdminAttendanceOverview() {
   }, []);
 
   useEffect(() => {
-    void load();
-    const id = window.setInterval(() => void load(), 60_000);
+    startTransition(() => {
+      void load();
+    });
+    const id = window.setInterval(() => {
+      startTransition(() => {
+        void load();
+      });
+    }, 60_000);
     return () => window.clearInterval(id);
   }, [load]);
 

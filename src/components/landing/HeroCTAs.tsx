@@ -5,8 +5,10 @@ import Link from "next/link";
 import { useActiveMembership } from "@/hooks/useActiveMembership";
 import { MEMBER_MEMBERSHIP_PATH } from "@/lib/auth-landing";
 
+const MEMBERSHIP_ENTRY = "/membership";
+
 export default function HeroCTAs() {
-  const { loading, membership } = useActiveMembership();
+  const { loading, membership, signedIn } = useActiveMembership();
 
   if (loading) {
     return (
@@ -38,7 +40,7 @@ export default function HeroCTAs() {
           </svg>
         </Link>
         <Link
-          href="/membership"
+          href={MEMBERSHIP_ENTRY}
           className="inline-flex items-center gap-2 rounded-full border border-ink-200 bg-white px-6 py-3 text-sm font-semibold text-ink-700 transition-colors hover:border-ink-300 hover:bg-ink-50"
         >
           Explore plans &amp; seats
@@ -47,10 +49,14 @@ export default function HeroCTAs() {
     );
   }
 
+  const reserveHref = signedIn
+    ? MEMBERSHIP_ENTRY
+    : `/login?next=${encodeURIComponent(MEMBERSHIP_ENTRY)}`;
+
   return (
     <div className="flex flex-wrap items-center justify-center gap-3">
       <Link
-        href="/membership"
+        href={reserveHref}
         className="inline-flex items-center gap-2 rounded-full bg-azure-500 px-6 py-3 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-azure-600"
       >
         Reserve your seat

@@ -4,6 +4,15 @@ import { verifyRazorpayPaymentSignature } from "@/lib/payments/razorpay-hmac";
 export const runtime = "nodejs";
 
 export async function POST(request: Request) {
+  const demoAllowed =
+    process.env.ALLOW_VERIFY_PAYMENT_DEMO === "true" || process.env.NODE_ENV !== "production";
+  if (!demoAllowed) {
+    return apiError(
+      "Demo signature check is disabled in production. Set ALLOW_VERIFY_PAYMENT_DEMO=true only on staging if you need it.",
+      404,
+    );
+  }
+
   const secret = process.env.RAZORPAY_KEY_SECRET;
   if (!secret) {
     return apiError("RAZORPAY_KEY_SECRET is not set.", 503);

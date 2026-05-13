@@ -4,6 +4,7 @@ import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { clearAllUxPreferenceCookies } from "@/lib/ux-cookies";
+import { TopbarUserTextSkeleton } from "@/components/ui/ContentSkeletons";
 import { clearClientCache, CLIENT_DATA_CACHE_TTL_MS, ddcKey, getClientCache, setClientCache } from "@/lib/client-data-cache";
 
 type BarUser = {
@@ -108,7 +109,9 @@ export default function Topbar({ onMenu }: { onMenu: () => void }) {
     user?.initials ?? (ready ? "?" : "·");
 
   return (
-    <header className="sticky top-0 z-20 border-b border-ink-100 bg-white/85 backdrop-blur supports-[backdrop-filter]:bg-white/70">
+    <header
+      className="sticky top-0 z-20 border-b border-ink-200/60 bg-white/88 pt-[env(safe-area-inset-top,0px)] backdrop-blur-md supports-[backdrop-filter]:bg-white/72"
+    >
       <div className="flex h-16 items-center gap-3 px-5 md:px-8">
         <button
           type="button"
@@ -183,14 +186,16 @@ export default function Topbar({ onMenu }: { onMenu: () => void }) {
               <span className="flex h-8 w-8 items-center justify-center rounded-full bg-azure-500 font-mono text-xs font-semibold text-white">
                 {initials}
               </span>
-              <span className="hidden flex-col items-start sm:flex">
-                <span className="text-xs font-semibold text-ink-900">
-                  {ready ? roleLabel : "Loading…"}
+                <span className="hidden flex-col items-start sm:flex">
+                  {ready ? (
+                    <>
+                      <span className="text-xs font-semibold text-ink-900">{roleLabel}</span>
+                      <span className="font-mono text-[10px] text-ink-500">{email || "—"}</span>
+                    </>
+                  ) : (
+                    <TopbarUserTextSkeleton />
+                  )}
                 </span>
-                <span className="font-mono text-[10px] text-ink-500">
-                  {ready ? (email || "—") : "—"}
-                </span>
-              </span>
               <svg
                 className="h-4 w-4 text-ink-400"
                 viewBox="0 0 20 20"
@@ -211,12 +216,14 @@ export default function Topbar({ onMenu }: { onMenu: () => void }) {
                 />
                 <div className="absolute right-0 z-20 mt-2 w-56 overflow-hidden rounded-xl border border-ink-100 bg-white shadow-card-hover">
                   <div className="border-b border-ink-100 px-4 py-3">
-                    <p className="text-xs font-semibold text-ink-900">
-                      {ready ? roleLabel : "Loading…"}
-                    </p>
-                    <p className="font-mono text-[10px] text-ink-500">
-                      {ready ? (email || "—") : "—"}
-                    </p>
+                    {ready ? (
+                      <>
+                        <p className="text-xs font-semibold text-ink-900">{roleLabel}</p>
+                        <p className="font-mono text-[10px] text-ink-500">{email || "—"}</p>
+                      </>
+                    ) : (
+                      <TopbarUserTextSkeleton />
+                    )}
                   </div>
                   <button
                     onClick={() => {

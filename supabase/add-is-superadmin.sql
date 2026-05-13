@@ -7,5 +7,4 @@ alter table public.profiles
 comment on column public.profiles.is_superadmin is
   'When true, user may use /dashboard/superadmin and PATCH membership rows via API (service role).';
 
--- Example (replace with your superadmin auth user id):
--- update public.profiles set is_superadmin = true where user_id = '00000000-0000-0000-0000-000000000000';
+-- After a user exists, promote them with supabase/set-superadmin.sql (by email or UUID).

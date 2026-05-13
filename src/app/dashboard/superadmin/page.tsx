@@ -30,8 +30,9 @@ export default async function SuperadminPage() {
       <div className="rounded-2xl border border-amber-200 bg-amber-50 p-6 text-amber-900">
         <p className="font-semibold">Superadmin only</p>
         <p className="mt-2 text-sm">
-          Run <span className="font-mono">supabase/add-is-superadmin.sql</span> in Supabase, then set{" "}
-          <span className="font-mono">is_superadmin = true</span> for your profile.
+          Run <span className="font-mono">supabase/add-is-superadmin.sql</span> (or the full bootstrap) so the{" "}
+          <span className="font-mono">is_superadmin</span> column exists, then run{" "}
+          <span className="font-mono">supabase/set-superadmin.sql</span> with your email to grant access.
         </p>
       </div>
     );

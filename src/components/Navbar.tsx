@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
+import { startTransition, useCallback, useEffect, useState } from "react";
 import Logo from "./Logo";
 import { createClient } from "@/lib/supabase/client";
 import { clearClientCache } from "@/lib/client-data-cache";
@@ -47,19 +47,13 @@ function initialsFrom(displayName: string, email: string): string {
 }
 
 export default function Navbar() {
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(() => getUxPreferenceCookie("site_nav_drawer") === "open");
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [auth, setAuth] = useState<AuthBar>(initialAuth);
 
   const setSiteNavDrawerOpen = useCallback((next: boolean) => {
     setOpen(next);
     setUxPreferenceCookie("site_nav_drawer", next ? "open" : "closed");
-  }, []);
-
-  useEffect(() => {
-    if (getUxPreferenceCookie("site_nav_drawer") === "open") {
-      setOpen(true);
-    }
   }, []);
 
   const loadAuth = useCallback(async () => {
@@ -101,11 +95,15 @@ export default function Navbar() {
 
   useEffect(() => {
     const supabase = createClient();
-    void loadAuth();
+    startTransition(() => {
+      void loadAuth();
+    });
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(() => {
-      void loadAuth();
+      startTransition(() => {
+        void loadAuth();
+      });
     });
     return () => subscription.unsubscribe();
   }, [loadAuth]);

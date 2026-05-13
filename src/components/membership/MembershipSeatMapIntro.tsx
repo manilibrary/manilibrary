@@ -1,25 +1,14 @@
 /**
  * Plain-language seat-map primer. Colours align with `MembershipLegend` swatches
- * (available, occupied, blocked) for the given plan mode.
+ * (Free, Yours, Taken, Blocked) for both halls.
  */
-export default function MembershipSeatMapIntro({
-  mode,
-}: {
-  mode: "long" | "short";
-}) {
-  const occupiedLine =
-    mode === "long" ? (
-      <>
-        <strong className="font-semibold text-ink-800">Amber</strong> seats are taken by long-term members;{" "}
-        <strong className="font-semibold text-ink-800">violet</strong> is a member&apos;s home desk while they&apos;re
-        away.
-      </>
-    ) : (
-      <>
-        <strong className="font-semibold text-ink-800">Sky-blue</strong> seats are in use on a short-term or day
-        pass.
-      </>
-    );
+export default function MembershipSeatMapIntro({ mode: _mode }: { mode: "long" | "short" }) {
+  const occupiedLine = (
+    <>
+      <strong className="font-semibold text-ink-800">Amber</strong> seats are already booked for your selected dates
+      (or in use now if you have not set a window yet).
+    </>
+  );
 
   return (
     <div className="rounded-xl border border-ink-100 bg-white p-4 text-sm leading-relaxed text-ink-600 shadow-sm">
@@ -33,13 +22,14 @@ export default function MembershipSeatMapIntro({
         × treatment for those spots).
       </p>
       <ul className="mt-2 list-disc space-y-0.5 pl-5 text-xs text-ink-600">
-        <li>Available: white fill, azure outline — matches &quot;Available&quot; in the legend.</li>
+        <li>Available: white fill, azure outline — matches &quot;Free&quot; in the legend.</li>
         <li>
-          {mode === "long"
-            ? "Taken: amber (long-term member) or violet (home desk) — matches those legend rows."
-            : "Taken: sky fill (short-term / day) — matches &quot;Short-term / day&quot; in the legend."}
+          Taken: amber border and chair — matches &quot;Taken&quot; in the legend (synced with overlapping bookings).
         </li>
-        <li>Blocked: × on the tile, not selectable — same category as &quot;Blocked&quot; (grey swatch in the legend).</li>
+        <li>
+          Blocked: red × on the tile, not selectable — matches the &quot;Blocked&quot; legend swatch (red × on a light
+          red field).
+        </li>
       </ul>
     </div>
   );

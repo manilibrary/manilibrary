@@ -1,10 +1,11 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { startTransition, useCallback, useEffect, useState } from "react";
 
 import { formatDateDdMmYyyy } from "@/lib/date-format";
 import { MembershipSeatTableCell } from "@/components/membership/MembershipSeatTableCell";
 import { resolveMemberSeatDisplayLabel } from "@/lib/membership/seat-label";
+import { TableBodySkeleton } from "@/components/ui/ContentSkeletons";
 
 function shortUuid(id: string): string {
   if (id.length <= 12) return id;
@@ -96,7 +97,9 @@ export default function SuperadminMembershipsPanel() {
   }, [q]);
 
   useEffect(() => {
-    void load();
+    startTransition(() => {
+      void load();
+    });
   }, [load]);
 
   function openDelete(r: Row) {
@@ -164,59 +167,65 @@ export default function SuperadminMembershipsPanel() {
             </tr>
           </thead>
           <tbody className="divide-y divide-ink-100">
-            {items.map((r) => (
-              <tr key={r.id} className="text-ink-800">
-                <td className="px-3 py-2 font-mono text-xs">{r.plan_kind}</td>
-                <td className="px-3 py-2">{r.status}</td>
-                <td className="px-3 py-2 font-mono text-xs">
-                  {r.device_user_id != null ? String(r.device_user_id).padStart(4, "0") : "—"}
-                </td>
-                <td className="px-3 py-2">
-                  <MembershipSeatTableCell
-                    plan_kind={r.plan_kind}
-                    seat_number={r.seat_number}
-                    status={r.status}
-                  />
-                </td>
-                <td className="max-w-[220px] truncate px-3 py-2 font-mono text-[11px]">{formatWindow(r)}</td>
-                <td className="max-w-[180px] px-3 py-2 text-xs">
-                  <div className="font-medium text-ink-900" title={r.member_label ?? r.user_id}>
-                    {r.member_label ?? r.user_id}
-                  </div>
-                </td>
-                <td className="max-w-[5.5rem] px-3 py-2 font-mono text-[10px] text-ink-400" title={r.user_id}>
-                  {shortUuid(r.user_id)}
-                </td>
-                <td className="px-3 py-2">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setSaveMsg(null);
-                        setEdit({ ...r });
-                      }}
-                      className="text-xs font-semibold text-azure-600 hover:text-azure-700"
-                    >
-                      Edit
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => openDelete(r)}
-                      className="text-xs font-semibold text-red-700 hover:text-red-800"
-                    >
-                      Delete
-                    </button>
-                  </div>
-                </td>
-              </tr>
-            ))}
-            {items.length === 0 && !busy ? (
-              <tr>
-                <td colSpan={8} className="px-3 py-8 text-center text-ink-500">
-                  No rows.
-                </td>
-              </tr>
-            ) : null}
+            {busy && items.length === 0 ? (
+              <TableBodySkeleton rows={8} cols={8} tdClass="px-3 py-3" />
+            ) : (
+              <>
+                {items.map((r) => (
+                  <tr key={r.id} className="text-ink-800">
+                    <td className="px-3 py-2 font-mono text-xs">{r.plan_kind}</td>
+                    <td className="px-3 py-2">{r.status}</td>
+                    <td className="px-3 py-2 font-mono text-xs">
+                      {r.device_user_id != null ? String(r.device_user_id).padStart(4, "0") : "—"}
+                    </td>
+                    <td className="px-3 py-2">
+                      <MembershipSeatTableCell
+                        plan_kind={r.plan_kind}
+                        seat_number={r.seat_number}
+                        status={r.status}
+                      />
+                    </td>
+                    <td className="max-w-[220px] truncate px-3 py-2 font-mono text-[11px]">{formatWindow(r)}</td>
+                    <td className="max-w-[180px] px-3 py-2 text-xs">
+                      <div className="font-medium text-ink-900" title={r.member_label ?? r.user_id}>
+                        {r.member_label ?? r.user_id}
+                      </div>
+                    </td>
+                    <td className="max-w-[5.5rem] px-3 py-2 font-mono text-[10px] text-ink-400" title={r.user_id}>
+                      {shortUuid(r.user_id)}
+                    </td>
+                    <td className="px-3 py-2">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSaveMsg(null);
+                            setEdit({ ...r });
+                          }}
+                          className="text-xs font-semibold text-azure-600 hover:text-azure-700"
+                        >
+                          Edit
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => openDelete(r)}
+                          className="text-xs font-semibold text-red-700 hover:text-red-800"
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+                {items.length === 0 && !busy ? (
+                  <tr>
+                    <td colSpan={8} className="px-3 py-8 text-center text-ink-500">
+                      No rows.
+                    </td>
+                  </tr>
+                ) : null}
+              </>
+            )}
           </tbody>
         </table>
       </div>

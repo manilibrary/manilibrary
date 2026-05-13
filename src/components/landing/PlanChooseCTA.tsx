@@ -12,8 +12,13 @@ type Props = {
   popular: boolean;
 };
 
+function membershipHubHref(planId: string): string {
+  if (planId === "row-hall" || planId === "half-day") return "/membership?focus=row";
+  return "/membership?focus=main";
+}
+
 export default function PlanChooseCTA({ planName, planId, popular }: Props) {
-  const { loading, membership } = useActiveMembership();
+  const { loading, membership, signedIn } = useActiveMembership();
 
   const baseClasses = popular
     ? "bg-azure-500 text-white hover:bg-azure-600"
@@ -22,11 +27,9 @@ export default function PlanChooseCTA({ planName, planId, popular }: Props) {
   if (loading) {
     return (
       <span
-        className={`mt-7 inline-flex w-full items-center justify-center rounded-full px-5 py-2.5 text-sm font-semibold ${baseClasses} opacity-60`}
+        className={`mt-7 block h-[42px] w-full max-w-[14rem] animate-pulse rounded-full ${baseClasses} opacity-70`}
         aria-label="Checking membership"
-      >
-        Loading…
-      </span>
+      />
     );
   }
 
@@ -53,9 +56,12 @@ export default function PlanChooseCTA({ planName, planId, popular }: Props) {
     );
   }
 
+  const hub = membershipHubHref(planId);
+  const chooseHref = signedIn ? hub : `/login?next=${encodeURIComponent(hub)}`;
+
   return (
     <Link
-      href="/membership"
+      href={chooseHref}
       className={`mt-7 inline-flex w-full items-center justify-center rounded-full px-5 py-2.5 text-sm font-semibold transition-colors ${baseClasses}`}
     >
       Choose {planName}
