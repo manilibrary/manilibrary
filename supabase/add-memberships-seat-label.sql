@@ -1,3 +1,7 @@
+-- Superseded by `migrate-memberships-seat-number-text-drop-seat-label.sql`:
+-- seat tokens F(n)/S(n) now live in `memberships.seat_number` (text); `seat_label` was removed.
+-- Kept for historical reference on DBs that ran this before the consolidation migration.
+
 -- Mani Library: persist F(n) / S(n) seat labels on memberships (maps still use seat_number int).
 -- Apply in Supabase SQL Editor or via migration workflow alongside app deploy.
 

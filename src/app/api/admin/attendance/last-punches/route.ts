@@ -23,7 +23,7 @@ export const runtime = "nodejs";
 
 type PunchItem = {
   empcode: string;
-  member_number: number | null;
+  device_user_id: number | null;
   full_name: string | null;
   punch_date: string;
   flag: string | null;
@@ -33,7 +33,7 @@ type PunchItem = {
   source: "device-last-punch" | "device-mcid";
 };
 
-function parseEmpcodeToMemberNumber(emp: string | null | undefined): number | null {
+function parseEmpcodeToDeviceUserId(emp: string | null | undefined): number | null {
   if (!emp) return null;
   const cleaned = emp.replace(/[^0-9]/g, "");
   if (!cleaned) return null;
@@ -174,37 +174,37 @@ export async function GET(request: Request) {
   }
 
   const admin = createSupabaseServiceRoleClient();
-  const memberNumbers = Array.from(
+  const deviceUserIds = Array.from(
     new Set(
       mappedRows
-        .map((r) => parseEmpcodeToMemberNumber(r.empcode))
+        .map((r) => parseEmpcodeToDeviceUserId(r.empcode))
         .filter((n): n is number => n != null),
     ),
   );
 
-  const profilesById: Record<number, { full_name: string; member_number: number }> = {};
-  if (memberNumbers.length > 0) {
+  const profilesById: Record<number, { full_name: string; device_user_id: number }> = {};
+  if (deviceUserIds.length > 0) {
     const { data: profs } = await admin
       .from("profiles")
-      .select("full_name, member_number")
-      .in("member_number", memberNumbers);
+      .select("full_name, device_user_id")
+      .in("device_user_id", deviceUserIds);
     for (const p of profs ?? []) {
-      profilesById[p.member_number] = p;
+      profilesById[p.device_user_id] = p;
     }
   }
 
   // Drop punches from people enrolled on the device but not registered with
-  // the library (no matching profiles.member_number).
+  // the library (no matching profiles.device_user_id).
   const before = mappedRows.length;
   const items: PunchItem[] = mappedRows.flatMap((r) => {
-    const memberNumber = parseEmpcodeToMemberNumber(r.empcode);
-    if (memberNumber == null) return [];
-    const profile = profilesById[memberNumber];
+    const deviceUserId = parseEmpcodeToDeviceUserId(r.empcode);
+    if (deviceUserId == null) return [];
+    const profile = profilesById[deviceUserId];
     if (!profile) return [];
     return [
       {
         empcode: r.empcode,
-        member_number: memberNumber,
+        device_user_id: deviceUserId,
         full_name: profile.full_name ?? r.name ?? null,
         punch_date: r.punchDate,
         flag: r.flag,

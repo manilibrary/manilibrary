@@ -3,15 +3,20 @@
 import { useCallback, useEffect, useState } from "react";
 
 import { formatDateDdMmYyyy } from "@/lib/date-format";
+import { MembershipSeatTableCell } from "@/components/membership/MembershipSeatTableCell";
 import { resolveMemberSeatDisplayLabel } from "@/lib/membership/seat-label";
+
+function shortUuid(id: string): string {
+  if (id.length <= 12) return id;
+  return `${id.slice(0, 8)}…`;
+}
 
 type Row = {
   id: string;
   user_id: string;
   plan_kind: string;
   status: string;
-  seat_number: number | null;
-  seat_label: string | null;
+  seat_number: string | null;
   starts_at: string | null;
   ends_at: string | null;
   valid_from: string | null;
@@ -20,6 +25,7 @@ type Row = {
   payment_id: string | null;
   created_at: string;
   member_label?: string;
+  device_user_id?: number | null;
 };
 
 function formatWindow(r: Row): string {
@@ -109,7 +115,7 @@ export default function SuperadminMembershipsPanel() {
     <div className="space-y-6">
       <div className="flex flex-wrap items-end gap-3">
         <label className="flex flex-col gap-1 text-xs text-ink-600">
-          Filter by member # (1–4 digits)
+          Filter by device user ID (1–4 digits)
           <input
             className="w-40 rounded-lg border border-ink-200 px-3 py-2 font-mono text-sm"
             value={q}
@@ -144,9 +150,16 @@ export default function SuperadminMembershipsPanel() {
             <tr>
               <th className="px-3 py-2">Plan</th>
               <th className="px-3 py-2">Status</th>
-              <th className="px-3 py-2">Seat</th>
+              <th className="px-3 py-2">Device user ID</th>
+              <th
+                className="px-3 py-2"
+                title="Only active memberships hold a seat for others. Pending payment shows checkout choice only."
+              >
+                Seat
+              </th>
               <th className="px-3 py-2">Window</th>
               <th className="px-3 py-2">Member</th>
+              <th className="px-3 py-2 font-normal normal-case text-ink-400">user_id</th>
               <th className="px-3 py-2"> </th>
             </tr>
           </thead>
@@ -155,15 +168,25 @@ export default function SuperadminMembershipsPanel() {
               <tr key={r.id} className="text-ink-800">
                 <td className="px-3 py-2 font-mono text-xs">{r.plan_kind}</td>
                 <td className="px-3 py-2">{r.status}</td>
-                <td className="px-3 py-2 font-mono">
-                  {resolveMemberSeatDisplayLabel({
-                    plan_kind: r.plan_kind,
-                    seat_number: r.seat_number,
-                    seat_label: r.seat_label,
-                  })}
+                <td className="px-3 py-2 font-mono text-xs">
+                  {r.device_user_id != null ? String(r.device_user_id).padStart(4, "0") : "—"}
+                </td>
+                <td className="px-3 py-2">
+                  <MembershipSeatTableCell
+                    plan_kind={r.plan_kind}
+                    seat_number={r.seat_number}
+                    status={r.status}
+                  />
                 </td>
                 <td className="max-w-[220px] truncate px-3 py-2 font-mono text-[11px]">{formatWindow(r)}</td>
-                <td className="max-w-[160px] truncate px-3 py-2 text-xs">{r.member_label ?? r.user_id}</td>
+                <td className="max-w-[180px] px-3 py-2 text-xs">
+                  <div className="font-medium text-ink-900" title={r.member_label ?? r.user_id}>
+                    {r.member_label ?? r.user_id}
+                  </div>
+                </td>
+                <td className="max-w-[5.5rem] px-3 py-2 font-mono text-[10px] text-ink-400" title={r.user_id}>
+                  {shortUuid(r.user_id)}
+                </td>
                 <td className="px-3 py-2">
                   <div className="flex flex-wrap items-center gap-2">
                     <button
@@ -189,7 +212,7 @@ export default function SuperadminMembershipsPanel() {
             ))}
             {items.length === 0 && !busy ? (
               <tr>
-                <td colSpan={6} className="px-3 py-8 text-center text-ink-500">
+                <td colSpan={8} className="px-3 py-8 text-center text-ink-500">
                   No rows.
                 </td>
               </tr>
@@ -232,15 +255,16 @@ export default function SuperadminMembershipsPanel() {
                 </select>
               </label>
               <label className="grid gap-1">
-                <span className="text-xs text-ink-600">seat_number</span>
+                <span className="text-xs text-ink-600">seat (e.g. F(12) or S(8))</span>
                 <input
-                  type="number"
+                  type="text"
                   className="rounded-lg border border-ink-200 px-3 py-2 font-mono"
+                  placeholder="F(12)"
                   value={edit.seat_number ?? ""}
                   onChange={(e) =>
                     setEdit({
                       ...edit,
-                      seat_number: e.target.value === "" ? null : parseInt(e.target.value, 10),
+                      seat_number: e.target.value.trim() === "" ? null : e.target.value.trim(),
                     })
                   }
                 />
@@ -414,7 +438,6 @@ export default function SuperadminMembershipsPanel() {
                   {resolveMemberSeatDisplayLabel({
                     plan_kind: deleteTarget.plan_kind,
                     seat_number: deleteTarget.seat_number,
-                    seat_label: deleteTarget.seat_label,
                   })}
                 </span>
               </li>

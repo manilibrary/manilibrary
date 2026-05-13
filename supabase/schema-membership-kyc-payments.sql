@@ -56,6 +56,7 @@ comment on column public.profiles.verification_status is
 create table if not exists public.verification_requests (
   id                 uuid primary key default gen_random_uuid(),
   user_id            uuid not null references auth.users (id) on delete cascade,
+  device_user_id     int not null references public.profiles (device_user_id) on update cascade,
   status             text not null default 'pending'
                        check (status in ('pending', 'approved', 'rejected', 'resubmit')),
   submitted_at       timestamptz not null default now(),
@@ -77,12 +78,16 @@ create index if not exists verification_requests_user_idx
 create index if not exists verification_requests_status_idx
   on public.verification_requests (status);
 
+create index if not exists verification_requests_device_user_id_idx
+  on public.verification_requests (device_user_id);
+
 -- ---------------------------------------------------------------------------
 -- 3) Uploaded files (paths into Storage — do not store Aadhaar number in DB)
 -- ---------------------------------------------------------------------------
 create table if not exists public.verification_documents (
   id                 uuid primary key default gen_random_uuid(),
   verification_id    uuid not null references public.verification_requests (id) on delete cascade,
+  device_user_id     int not null references public.profiles (device_user_id) on update cascade,
   doc_type           text not null
                        check (doc_type in ('aadhaar_front', 'aadhaar_back', 'student_id')),
   storage_bucket     text not null default 'kyc-private',
@@ -95,17 +100,20 @@ create table if not exists public.verification_documents (
 create index if not exists verification_documents_verification_idx
   on public.verification_documents (verification_id);
 
+create index if not exists verification_documents_device_user_id_idx
+  on public.verification_documents (device_user_id);
+
 -- ---------------------------------------------------------------------------
 -- 4) Memberships (short-term = wall clock; long-term = calendar window)
 -- ---------------------------------------------------------------------------
 create table if not exists public.memberships (
   id              uuid primary key default gen_random_uuid(),
   user_id         uuid not null references auth.users (id) on delete cascade,
+  device_user_id  int not null references public.profiles (device_user_id) on update cascade,
   plan_kind       text not null check (plan_kind in ('short_term', 'long_term')),
   status          text not null default 'pending_payment'
                     check (status in ('pending_payment', 'active', 'expired', 'cancelled')),
-  seat_number     int,
-  seat_label      text,
+  seat_number     text, -- active: F(n)/S(n). pending_payment: literal 'Not applicable'; planned token in payments.metadata.planned_seat_token until paid
   starts_at       timestamptz,
   ends_at         timestamptz,
   valid_from      date,
@@ -124,6 +132,7 @@ create table if not exists public.memberships (
 );
 
 create index if not exists memberships_user_idx on public.memberships (user_id);
+create index if not exists memberships_device_user_id_idx on public.memberships (device_user_id);
 create index if not exists memberships_status_idx on public.memberships (status);
 create index if not exists memberships_seat_idx on public.memberships (seat_number)
   where seat_number is not null;
@@ -161,6 +170,7 @@ alter table public.memberships
 create table if not exists public.payments (
   id                    uuid primary key default gen_random_uuid(),
   user_id               uuid not null references auth.users (id) on delete cascade,
+  device_user_id        int not null references public.profiles (device_user_id) on update cascade,
   membership_id         uuid references public.memberships (id) on delete set null,
   amount_rupees         bigint not null check (amount_rupees >= 0),
   currency              text not null default 'INR',
@@ -177,6 +187,7 @@ comment on column public.payments.amount_rupees is
   'INR amount in whole rupees (e.g. 500 = ₹500). Razorpay API still uses paise; the app converts ×100 when creating orders.';
 
 create index if not exists payments_user_idx on public.payments (user_id);
+create index if not exists payments_device_user_id_idx on public.payments (device_user_id);
 create index if not exists payments_membership_idx on public.payments (membership_id);
 create index if not exists payments_provider_id_idx on public.payments (provider, provider_payment_id);
 
@@ -256,6 +267,90 @@ drop trigger if exists trg_sync_profile_verification on public.verification_requ
 create trigger trg_sync_profile_verification
   after insert or update on public.verification_requests
   for each row execute function public.sync_profile_verification_from_request();
+
+-- ---------------------------------------------------------------------------
+-- 7b) Denormalized device_user_id: filled before insert if omitted (matches migration)
+-- ---------------------------------------------------------------------------
+create or replace function public.memberships_sync_device_user_id()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+set row_security = off
+as $$
+begin
+  select p.device_user_id into strict new.device_user_id
+  from public.profiles p
+  where p.user_id = new.user_id;
+  return new;
+end;
+$$;
+
+drop trigger if exists trg_memberships_sync_device_user_id on public.memberships;
+create trigger trg_memberships_sync_device_user_id
+  before insert or update of user_id on public.memberships
+  for each row execute function public.memberships_sync_device_user_id();
+
+create or replace function public.payments_sync_device_user_id()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+set row_security = off
+as $$
+begin
+  select p.device_user_id into strict new.device_user_id
+  from public.profiles p
+  where p.user_id = new.user_id;
+  return new;
+end;
+$$;
+
+drop trigger if exists trg_payments_sync_device_user_id on public.payments;
+create trigger trg_payments_sync_device_user_id
+  before insert or update of user_id on public.payments
+  for each row execute function public.payments_sync_device_user_id();
+
+create or replace function public.verification_requests_sync_device_user_id()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+set row_security = off
+as $$
+begin
+  select p.device_user_id into strict new.device_user_id
+  from public.profiles p
+  where p.user_id = new.user_id;
+  return new;
+end;
+$$;
+
+drop trigger if exists trg_verification_requests_sync_device_user_id on public.verification_requests;
+create trigger trg_verification_requests_sync_device_user_id
+  before insert or update of user_id on public.verification_requests
+  for each row execute function public.verification_requests_sync_device_user_id();
+
+create or replace function public.verification_documents_sync_device_user_id()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+set row_security = off
+as $$
+begin
+  select p.device_user_id into strict new.device_user_id
+  from public.verification_requests vr
+  join public.profiles p on p.user_id = vr.user_id
+  where vr.id = new.verification_id;
+  return new;
+end;
+$$;
+
+drop trigger if exists trg_verification_documents_sync_device_user_id on public.verification_documents;
+create trigger trg_verification_documents_sync_device_user_id
+  before insert or update of verification_id on public.verification_documents
+  for each row execute function public.verification_documents_sync_device_user_id();
 
 -- ---------------------------------------------------------------------------
 -- 8) Row Level Security

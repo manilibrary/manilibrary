@@ -4,15 +4,20 @@ import { useCallback, useEffect, useState } from "react";
 
 import MemberKycDocumentsModal, { type MemberKycDetails } from "@/components/dashboard/MemberKycDocumentsModal";
 
+function shortUuid(id: string): string {
+  if (id.length <= 12) return id;
+  return `${id.slice(0, 8)}…`;
+}
+
 function kycDetailsFromRecord(p: Record<string, unknown>): MemberKycDetails {
-  const mn = p.member_number;
+  const mn = p.device_user_id;
   return {
     verification_status: String(p.verification_status ?? "none"),
     aadhaar_last_four: (typeof p.aadhaar_last_four === "string" ? p.aadhaar_last_four : null) ?? null,
     student_roll_number: (typeof p.student_roll_number === "string" ? p.student_roll_number : null) ?? null,
     institution_type: (typeof p.institution_type === "string" ? p.institution_type : null) ?? null,
     preparing_for: (typeof p.preparing_for === "string" ? p.preparing_for : null) ?? null,
-    member_number: typeof mn === "number" ? mn : null,
+    device_user_id: typeof mn === "number" ? mn : null,
   };
 }
 
@@ -43,6 +48,7 @@ type PayRow = {
   provider_payment_id: string | null;
   created_at: string;
   member_label: string;
+  device_user_id: number | null;
 };
 
 function Flag({ ok, label }: { ok: boolean; label: string }) {
@@ -100,7 +106,7 @@ export default function SuperadminOpsPanels() {
   const [profile, setProfile] = useState<{
     user_id: string;
     full_name: string;
-    member_number: number;
+    device_user_id: number;
     email: string | null;
     is_admin: boolean;
     is_superadmin: boolean;
@@ -127,7 +133,7 @@ export default function SuperadminOpsPanels() {
         profile?: {
           user_id: string;
           full_name: string;
-          member_number: number;
+          device_user_id: number;
           email: string | null;
           is_admin: boolean;
           is_superadmin: boolean;
@@ -243,7 +249,7 @@ export default function SuperadminOpsPanels() {
       <section className="rounded-2xl border border-ink-100 bg-white p-5 shadow-card">
         <p className="font-mono text-[10px] uppercase tracking-widest text-ink-500">Global search</p>
         <p className="mt-1 text-sm text-ink-600">
-          UUID (membership id, payment id, or user id), email fragment, 1–4 digit member number, or Razorpay{" "}
+          UUID (membership id, payment id, or user id), email fragment, 1–4 digit device user id, or Razorpay{" "}
           <span className="font-mono">pay_…</span> id.
         </p>
         <div className="mt-4 flex flex-wrap items-end gap-2">
@@ -273,7 +279,7 @@ export default function SuperadminOpsPanels() {
                 {searchRes.profiles.map((p) => (
                   <li key={String(p.user_id)} className="rounded-lg border border-ink-100 bg-surface-muted/50 p-2">
                     <p className="font-medium text-ink-900">{String(p.full_name)}</p>
-                    <p className="font-mono text-ink-500">#{String(p.member_number).padStart(4, "0")}</p>
+                    <p className="font-mono text-ink-500">#{String(p.device_user_id).padStart(4, "0")}</p>
                     <p className="truncate text-ink-500">{String(p.email ?? "")}</p>
                     <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1">
                       <button
@@ -305,10 +311,15 @@ export default function SuperadminOpsPanels() {
               <p className="text-xs font-semibold text-ink-700">Memberships ({searchRes.memberships.length})</p>
               <ul className="mt-2 max-h-64 space-y-2 overflow-y-auto text-xs">
                 {searchRes.memberships.map((m) => (
-                  <li key={String(m.id)} className="rounded-lg border border-ink-100 p-2 font-mono text-ink-700">
-                    <p className="break-all">{String(m.id)}</p>
-                    <p className="text-ink-500">
+                  <li key={String(m.id)} className="rounded-lg border border-ink-100 p-2 text-xs">
+                    <p className="font-medium text-ink-900" title={String(m.member_label ?? m.user_id)}>
+                      {String(m.member_label ?? m.user_id)}
+                    </p>
+                    <p className="mt-0.5 text-ink-600">
                       {String(m.plan_kind)} · {String(m.status)}
+                    </p>
+                    <p className="mt-1 font-mono text-[10px] text-ink-400" title={String(m.id)}>
+                      {shortUuid(String(m.id))}
                     </p>
                   </li>
                 ))}
@@ -318,9 +329,16 @@ export default function SuperadminOpsPanels() {
               <p className="text-xs font-semibold text-ink-700">Payments ({searchRes.payments.length})</p>
               <ul className="mt-2 max-h-64 space-y-2 overflow-y-auto text-xs">
                 {searchRes.payments.map((p) => (
-                  <li key={String(p.id)} className="rounded-lg border border-ink-100 p-2 font-mono text-ink-700">
-                    <p className="break-all">{String(p.id)}</p>
-                    <p className="text-ink-500">₹{Number(p.amount_rupees).toLocaleString("en-IN")}</p>
+                  <li key={String(p.id)} className="rounded-lg border border-ink-100 p-2 text-xs">
+                    <p className="font-medium text-ink-900" title={String(p.member_label ?? p.user_id)}>
+                      {String(p.member_label ?? p.user_id)}
+                    </p>
+                    <p className="mt-0.5 text-ink-600">
+                      ₹{Number(p.amount_rupees).toLocaleString("en-IN")} · {String(p.status)}
+                    </p>
+                    <p className="mt-1 font-mono text-[10px] text-ink-400" title={String(p.id)}>
+                      {shortUuid(String(p.id))}
+                    </p>
                   </li>
                 ))}
               </ul>
@@ -333,7 +351,7 @@ export default function SuperadminOpsPanels() {
         <p className="font-mono text-[10px] uppercase tracking-widest text-ink-500">Profile flags</p>
         <p className="mt-1 text-sm text-ink-600">
           Load a profile by <span className="font-mono">user_id</span> (UUID). Only <span className="font-mono">is_admin</span> and{" "}
-          <span className="font-mono">is_superadmin</span> can be changed here. Member numbers stay fixed in the database.
+          <span className="font-mono">is_superadmin</span> can be changed here. Device user ids stay fixed in the database.
         </p>
         <div className="mt-4 flex flex-wrap items-end gap-2">
           <input
@@ -362,7 +380,7 @@ export default function SuperadminOpsPanels() {
             <div>
               <p className="text-sm font-semibold text-ink-900">{profile.full_name}</p>
               <p className="font-mono text-xs text-ink-500">
-                #{String(profile.member_number).padStart(4, "0")} · {profile.email ?? "no email"}
+                #{String(profile.device_user_id).padStart(4, "0")} · {profile.email ?? "no email"}
               </p>
             </div>
             <label className="flex items-center gap-2 text-sm">
@@ -394,7 +412,7 @@ export default function SuperadminOpsPanels() {
                     student_roll_number: profile.student_roll_number ?? null,
                     institution_type: profile.institution_type ?? null,
                     preparing_for: profile.preparing_for ?? null,
-                    member_number: profile.member_number,
+                    device_user_id: profile.device_user_id,
                   },
                 })
               }
@@ -463,9 +481,11 @@ export default function SuperadminOpsPanels() {
                   <tr>
                     <th className="py-2 pr-2">When</th>
                     <th className="py-2 pr-2">Member</th>
+                    <th className="py-2 pr-2">Device user ID</th>
                     <th className="py-2 pr-2">₹</th>
                     <th className="py-2 pr-2">Status</th>
-                    <th className="py-2">Membership</th>
+                    <th className="py-2 pr-2">Payment id</th>
+                    <th className="py-2">Membership id</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-ink-100 text-ink-800">
@@ -474,10 +494,22 @@ export default function SuperadminOpsPanels() {
                       <td className="py-2 pr-2 font-mono whitespace-nowrap">
                         {new Date(r.created_at).toLocaleString("en-IN", { dateStyle: "short", timeStyle: "short" })}
                       </td>
-                      <td className="py-2 pr-2 max-w-[8rem] truncate">{r.member_label}</td>
+                      <td className="py-2 pr-2 max-w-[14rem]">
+                        <div className="font-medium" title={r.member_label}>
+                          {r.member_label}
+                        </div>
+                      </td>
+                      <td className="py-2 pr-2 font-mono text-[11px]">
+                        {r.device_user_id != null ? String(r.device_user_id).padStart(4, "0") : "—"}
+                      </td>
                       <td className="py-2 pr-2 font-mono">{Number(r.amount_rupees).toLocaleString("en-IN")}</td>
                       <td className="py-2 pr-2 capitalize">{r.status}</td>
-                      <td className="py-2 font-mono text-[10px] break-all">{r.membership_id ?? "—"}</td>
+                      <td className="py-2 pr-2 font-mono text-[10px] text-ink-600" title={r.id}>
+                        {shortUuid(r.id)}
+                      </td>
+                      <td className="py-2 font-mono text-[10px] text-ink-600" title={r.membership_id ?? ""}>
+                        {r.membership_id ? shortUuid(r.membership_id) : "—"}
+                      </td>
                     </tr>
                   ))}
                 </tbody>

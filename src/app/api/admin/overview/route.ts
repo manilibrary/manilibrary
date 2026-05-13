@@ -1,4 +1,6 @@
 import { apiError, apiSuccess } from "@/lib/api/json-response";
+import { formatProfileMemberLabel } from "@/lib/membership/profile-label";
+import { parseNumericSeatFromStoredSeat } from "@/lib/membership/seat-label";
 import { requireLibraryAdminOrSuperAdmin } from "@/lib/supabase/require-library-admin";
 import { createSupabaseServiceRoleClient } from "@/lib/supabase/service-role";
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -35,18 +37,18 @@ function parsePaidSumAggregate(data: unknown): number | null {
 async function profilesMiniByUserIds(
   admin: SupabaseClient,
   userIds: string[],
-): Promise<Record<string, { full_name: string; member_number: number; email: string | null }>> {
+): Promise<Record<string, { full_name: string; device_user_id: number; email: string | null }>> {
   const uniq = [...new Set(userIds)].filter(Boolean);
   if (uniq.length === 0) return {};
   const { data } = await admin
     .from("profiles")
-    .select("user_id, full_name, member_number, email")
+    .select("user_id, full_name, device_user_id, email")
     .in("user_id", uniq);
-  const out: Record<string, { full_name: string; member_number: number; email: string | null }> = {};
+  const out: Record<string, { full_name: string; device_user_id: number; email: string | null }> = {};
   for (const p of data ?? []) {
     out[p.user_id] = {
       full_name: p.full_name,
-      member_number: p.member_number,
+      device_user_id: p.device_user_id,
       email: p.email ?? null,
     };
   }
@@ -73,8 +75,9 @@ async function distinctActiveSeatCount(
   if (error) return 0;
   const seats = new Set<number>();
   for (const r of data ?? []) {
-    const n = (r as { seat_number: number | null }).seat_number;
-    if (typeof n === "number" && Number.isFinite(n)) seats.add(n);
+    const raw = (r as { seat_number: string | number | null }).seat_number;
+    const n = parseNumericSeatFromStoredSeat(raw);
+    if (n != null) seats.add(n);
   }
   return seats.size;
 }
@@ -259,7 +262,8 @@ export async function GET() {
       created_at: p.created_at,
       provider: p.provider,
       provider_payment_id: p.provider_payment_id,
-      member_label: pr ? `${pr.full_name} (#${String(pr.member_number).padStart(4, "0")})` : p.user_id,
+      member_label: pr ? formatProfileMemberLabel(pr) : p.user_id,
+      device_user_id: pr?.device_user_id ?? null,
     };
   });
 
@@ -269,7 +273,7 @@ export async function GET() {
       user_id: string;
       plan_kind: string;
       status: string;
-      seat_number: number | null;
+      seat_number: string | number | null;
       created_at: string;
       valid_from: string | null;
       valid_until: string | null;
@@ -288,7 +292,8 @@ export async function GET() {
       valid_until: m.valid_until,
       starts_at: m.starts_at,
       ends_at: m.ends_at,
-      member_label: pr ? `${pr.full_name} (#${String(pr.member_number).padStart(4, "0")})` : m.user_id,
+      member_label: pr ? formatProfileMemberLabel(pr) : m.user_id,
+      device_user_id: pr?.device_user_id ?? null,
     };
   });
 
@@ -299,7 +304,7 @@ export async function GET() {
         user_id: string;
         plan_kind: string;
         status: string;
-        seat_number: number | null;
+        seat_number: string | number | null;
         valid_until: string | null;
       };
       const pr = profs[m.user_id];
@@ -310,7 +315,8 @@ export async function GET() {
         status: m.status,
         seat_number: m.seat_number,
         end_label: m.valid_until ?? "—",
-        member_label: pr ? `${pr.full_name} (#${String(pr.member_number).padStart(4, "0")})` : m.user_id,
+        member_label: pr ? formatProfileMemberLabel(pr) : m.user_id,
+        device_user_id: pr?.device_user_id ?? null,
       };
     }),
     ...(expiringShortRaw.data ?? []).map((row) => {
@@ -319,7 +325,7 @@ export async function GET() {
         user_id: string;
         plan_kind: string;
         status: string;
-        seat_number: number | null;
+        seat_number: string | number | null;
         ends_at: string | null;
       };
       const pr = profs[m.user_id];
@@ -330,7 +336,8 @@ export async function GET() {
         status: m.status,
         seat_number: m.seat_number,
         end_label: m.ends_at ? String(m.ends_at).replace("T", " ").slice(0, 16) : "—",
-        member_label: pr ? `${pr.full_name} (#${String(pr.member_number).padStart(4, "0")})` : m.user_id,
+        member_label: pr ? formatProfileMemberLabel(pr) : m.user_id,
+        device_user_id: pr?.device_user_id ?? null,
       };
     }),
   ];

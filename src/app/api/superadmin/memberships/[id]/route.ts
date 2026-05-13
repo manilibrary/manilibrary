@@ -1,4 +1,5 @@
 import { apiError, apiSuccess } from "@/lib/api/json-response";
+import { formatMemberSeatToken, PENDING_MEMBERSHIP_SEAT_PLACEHOLDER } from "@/lib/membership/seat-label";
 import { requireLibrarySuperAdmin } from "@/lib/supabase/require-library-super-admin";
 import { createSupabaseServiceRoleClient } from "@/lib/supabase/service-role";
 
@@ -7,7 +8,7 @@ export const runtime = "nodejs";
 type PatchBody = {
   plan_kind?: "short_term" | "long_term";
   status?: "pending_payment" | "active" | "expired" | "cancelled";
-  seat_number?: number | null;
+  seat_number?: string | number | null;
   starts_at?: string | null;
   ends_at?: string | null;
   valid_from?: string | null;
@@ -44,13 +45,28 @@ export async function PATCH(request: Request, ctx: { params: Promise<{ id: strin
     patch.status = body.status;
   }
   if (body.seat_number !== undefined) {
-    patch.seat_number = body.seat_number === null ? null : Math.round(Number(body.seat_number));
+    if (body.seat_number === null) {
+      patch.seat_number = null;
+    } else if (typeof body.seat_number === "string") {
+      const t = body.seat_number.trim();
+      patch.seat_number = t.length ? t : null;
+    } else if (typeof body.seat_number === "number" && Number.isFinite(body.seat_number)) {
+      const pk = body.plan_kind;
+      if (pk !== "short_term" && pk !== "long_term") {
+        return apiError("plan_kind must be short_term or long_term when setting a numeric seat_number.", 400);
+      }
+      patch.seat_number = formatMemberSeatToken(pk, Math.round(body.seat_number));
+    }
   }
   if (body.starts_at !== undefined) patch.starts_at = body.starts_at;
   if (body.ends_at !== undefined) patch.ends_at = body.ends_at;
   if (body.valid_from !== undefined) patch.valid_from = body.valid_from;
   if (body.valid_until !== undefined) patch.valid_until = body.valid_until;
   if (body.notes !== undefined) patch.notes = body.notes;
+
+  if (patch.status === "pending_payment") {
+    patch.seat_number = PENDING_MEMBERSHIP_SEAT_PLACEHOLDER;
+  }
 
   if (Object.keys(patch).length === 0) {
     return apiError("No valid fields to update.", 400);

@@ -10,11 +10,17 @@
 --   3) schema-etime-punch.sql
 --   4) schema-etime-empcode-map.sql
 --
--- Before running: edit v_test_email and v_seat in the DO block below.
--- Alternative: replace the `select ... into` with
---   select user_id, member_number into v_uid, v_member_no
---   from public.profiles where member_number = 2 limit 1;  -- e.g. matches Empcode "0002"
--- and remove v_test_email / the email filter.
+-- Before running:
+--   1) Pick a real user: run in SQL Editor (separate query):
+--        select device_user_id, email, full_name
+--        from public.profiles
+--        order by device_user_id nulls last
+--        limit 30;
+--   2) In the declare block below set EITHER
+--        v_device_user_id := <that row's device_user_id>
+--      OR leave v_device_user_id null and set
+--        v_test_email := '<exact email from profiles>'
+--   3) Adjust v_seat (integer; membership will store S(<v_seat>)) and v_empcode if needed.
 --
 -- CLEANUP (optional, before re-seeding): inspect rows then delete by id, or:
 --   update public.memberships set payment_id = null where user_id = '...' and notes like 'test seed:%';
@@ -22,30 +28,49 @@
 --   delete from public.memberships where user_id = '...' and notes like 'test seed:%';
 --   delete from public.etime_empcode_map where empcode = '0002';
 --   delete from public.etime_attendance_daily where remark = 'TEST-SEED';
---   delete from public.etime_punch_raw where member_number = ... and punch_at::date = current_date;
+--   delete from public.etime_punch_raw where device_user_id = ... and punch_at::date = current_date;
 -- =============================================================================
 
 do $$
 declare
-  v_test_email   text := 'REPLACE_WITH_YOUR_LOGIN_EMAIL@example.com';
-  v_seat         int  := 12;  -- desk/seat to show on website flow
-  v_empcode      text := '0002';
-  v_uid          uuid;
-  v_member_no    int;
-  v_payment_id   uuid;
-  v_membership_id uuid;
-  v_today        date := (timezone('Asia/Kolkata', now()))::date;
-  v_raw_inout    jsonb;
-  v_raw_punch    jsonb;
+  -- REQUIRED: set to a row that exists in public.profiles (see header comment for lookup SQL).
+  -- Example: if your test user is member #35, use v_device_user_id := 35;
+  v_device_user_id int  := null;
+  -- If v_device_user_id is null, set this to that user's profiles.email (case-insensitive match).
+  v_test_email      text := null;
+  v_seat            int  := 12;  -- desk/seat to show on website flow
+  v_empcode         text := '0002';
+  v_uid             uuid;
+  v_member_no       int;
+  v_payment_id      uuid;
+  v_membership_id   uuid;
+  v_today           date := (timezone('Asia/Kolkata', now()))::date;
+  v_raw_inout       jsonb;
+  v_raw_punch       jsonb;
 begin
-  select p.user_id, p.member_number
-    into v_uid, v_member_no
-  from public.profiles p
-  where lower(coalesce(p.email, '')) = lower(trim(v_test_email))
-  limit 1;
+  if v_device_user_id is null and (v_test_email is null or trim(v_test_email) = '') then
+    raise exception
+      'Seed not configured. In the declare block set v_device_user_id := <existing profiles.device_user_id> OR set v_test_email to a registered email. Lookup: select device_user_id, email, full_name from public.profiles order by device_user_id nulls last limit 30;';
+  end if;
+
+  if v_device_user_id is not null then
+    select p.user_id, p.device_user_id
+      into v_uid, v_member_no
+    from public.profiles p
+    where p.device_user_id = v_device_user_id
+    limit 1;
+  elsif v_test_email is not null and trim(v_test_email) <> '' then
+    select p.user_id, p.device_user_id
+      into v_uid, v_member_no
+    from public.profiles p
+    where lower(coalesce(p.email, '')) = lower(trim(v_test_email))
+    limit 1;
+  end if;
 
   if v_uid is null then
-    raise exception 'No profile for email %. Use a registered user email, or change the query to filter by member_number instead.', v_test_email;
+    raise exception
+      'No profile matched your v_device_user_id (%) or v_test_email. Run: select device_user_id, email from public.profiles order by device_user_id nulls last limit 30; — then set v_device_user_id or v_test_email to a real row.',
+      v_device_user_id;
   end if;
 
   -- Optional: unblock KYC-gated UI during manual testing (requires verification_* columns)
@@ -57,10 +82,10 @@ begin
   where user_id = v_uid;
 
   -- Device code → internal member number (eTime sends "0002" → int 2; library allows 0–9999)
-  insert into public.etime_empcode_map (empcode, member_number, notes)
+  insert into public.etime_empcode_map (empcode, device_user_id, notes)
   values (v_empcode, v_member_no, 'test seed: link device Empcode to member')
   on conflict (empcode) do update
-    set member_number = excluded.member_number,
+    set device_user_id = excluded.device_user_id,
         notes = excluded.notes;
 
   -- Paid test payment + active short-term membership with a seat (mirrors Razorpay success path)
@@ -91,7 +116,6 @@ begin
     plan_kind,
     status,
     seat_number,
-    seat_label,
     starts_at,
     ends_at,
     payment_id,
@@ -101,7 +125,6 @@ begin
     v_uid,
     'short_term',
     'active',
-    v_seat,
     'S(' || v_seat::text || ')',
     timezone('Asia/Kolkata', now()),
     timezone('Asia/Kolkata', now()) + interval '24 hours',
@@ -115,7 +138,7 @@ begin
       updated_at = now()
   where id = v_payment_id;
 
-  -- Sample B1-style row (what DownloadInOutPunchData returns) stored for this member_number
+  -- Sample B1-style row (what DownloadInOutPunchData returns) stored for this device_user_id
   v_raw_inout := jsonb_build_object(
     'Empcode', v_empcode,
     'INTime', '09:15',
@@ -132,7 +155,7 @@ begin
   );
 
   insert into public.etime_attendance_daily (
-    member_number,
+    device_user_id,
     work_date,
     in_time,
     out_time,
@@ -159,7 +182,7 @@ begin
     '00:00',
     v_raw_inout
   )
-  on conflict (member_number, work_date) do update
+  on conflict (device_user_id, work_date) do update
     set in_time = excluded.in_time,
         out_time = excluded.out_time,
         work_time = excluded.work_time,
@@ -172,7 +195,7 @@ begin
         raw = excluded.raw,
         fetched_at = now();
 
-  -- Sample B2-style raw punches (unique on member_number, punch_at, mcid)
+  -- Sample B2-style raw punches (unique on device_user_id, punch_at, mcid)
   v_raw_punch := jsonb_build_object(
     'Name', 'Test Member (seed)',
     'Empcode', v_empcode,
@@ -181,25 +204,25 @@ begin
     'mcid', '1'
   );
 
-  insert into public.etime_punch_raw (member_number, punch_at, mcid, raw)
+  insert into public.etime_punch_raw (device_user_id, punch_at, mcid, raw)
   values (
     v_member_no,
     ((v_today + time '09:15:00') at time zone 'Asia/Kolkata'),
     '1',
     v_raw_punch
   )
-  on conflict (member_number, punch_at, mcid) do nothing;
+  on conflict (device_user_id, punch_at, mcid) do nothing;
 
-  insert into public.etime_punch_raw (member_number, punch_at, mcid, raw)
+  insert into public.etime_punch_raw (device_user_id, punch_at, mcid, raw)
   values (
     v_member_no,
     ((v_today + time '18:05:00') at time zone 'Asia/Kolkata'),
     '1',
     v_raw_punch || jsonb_build_object('PunchDate', to_char(v_today, 'DD/MM/YYYY') || ' 18:05:00')
   )
-  on conflict (member_number, punch_at, mcid) do nothing;
+  on conflict (device_user_id, punch_at, mcid) do nothing;
 
-  raise notice 'OK: user_id=% member_number=% empcode=% seat=% payment_id=% membership_id=%',
+  raise notice 'OK: user_id=% device_user_id=% empcode=% seat=% payment_id=% membership_id=%',
     v_uid, v_member_no, v_empcode, v_seat, v_payment_id, v_membership_id;
 end $$;
 
@@ -207,6 +230,6 @@ end $$;
 -- Optional: inspect what was written (same session)
 -- -----------------------------------------------------------------------------
 -- select * from public.etime_empcode_map where empcode = '0002';
--- select * from public.memberships where seat_number = 12 order by created_at desc limit 3;
+-- select * from public.memberships where seat_number = 'S(12)' order by created_at desc limit 3;
 -- select * from public.etime_attendance_daily order by work_date desc limit 5;
 -- select * from public.etime_punch_raw order by punch_at desc limit 10;

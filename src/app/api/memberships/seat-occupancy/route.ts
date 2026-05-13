@@ -1,4 +1,5 @@
 import { apiError, apiSuccess } from "@/lib/api/json-response";
+import { parseNumericSeatFromStoredSeat } from "@/lib/membership/seat-label";
 import { createSupabaseServiceRoleClient } from "@/lib/supabase/service-role";
 
 export const runtime = "nodejs";
@@ -41,8 +42,8 @@ export async function GET(request: Request) {
   const seats = Array.from(
     new Set(
       (data ?? [])
-        .map((r) => (r as { seat_number: number | null }).seat_number)
-        .filter((n): n is number => typeof n === "number" && Number.isFinite(n)),
+        .map((r) => parseNumericSeatFromStoredSeat((r as { seat_number: string | number | null }).seat_number))
+        .filter((n): n is number => n != null),
     ),
   ).sort((a, b) => a - b);
 

@@ -32,7 +32,7 @@ type PaymentRow = {
 type ProfileMini = {
   user_id: string;
   full_name: string;
-  member_number: number;
+  device_user_id: number;
 };
 
 export default function StaffPaymentsPanel() {
@@ -87,8 +87,8 @@ export default function StaffPaymentsPanel() {
           <thead className="border-b border-ink-100 bg-surface-muted/80 font-mono text-[10px] uppercase tracking-widest text-ink-500">
             <tr>
               <th className="min-w-[8rem] px-4 py-3">Member name</th>
-              <th className="px-4 py-3">Member #</th>
               <th className="min-w-[7rem] px-4 py-3">Member ID</th>
+              <th className="px-4 py-3">Device user ID</th>
               <th className="min-w-[7rem] px-4 py-3">Razorpay payment</th>
               <th className="min-w-[7rem] px-4 py-3">Razorpay order</th>
               <th className="px-4 py-3">Amount</th>
@@ -104,11 +104,11 @@ export default function StaffPaymentsPanel() {
               return (
                 <tr key={r.id} className="text-ink-800">
                   <td className="px-4 py-3">{p?.full_name ?? "—"}</td>
-                  <td className="px-4 py-3 font-mono">
-                    {p ? String(p.member_number).padStart(4, "0") : "—"}
-                  </td>
                   <td className="px-4 py-3 align-top">
                     <MonoTrunc value={r.user_id} />
+                  </td>
+                  <td className="px-4 py-3 font-mono">
+                    {p ? String(p.device_user_id).padStart(4, "0") : "—"}
                   </td>
                   <td className="px-4 py-3 align-top">
                     <MonoTrunc value={r.razorpay_payment_id} />

@@ -16,7 +16,7 @@ export type MemberKycDetails = {
   student_roll_number: string | null;
   institution_type: string | null;
   preparing_for: string | null;
-  member_number: number | null;
+  device_user_id: number | null;
 };
 
 type DocItem = { doc_type: string; content_type: string | null; signedUrl: string };
@@ -208,9 +208,9 @@ export default function MemberKycDocumentsModal({
                 <dd className="text-right font-medium text-ink-900">{verificationLabel(details.verification_status)}</dd>
               </div>
               <div className="flex justify-between gap-4">
-                <dt className="text-ink-500">Member #</dt>
+                <dt className="text-ink-500">Device user ID</dt>
                 <dd className="font-mono text-right text-ink-900">
-                  {details.member_number != null ? String(details.member_number).padStart(4, "0") : "—"}
+                  {details.device_user_id != null ? String(details.device_user_id).padStart(4, "0") : "—"}
                 </dd>
               </div>
               <div className="flex justify-between gap-4">

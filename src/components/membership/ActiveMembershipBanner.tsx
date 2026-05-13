@@ -10,8 +10,7 @@ export type ActiveMembership = {
   id: string;
   plan_kind: string;
   status: string;
-  seat_number: number | null;
-  seat_label?: string | null;
+  seat_number: string | number | null;
   starts_at: string | null;
   ends_at: string | null;
   valid_from: string | null;
@@ -45,7 +44,6 @@ export default function ActiveMembershipBanner({ membership }: { membership: Act
             {resolveMemberSeatDisplayLabel({
               plan_kind: membership.plan_kind,
               seat_number: membership.seat_number,
-              seat_label: membership.seat_label,
             })}
           </span>
           {" · "}

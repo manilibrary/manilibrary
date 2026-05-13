@@ -19,7 +19,12 @@ import {
   TEST_AMOUNT_RUPEES,
   type MembershipPlanKind,
 } from "@/lib/payments/pricing";
-import { resolveMemberSeatDisplayLabel } from "@/lib/membership/seat-label";
+import {
+  PAYMENT_METADATA_PLANNED_SEAT_KEY,
+  PENDING_MEMBERSHIP_SEAT_PLACEHOLDER,
+  formatMemberSeatToken,
+  resolveMemberSeatDisplayLabel,
+} from "@/lib/membership/seat-label";
 import { createSupabaseRouteHandlerClient } from "@/lib/supabase/route-handler";
 
 export const runtime = "nodejs";
@@ -119,7 +124,7 @@ export async function POST(request: Request) {
     return apiError(
       `You already have an active ${String(existingActive.plan_kind).replace(/_/g, " ")} membership on seat ${resolveMemberSeatDisplayLabel({
         plan_kind: String(existingActive.plan_kind),
-        seat_number: existingActive.seat_number as number | null,
+        seat_number: existingActive.seat_number as string | number | null,
       })} (until ${until}). Wait for it to expire, or contact the library to cancel.`,
       409,
     );
@@ -127,6 +132,8 @@ export async function POST(request: Request) {
 
   let membership: { id: string } | null = null;
   let memErr: { message: string } | null = null;
+
+  const plannedSeatToken = formatMemberSeatToken(body.planKind, body.seatNumber);
 
   if (body.planKind === "short_term") {
     const dur = resolveShortTermDuration(body.durationKey);
@@ -144,7 +151,7 @@ export async function POST(request: Request) {
         user_id: user.id,
         plan_kind: "short_term",
         status: "pending_payment",
-        seat_number: body.seatNumber,
+        seat_number: PENDING_MEMBERSHIP_SEAT_PLACEHOLDER,
         starts_at: startsIso,
         ends_at: endsIso,
         notes: `duration:${dur.key}`,
@@ -169,7 +176,7 @@ export async function POST(request: Request) {
         user_id: user.id,
         plan_kind: "long_term",
         status: "pending_payment",
-        seat_number: body.seatNumber,
+        seat_number: PENDING_MEMBERSHIP_SEAT_PLACEHOLDER,
         valid_from: validFrom,
         valid_until: validUntil,
         notes: `duration:${dur.key}`,
@@ -200,7 +207,7 @@ export async function POST(request: Request) {
       currency: "INR",
       provider: "razorpay",
       status: "pending",
-      metadata: {},
+      metadata: { [PAYMENT_METADATA_PLANNED_SEAT_KEY]: plannedSeatToken },
     })
     .select("id")
     .single();
@@ -232,7 +239,10 @@ export async function POST(request: Request) {
   const { error: metaErr } = await supabase
     .from("payments")
     .update({
-      metadata: { razorpay_order_id: order.id },
+      metadata: {
+        [PAYMENT_METADATA_PLANNED_SEAT_KEY]: plannedSeatToken,
+        razorpay_order_id: order.id,
+      },
       provider_payment_id: order.id,
     })
     .eq("id", payment.id);

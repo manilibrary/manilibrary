@@ -4,6 +4,8 @@
  * Short-term uses wall-clock instants (starts_at … ends_at).
  */
 
+import { parseNumericSeatFromStoredSeat, resolveMemberSeatDisplayLabel } from "@/lib/membership/seat-label";
+
 export const DEFAULT_LIBRARY_TZ = process.env.LIBRARY_TIMEZONE?.trim() || "Asia/Kolkata";
 
 /** YYYY-MM-DD in the given IANA time zone (calendar day, not UTC midnight). */
@@ -76,9 +78,8 @@ export function toYmdBoundary(s: string | null | undefined): string | null {
 
 export type MembershipSeatPickRow = {
   plan_kind: string;
-  seat_number: number | null;
-  /** Persisted at purchase; optional on legacy rows. */
-  seat_label?: string | null;
+  /** Text token F(n)/S(n) after migration; legacy clients may still see a number. */
+  seat_number: string | number | null;
   valid_from: string | null;
   valid_until: string | null;
   starts_at: string | null;
@@ -131,18 +132,18 @@ export function pickSeatForLibraryDay(
   attendanceYmd: string,
   timeZone: string,
 ): {
+  /** Numeric seat for legacy fields / sorting. */
   seat: number | null;
   plan_kind: string | null;
-  persisted_seat_label: string | null;
+  /** Display token F(n)/S(n) from `memberships.seat_number`. */
+  seat_display: string | null;
   devReason?: SeatPickDevReason;
 } {
   const covering = memberships.filter((row) => membershipCoversLibraryDay(row, attendanceYmd, timeZone));
   if (covering.length === 0) {
-    return { seat: null, plan_kind: null, persisted_seat_label: null, devReason: "no_membership_covers_day" };
+    return { seat: null, plan_kind: null, seat_display: null, devReason: "no_membership_covers_day" };
   }
-  const withSeat = covering.filter(
-    (c) => c.seat_number != null && Number.isFinite(Number(c.seat_number)),
-  );
+  const withSeat = covering.filter((c) => parseNumericSeatFromStoredSeat(c.seat_number) != null);
   const pool = withSeat.length > 0 ? withSeat : covering;
   const sorted = [...pool].sort((a, b) => {
     const ca = a.created_at ? Date.parse(a.created_at) : 0;
@@ -152,12 +153,13 @@ export function pickSeatForLibraryDay(
   });
   const chosen = sorted[0];
   const pk = chosen.plan_kind?.trim() ? chosen.plan_kind : null;
-  const sn = chosen.seat_number;
-  const rawLabel = chosen.seat_label;
-  const persisted =
-    typeof rawLabel === "string" && rawLabel.trim().length > 0 ? rawLabel.trim() : null;
-  if (sn == null || !Number.isFinite(Number(sn))) {
-    return { seat: null, plan_kind: pk, persisted_seat_label: persisted, devReason: "membership_without_seat" };
+  const numeric = parseNumericSeatFromStoredSeat(chosen.seat_number);
+  const display =
+    numeric != null
+      ? resolveMemberSeatDisplayLabel({ plan_kind: pk ?? chosen.plan_kind, seat_number: chosen.seat_number })
+      : null;
+  if (numeric == null) {
+    return { seat: null, plan_kind: pk, seat_display: display, devReason: "membership_without_seat" };
   }
-  return { seat: Math.round(Number(sn)), plan_kind: pk, persisted_seat_label: persisted };
+  return { seat: numeric, plan_kind: pk, seat_display: display };
 }

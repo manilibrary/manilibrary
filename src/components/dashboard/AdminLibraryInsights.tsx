@@ -29,6 +29,7 @@ type RecentPayment = {
   provider: string | null;
   provider_payment_id: string | null;
   member_label: string;
+  device_user_id: number | null;
 };
 
 type RecentMembership = {
@@ -36,17 +37,19 @@ type RecentMembership = {
   user_id: string;
   plan_kind: string;
   status: string;
-  seat_number: number | null;
+  seat_number: string | number | null;
   created_at: string;
   member_label: string;
+  device_user_id: number | null;
 };
 
 type ExpiringRow = {
   id: string;
   plan_kind: string;
-  seat_number: number | null;
+  seat_number: string | number | null;
   end_label: string;
   member_label: string;
+  device_user_id: number | null;
 };
 
 type ChartDay = { day: string; amountInr: number };
@@ -319,6 +322,7 @@ export default function AdminLibraryInsights() {
                 <tr>
                   <th className="py-2 pr-2">When</th>
                   <th className="py-2 pr-2">Member</th>
+                  <th className="py-2 pr-2">Device user ID</th>
                   <th className="py-2 pr-2">Amount</th>
                   <th className="py-2">Status</th>
                 </tr>
@@ -326,7 +330,7 @@ export default function AdminLibraryInsights() {
               <tbody className="divide-y divide-ink-100 text-ink-800">
                 {data.recentPayments.length === 0 ? (
                   <tr>
-                    <td colSpan={4} className="py-4 text-xs text-ink-500">
+                    <td colSpan={5} className="py-4 text-xs text-ink-500">
                       No payment rows yet.
                     </td>
                   </tr>
@@ -337,6 +341,9 @@ export default function AdminLibraryInsights() {
                         {new Date(p.created_at).toLocaleString("en-IN", { dateStyle: "short", timeStyle: "short" })}
                       </td>
                       <td className="py-2 pr-2 max-w-[10rem] truncate text-xs">{p.member_label}</td>
+                      <td className="py-2 pr-2 font-mono text-xs">
+                        {p.device_user_id != null ? String(p.device_user_id).padStart(4, "0") : "—"}
+                      </td>
                       <td className="py-2 pr-2 font-mono text-xs">₹{Number(p.amount_rupees).toLocaleString("en-IN")}</td>
                       <td className="py-2 text-xs capitalize">{p.status}</td>
                     </tr>
@@ -363,6 +370,7 @@ export default function AdminLibraryInsights() {
                 <tr>
                   <th className="py-2 pr-2">Created</th>
                   <th className="py-2 pr-2">Member</th>
+                  <th className="py-2 pr-2">Device user ID</th>
                   <th className="py-2 pr-2">Plan</th>
                   <th className="py-2">Seat</th>
                 </tr>
@@ -370,7 +378,7 @@ export default function AdminLibraryInsights() {
               <tbody className="divide-y divide-ink-100 text-ink-800">
                 {data.recentMemberships.length === 0 ? (
                   <tr>
-                    <td colSpan={4} className="py-4 text-xs text-ink-500">
+                    <td colSpan={5} className="py-4 text-xs text-ink-500">
                       No membership rows yet.
                     </td>
                   </tr>
@@ -381,6 +389,9 @@ export default function AdminLibraryInsights() {
                         {new Date(m.created_at).toLocaleString("en-IN", { dateStyle: "short", timeStyle: "short" })}
                       </td>
                       <td className="py-2 pr-2 max-w-[9rem] truncate text-xs">{m.member_label}</td>
+                      <td className="py-2 pr-2 font-mono text-xs">
+                        {m.device_user_id != null ? String(m.device_user_id).padStart(4, "0") : "—"}
+                      </td>
                       <td className="py-2 pr-2 text-xs capitalize">{m.plan_kind.replace(/_/g, " ")}</td>
                       <td className="py-2 font-mono text-xs">
                         {resolveMemberSeatDisplayLabel({
@@ -419,6 +430,7 @@ export default function AdminLibraryInsights() {
               <tr>
                 <th className="py-2 pr-2">Member</th>
                 <th className="py-2 pr-2">Plan</th>
+                <th className="py-2 pr-2">Device user ID</th>
                 <th className="py-2 pr-2">Seat</th>
                 <th className="py-2">Ends</th>
               </tr>
@@ -426,7 +438,7 @@ export default function AdminLibraryInsights() {
             <tbody className="divide-y divide-ink-100 text-ink-800">
               {data.expiringSoon.length === 0 ? (
                 <tr>
-                  <td colSpan={4} className="py-4 text-xs text-ink-500">
+                  <td colSpan={5} className="py-4 text-xs text-ink-500">
                     No memberships in the expiring window.
                   </td>
                 </tr>
@@ -435,6 +447,9 @@ export default function AdminLibraryInsights() {
                   <tr key={m.id}>
                     <td className="py-2 pr-2 max-w-[11rem] truncate text-xs">{m.member_label}</td>
                     <td className="py-2 pr-2 text-xs capitalize">{m.plan_kind.replace(/_/g, " ")}</td>
+                    <td className="py-2 pr-2 font-mono text-xs">
+                      {m.device_user_id != null ? String(m.device_user_id).padStart(4, "0") : "—"}
+                    </td>
                     <td className="py-2 pr-2 font-mono text-xs">
                       {resolveMemberSeatDisplayLabel({
                         plan_kind: m.plan_kind,

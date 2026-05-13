@@ -26,7 +26,6 @@ export default function ActiveMembershipHeroNote() {
           {resolveMemberSeatDisplayLabel({
             plan_kind: membership.plan_kind,
             seat_number: membership.seat_number,
-            seat_label: membership.seat_label,
           })}
         </span>
       </p>

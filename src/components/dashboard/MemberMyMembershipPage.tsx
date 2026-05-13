@@ -6,17 +6,11 @@ import { useEffect, useState } from "react";
 import {
   MemberActiveMembershipCards,
   type MemberActivePlanRow,
-  formatMemberPlanWindow,
-  memberPlanLabel,
-  membershipStatusTextClass,
+  memberMembershipEndMs,
+  memberMembershipValidityEndedByDate,
 } from "@/components/dashboard/MemberActiveMembershipCards";
 import { CLIENT_DATA_CACHE_TTL_MS, ddcKey, getClientCache, setClientCache } from "@/lib/client-data-cache";
-import { resolveMemberSeatDisplayLabel } from "@/lib/membership/seat-label";
 import { createClient } from "@/lib/supabase/client";
-
-const th =
-  "border-b border-ink-200 bg-ink-50 px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-wider text-ink-500";
-const td = "border-b border-ink-100 px-3 py-2.5 text-sm text-ink-900";
 
 function RecoverPaymentBlock(props: {
   recoverId: string;
@@ -130,8 +124,20 @@ export default function MemberMyMembershipPage() {
     return () => window.clearTimeout(t);
   }, [paid, router]);
 
-  const active = rows.filter((r) => r.status === "active");
-  const past = rows.filter((r) => r.status !== "active");
+  const sortByEndDesc = (a: MemberActivePlanRow, b: MemberActivePlanRow) =>
+    memberMembershipEndMs(b) - memberMembershipEndMs(a);
+
+  const currentPlans = rows
+    .filter((r) => r.status === "active" && !memberMembershipValidityEndedByDate(r))
+    .sort(sortByEndDesc);
+
+  const pastPlans = rows
+    .filter(
+      (r) =>
+        r.status !== "pending_payment" &&
+        (r.status !== "active" || memberMembershipValidityEndedByDate(r)),
+    )
+    .sort(sortByEndDesc);
 
   const runRecover = () => {
     setRecoverErr(null);
@@ -180,10 +186,10 @@ export default function MemberMyMembershipPage() {
           Current membership
         </h2>
 
-        {active.length > 0 ? (
+        {currentPlans.length > 0 ? (
           <div className="flex flex-col gap-6 xl:flex-row xl:items-stretch">
             <div className="min-w-0 flex-1">
-              <MemberActiveMembershipCards plans={active} />
+              <MemberActiveMembershipCards plans={currentPlans} />
             </div>
             <div className="w-full shrink-0 xl:max-w-sm">
               <RecoverPaymentBlock
@@ -225,43 +231,12 @@ export default function MemberMyMembershipPage() {
         )}
       </section>
 
-      {past.length > 0 ? (
-        <section className="space-y-3" aria-labelledby="past-membership">
+      {pastPlans.length > 0 ? (
+        <section className="space-y-4" aria-labelledby="past-membership">
           <h2 id="past-membership" className="font-mono text-[10px] uppercase tracking-widest text-ink-500">
-            Past memberships
+            Past membership
           </h2>
-          <div className="overflow-hidden rounded-lg border border-ink-200 bg-white">
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[640px] border-collapse text-sm">
-                <thead>
-                  <tr>
-                    <th className={th}>Plan</th>
-                    <th className={th}>Seat</th>
-                    <th className={th}>Status</th>
-                    <th className={th}>Valid window</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {past.map((m) => (
-                    <tr key={m.id} className="bg-white">
-                      <td className={td}>{memberPlanLabel(m.plan_kind)}</td>
-                      <td className={`${td} font-mono`}>
-                        {resolveMemberSeatDisplayLabel({
-                          plan_kind: m.plan_kind,
-                          seat_number: m.seat_number,
-                          seat_label: m.seat_label,
-                        })}
-                      </td>
-                      <td className={`${td} font-medium capitalize ${membershipStatusTextClass(m.status)}`}>
-                        {m.status}
-                      </td>
-                      <td className={`${td} font-mono text-xs text-ink-700`}>{formatMemberPlanWindow(m)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
+          <MemberActiveMembershipCards plans={pastPlans} variant="past" showViewPlansLink={false} />
         </section>
       ) : null}
     </div>

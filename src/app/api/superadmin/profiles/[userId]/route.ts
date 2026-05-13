@@ -32,7 +32,7 @@ export async function GET(
   const { data: profile, error } = await admin
     .from("profiles")
     .select(
-      "user_id, full_name, member_number, email, phone, is_admin, is_superadmin, created_at, device_enrolled_at, verification_status, aadhaar_last_four, student_roll_number, institution_type, preparing_for",
+      "user_id, full_name, device_user_id, email, phone, is_admin, is_superadmin, created_at, device_enrolled_at, verification_status, aadhaar_last_four, student_roll_number, institution_type, preparing_for",
     )
     .eq("user_id", userId)
     .maybeSingle();
@@ -46,7 +46,7 @@ export async function GET(
 
   return apiSuccess("Profile loaded.", {
     profile,
-    note: "member_number is enforced immutable by database trigger; change Empcode via a migration or support playbook.",
+    note: "device_user_id is enforced immutable by database trigger; change Empcode via a migration or support playbook.",
   });
 }
 
@@ -93,7 +93,7 @@ export async function PATCH(
     .update(patch)
     .eq("user_id", userId)
     .select(
-      "user_id, full_name, member_number, email, phone, is_admin, is_superadmin, created_at, device_enrolled_at, verification_status, aadhaar_last_four, student_roll_number, institution_type, preparing_for",
+      "user_id, full_name, device_user_id, email, phone, is_admin, is_superadmin, created_at, device_enrolled_at, verification_status, aadhaar_last_four, student_roll_number, institution_type, preparing_for",
     )
     .maybeSingle();
 

@@ -28,7 +28,7 @@ create table if not exists public.attendance_history_entries (
   id bigint generated always as identity primary key,
   library_day_ymd date not null,
   date_dmy text not null,
-  member_number int not null,
+  device_user_id int not null,
   empcode text not null,
   full_name text,
   seat_label text not null default '—',
@@ -46,8 +46,8 @@ create table if not exists public.attendance_history_entries (
 create index if not exists attendance_history_entries_day_idx
   on public.attendance_history_entries (library_day_ymd desc);
 
-create index if not exists attendance_history_entries_member_idx
-  on public.attendance_history_entries (member_number);
+create index if not exists attendance_history_entries_device_user_idx
+  on public.attendance_history_entries (device_user_id);
 
 comment on table public.attendance_history_entries is
   'Per-member daily attendance history copied when a day is archived (POST /api/admin/attendance/archive-day or cron).';

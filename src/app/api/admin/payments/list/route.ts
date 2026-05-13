@@ -36,7 +36,7 @@ type PaymentRow = {
 type ProfileMini = {
   user_id: string;
   full_name: string;
-  member_number: number;
+  device_user_id: number;
 };
 
 export async function GET() {
@@ -89,7 +89,7 @@ export async function GET() {
   if (ids.length > 0) {
     const { data: profs, error: prErr } = await admin
       .from("profiles")
-      .select("user_id, full_name, member_number")
+      .select("user_id, full_name, device_user_id")
       .in("user_id", ids);
     if (prErr) {
       return apiError(prErr.message, 500);

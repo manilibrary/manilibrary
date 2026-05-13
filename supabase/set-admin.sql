@@ -37,7 +37,7 @@ select
   p.user_id,
   u.email,
   p.is_admin,
-  p.member_number,
+  p.device_user_id,
   p.full_name
 from public.profiles as p
 inner join auth.users as u on u.id = p.user_id

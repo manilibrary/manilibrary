@@ -5,6 +5,7 @@ import Link from "next/link";
 import {
   MemberActiveMembershipCards,
   type MemberActivePlanRow,
+  memberMembershipValidityEndedByDate,
 } from "@/components/dashboard/MemberActiveMembershipCards";
 import ProfileIntakeCard from "@/components/dashboard/ProfileIntakeCard";
 import MemberProfileSection from "@/components/dashboard/MemberProfileSection";
@@ -13,7 +14,7 @@ import { createClient } from "@/lib/supabase/client";
 
 type ProfileRow = {
   full_name: string;
-  member_number: number;
+  device_user_id: number;
   phone: string | null;
   verification_status: string;
   aadhaar_last_four: string | null;
@@ -66,7 +67,7 @@ export default function MemberMembershipHome() {
         supabase
           .from("profiles")
           .select(
-            "full_name, member_number, phone, verification_status, aadhaar_last_four, student_roll_number, institution_type, preparing_for, avatar_url",
+            "full_name, device_user_id, phone, verification_status, aadhaar_last_four, student_roll_number, institution_type, preparing_for, avatar_url",
           )
           .eq("user_id", user.id)
           .maybeSingle(),
@@ -124,7 +125,9 @@ export default function MemberMembershipHome() {
     };
   }, [refreshKey]);
 
-  const activePlans = memberships.filter((m) => m.status === "active");
+  const activePlans = memberships.filter(
+    (m) => m.status === "active" && !memberMembershipValidityEndedByDate(m),
+  );
   const hasActive = activePlans.length > 0;
 
   return (
@@ -143,7 +146,7 @@ export default function MemberMembershipHome() {
             <div className="flex min-w-0 flex-col gap-6 lg:col-span-5">
               <MemberProfileSection
                 fullName={profile.full_name}
-                memberNumber={profile.member_number}
+                deviceUserId={profile.device_user_id}
                 phone={profile.phone}
                 verificationStatus={profile.verification_status ?? "none"}
                 avatarUrl={profile.avatar_url}
