@@ -3,17 +3,51 @@
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
+import AuthMarketingAside from "@/components/auth/AuthMarketingAside";
 import Logo from "@/components/Logo";
 import libraryInfo from "@/data/libraryInfo.json";
+import { createClient } from "@/lib/supabase/client";
+import { MEMBER_LANDING_PATH, STAFF_LANDING_PATH } from "@/lib/auth-landing";
+import { clearClientCache } from "@/lib/client-data-cache";
+import { clearAllUxPreferenceCookies } from "@/lib/ux-cookies";
 
-type Role = "admin" | "member";
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+/** `handle_new_user` may lag slightly behind the auth session; retry before failing. */
+async function fetchProfileWithRetry(
+  supabase: ReturnType<typeof createClient>,
+  userId: string,
+): Promise<{
+  data: { is_admin: boolean; is_superadmin?: boolean } | null;
+  error: { message: string } | null;
+}> {
+  for (let attempt = 0; attempt < 6; attempt++) {
+    if (attempt > 0) await sleep(450);
+    const { data, error } = await supabase
+      .from("profiles")
+      .select("is_admin, is_superadmin")
+      .eq("user_id", userId)
+      .maybeSingle();
+    if (error) return { data: null, error };
+    if (data) return { data, error: null };
+  }
+  return { data: null, error: null };
+}
+
+function staffPortalKeyFromEnv(): string | undefined {
+  const v = process.env.NEXT_PUBLIC_STAFF_PORTAL_KEY?.trim();
+  return v || undefined;
+}
 
 export default function LoginForm() {
   const router = useRouter();
   const params = useSearchParams();
-  const initialRole = (params.get("role") as Role) ?? "admin";
+  const registered = params.get("registered") === "1";
+  const staffPortalKey = staffPortalKeyFromEnv();
+  const staffPortalActive = Boolean(
+    staffPortalKey && params.get("staff") === staffPortalKey,
+  );
 
-  const [role, setRole] = useState<Role>(initialRole);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPwd, setShowPwd] = useState(false);
@@ -21,47 +55,80 @@ export default function LoginForm() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const r = params.get("role");
-    if (r === "admin" || r === "member") setRole(r);
+    const msg = params.get("message");
+    if (msg) setError(decodeURIComponent(msg));
   }, [params]);
-
-  useEffect(() => {
-    const creds = libraryInfo.demoCredentials[role];
-    setEmail(creds.email);
-    setPassword(creds.password);
-    setError(null);
-  }, [role]);
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitting(true);
     setError(null);
 
-    const expected = libraryInfo.demoCredentials[role];
-    await new Promise((r) => setTimeout(r, 500));
+    const supabase = createClient();
+    const { data, error: authError } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
 
-    if (email === expected.email && password === expected.password) {
-      try {
-        sessionStorage.setItem(
-          "manilibrary:session",
-          JSON.stringify({ role, email, at: Date.now() })
-        );
-      } catch {}
-
-      if (role === "admin") {
-        router.push("/dashboard");
-      } else {
-        router.push("/dashboard/members");
-      }
-    } else {
-      setError("Invalid email or password. Try the demo credentials shown.");
+    if (authError) {
+      setError(authError.message);
       setSubmitting(false);
+      return;
     }
+
+    const user = data.user;
+    if (!user) {
+      setError("No user returned from sign-in.");
+      setSubmitting(false);
+      return;
+    }
+
+    const { data: profile, error: profileError } = await fetchProfileWithRetry(
+      supabase,
+      user.id,
+    );
+
+    if (profileError) {
+      setError(profileError.message);
+      await supabase.auth.signOut();
+      clearAllUxPreferenceCookies();
+      clearClientCache();
+      setSubmitting(false);
+      return;
+    }
+
+    if (!profile) {
+      setError(
+        "No library profile found for this account. In Supabase: check that trigger on_auth_user_created on auth.users inserts into public.profiles, RLS allows select on your own row, and this user has a profile row (backfill from auth.users if needed). Then try signing in again.",
+      );
+      await supabase.auth.signOut();
+      clearAllUxPreferenceCookies();
+      clearClientCache();
+      setSubmitting(false);
+      return;
+    }
+
+    if (staffPortalActive && !profile.is_admin) {
+      setError(
+        "This staff sign-in link is only for admin accounts. Use the regular sign-in page for member access.",
+      );
+      await supabase.auth.signOut();
+      clearAllUxPreferenceCookies();
+      clearClientCache();
+      setSubmitting(false);
+      return;
+    }
+
+    setSubmitting(false);
+    clearClientCache();
+    const dest =
+      profile.is_admin ? STAFF_LANDING_PATH : profile.is_superadmin ? "/dashboard/superadmin" : MEMBER_LANDING_PATH;
+    router.replace(dest);
+    router.refresh();
   };
 
   return (
     <div className="grid min-h-screen lg:grid-cols-2">
-      {/* Form column */}
       <section className="flex flex-col justify-between bg-white px-6 py-8 md:px-12 lg:px-16">
         <header className="flex items-center justify-between">
           <Logo height={36} />
@@ -75,35 +142,37 @@ export default function LoginForm() {
 
         <div className="mx-auto w-full max-w-md py-10">
           <p className="inline-flex items-center gap-1.5 font-mono text-xs uppercase tracking-widest text-azure-500">
-            <svg className="h-3.5 w-3.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <rect x="3" y="11" width="18" height="11" rx="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" />
+            <svg
+              className="h-3.5 w-3.5 shrink-0"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <rect x="3" y="11" width="18" height="11" rx="2" />
+              <path d="M7 11V7a5 5 0 0 1 10 0v4" />
             </svg>
             Sign In
           </p>
           <h1 className="mt-2 text-3xl font-semibold tracking-tight text-ink-900">
-            Welcome back
+            {staffPortalActive ? "Staff sign in" : "Welcome back"}
           </h1>
           <p className="mt-2 text-sm text-ink-600">
-            Sign in to your {libraryInfo.name} account.
+            {staffPortalActive
+              ? "Admin accounts only. After sign-in you will go to the staff dashboard."
+              : `Sign in to your ${libraryInfo.name} account with the email and password you used at registration.`}
           </p>
 
-          {/* Role toggle */}
-          <div className="mt-7 inline-flex rounded-full border border-ink-200 bg-ink-50 p-1">
-            {(["admin", "member"] as const).map((r) => (
-              <button
-                key={r}
-                type="button"
-                onClick={() => setRole(r)}
-                className={`rounded-full px-4 py-1.5 text-xs font-semibold capitalize transition-colors ${
-                  role === r
-                    ? "bg-white text-ink-900 shadow-sm"
-                    : "text-ink-500 hover:text-ink-800"
-                }`}
-              >
-                {r === "admin" ? "Admin" : "Member"}
-              </button>
-            ))}
-          </div>
+          {registered && (
+            <p className="mt-4 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-800">
+              Account created. You can sign in now
+              {params.get("confirm") === "1"
+                ? " after you confirm your email (check your inbox)."
+                : "."}
+            </p>
+          )}
 
           <form onSubmit={onSubmit} className="mt-6 space-y-4">
             <div>
@@ -151,18 +220,13 @@ export default function LoginForm() {
               />
             </div>
 
-            <div className="flex items-center justify-between text-xs">
-              <label className="inline-flex items-center gap-2 text-ink-600">
-                <input
-                  type="checkbox"
-                  className="h-4 w-4 rounded border-ink-300 text-azure-500 focus:ring-azure-500"
-                  defaultChecked
-                />
-                Remember me
-              </label>
-              <a href="#" className="font-medium text-azure-500 hover:text-azure-600">
+            <div className="flex items-center justify-end text-xs">
+              <Link
+                href="/forgot-password"
+                className="font-medium text-azure-500 hover:text-azure-600"
+              >
                 Forgot password?
-              </a>
+              </Link>
             </div>
 
             {error && (
@@ -181,33 +245,44 @@ export default function LoginForm() {
                   <Spinner /> Signing in…
                 </>
               ) : (
-                <>Sign in as {role}</>
+                <>Sign in</>
               )}
             </button>
           </form>
 
-          <div className="mt-6 rounded-xl border border-dashed border-azure-200 bg-azure-50/60 p-4 text-xs text-ink-700">
-            <p className="inline-flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-widest text-azure-700">
-              <svg className="h-3 w-3 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <circle cx="7.5" cy="15.5" r="5.5" /><path d="m21 2-9.6 9.6M15.5 7.5l2.3 2.3a1 1 0 0 0 1.4 0l2.1-2.1a1 1 0 0 0 0-1.4L19 4" />
-              </svg>
-              Demo Credentials
-            </p>
-            <dl className="mt-2 grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 font-mono">
-              <dt className="text-ink-500">email</dt>
-              <dd className="text-ink-900">
-                {libraryInfo.demoCredentials[role].email}
-              </dd>
-              <dt className="text-ink-500">password</dt>
-              <dd className="text-ink-900">
-                {libraryInfo.demoCredentials[role].password}
-              </dd>
-            </dl>
-          </div>
-
           <p className="mt-6 text-center text-sm text-ink-600">
             New to {libraryInfo.name}?{" "}
-            <Link href="/#plans" className="font-medium text-azure-500 hover:text-azure-600">
+            <Link
+              href="/register"
+              className="font-medium text-azure-500 hover:text-azure-600"
+            >
+              Create an account
+            </Link>
+          </p>
+          {staffPortalKey && (
+            <p className="mt-2 text-center text-sm text-ink-600">
+              {staffPortalActive ? (
+                <Link
+                  href="/login"
+                  className="font-medium text-ink-500 underline-offset-2 hover:text-azure-500 hover:underline"
+                >
+                  Member sign in
+                </Link>
+              ) : (
+                <Link
+                  href={`/login?staff=${encodeURIComponent(staffPortalKey)}`}
+                  className="font-medium text-ink-500 underline-offset-2 hover:text-azure-500 hover:underline"
+                >
+                  Staff sign in
+                </Link>
+              )}
+            </p>
+          )}
+          <p className="mt-2 text-center text-sm text-ink-600">
+            <Link
+              href="/#plans"
+              className="font-medium text-ink-500 underline-offset-2 hover:text-azure-500 hover:underline"
+            >
               View membership plans
             </Link>
           </p>
@@ -215,90 +290,40 @@ export default function LoginForm() {
 
         <footer className="flex items-center justify-center gap-3 font-mono text-[10px] uppercase tracking-widest text-ink-400">
           <span className="inline-flex items-center gap-1">
-            <svg className="h-3 w-3 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M20 10c0 6-8 12-8 12S4 16 4 10a8 8 0 0 1 16 0Z" /><circle cx="12" cy="10" r="3" />
+            <svg
+              className="h-3 w-3 shrink-0"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M20 10c0 6-8 12-8 12S4 16 4 10a8 8 0 0 1 16 0Z" />
+              <circle cx="12" cy="10" r="3" />
             </svg>
             {libraryInfo.address.city}, {libraryInfo.address.state}
           </span>
           <span aria-hidden>·</span>
           <span className="inline-flex items-center gap-1">
-            <svg className="h-3 w-3 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" />
+            <svg
+              className="h-3 w-3 shrink-0"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <circle cx="12" cy="12" r="9" />
+              <path d="M12 7v5l3 2" />
             </svg>
             {libraryInfo.hours}
           </span>
         </footer>
       </section>
 
-      {/* Visual column */}
-      <aside className="relative hidden overflow-hidden bg-ink-900 lg:block">
-        <div className="absolute inset-0 bg-grid opacity-30" />
-        <div
-          className="absolute inset-0"
-          style={{
-            background:
-              "radial-gradient(800px 400px at 80% 20%, rgba(1,96,208,0.55), transparent 65%), radial-gradient(600px 400px at 20% 80%, rgba(1,96,208,0.35), transparent 60%)",
-          }}
-        />
-        <div className="relative flex h-full flex-col justify-between p-12 text-white">
-          <div className="inline-flex items-center gap-1.5 font-mono text-xs uppercase tracking-widest text-azure-200">
-            <svg className="h-3.5 w-3.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" /><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
-            </svg>
-            {libraryInfo.name}
-          </div>
-
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-widest text-azure-300">
-              Members area
-            </p>
-            <h2 className="mt-3 max-w-md text-3xl font-semibold leading-tight tracking-tight md:text-4xl">
-              Manage seats, payments, and renewals — all from one quiet
-              dashboard.
-            </h2>
-            <ul className="mt-8 space-y-3 text-sm text-ink-200">
-              {[
-                "Track who has paid and who hasn't",
-                "See subscriptions expiring this week",
-                "Issue receipts and update plans",
-                "Run the library — without spreadsheets",
-              ].map((line) => (
-                <li key={line} className="flex items-start gap-3">
-                  <span className="mt-1.5 h-1.5 w-1.5 rounded-full bg-azure-400" />
-                  {line}
-                </li>
-              ))}
-            </ul>
-          </div>
-
-          <div className="rounded-2xl border border-white/10 bg-white/5 p-5 backdrop-blur">
-            <p className="inline-flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-widest text-azure-200">
-              <svg className="h-3 w-3 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
-              </svg>
-              Live Status
-            </p>
-            <div className="mt-3 grid grid-cols-3 gap-4 text-center">
-              <Stat label="Seats" value={String(libraryInfo.capacity)} />
-              <Stat label="Open" value="24/7" />
-              <Stat label="Members" value="500+" />
-            </div>
-          </div>
-        </div>
-      </aside>
-    </div>
-  );
-}
-
-function Stat({ label, value }: { label: string; value: string }) {
-  return (
-    <div>
-      <p className="font-mono text-2xl font-semibold tracking-tight text-white">
-        {value}
-      </p>
-      <p className="mt-0.5 text-[10px] uppercase tracking-widest text-ink-300">
-        {label}
-      </p>
+      <AuthMarketingAside />
     </div>
   );
 }
@@ -312,10 +337,7 @@ function Spinner() {
       stroke="currentColor"
       strokeWidth="2.5"
     >
-      <path
-        d="M12 3a9 9 0 1 0 9 9"
-        strokeLinecap="round"
-      />
+      <path d="M12 3a9 9 0 1 0 9 9" strokeLinecap="round" />
     </svg>
   );
 }

@@ -1,33 +1,111 @@
 "use client";
 
-import { useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
-import libraryInfo from "@/data/libraryInfo.json";
+import { createClient } from "@/lib/supabase/client";
+import { clearAllUxPreferenceCookies } from "@/lib/ux-cookies";
+import { clearClientCache, CLIENT_DATA_CACHE_TTL_MS, ddcKey, getClientCache, setClientCache } from "@/lib/client-data-cache";
 
-type Session = { role: "admin" | "member"; email: string; at: number };
+type BarUser = {
+  email: string;
+  roleLabel: "Superadmin" | "Admin" | "Member";
+  initials: string;
+};
 
 export default function Topbar({ onMenu }: { onMenu: () => void }) {
-  const router = useRouter();
-  const [session, setSession] = useState<Session | null>(null);
+  const pathname = usePathname() ?? "";
+  const hideMemberSearch = pathname.startsWith("/dashboard/me");
+  const [user, setUser] = useState<BarUser | null>(null);
+  const [ready, setReady] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
 
   useEffect(() => {
-    try {
-      const raw = sessionStorage.getItem("manilibrary:session");
-      if (raw) setSession(JSON.parse(raw));
-    } catch {}
+    const supabase = createClient();
+    let cancelled = false;
+
+    const load = async () => {
+      const {
+        data: { user: authUser },
+      } = await supabase.auth.getUser();
+      if (cancelled) return;
+
+      if (!authUser?.email) {
+        setUser(null);
+        setReady(true);
+        return;
+      }
+
+      const navKey = ddcKey.profileNav(authUser.id);
+      const cachedFlags = getClientCache<{ is_admin?: boolean | null; is_superadmin?: boolean | null }>(navKey);
+      if (cachedFlags) {
+        const roleLabel: BarUser["roleLabel"] =
+          cachedFlags.is_superadmin === true
+            ? "Superadmin"
+            : cachedFlags.is_admin
+              ? "Admin"
+              : "Member";
+        setUser({
+          email: authUser.email,
+          roleLabel,
+          initials: authUser.email.slice(0, 2).toUpperCase(),
+        });
+        setReady(true);
+      }
+
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("is_admin, is_superadmin")
+        .eq("user_id", authUser.id)
+        .maybeSingle();
+
+      if (cancelled) return;
+
+      setClientCache(
+        navKey,
+        { is_admin: profile?.is_admin ?? null, is_superadmin: profile?.is_superadmin ?? null },
+        CLIENT_DATA_CACHE_TTL_MS,
+      );
+
+      const roleLabel: BarUser["roleLabel"] =
+        profile?.is_superadmin === true
+          ? "Superadmin"
+          : profile?.is_admin
+            ? "Admin"
+            : "Member";
+
+      setUser({
+        email: authUser.email,
+        roleLabel,
+        initials: authUser.email.slice(0, 2).toUpperCase(),
+      });
+      setReady(true);
+    };
+
+    void load();
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange(() => {
+      void load();
+    });
+
+    return () => {
+      cancelled = true;
+      subscription.unsubscribe();
+    };
   }, []);
 
-  const signOut = () => {
-    try {
-      sessionStorage.removeItem("manilibrary:session");
-    } catch {}
-    router.push("/login");
+  const signOut = async () => {
+    const supabase = createClient();
+    await supabase.auth.signOut();
+    clearAllUxPreferenceCookies();
+    clearClientCache();
+    window.location.assign("/login");
   };
 
-  const role = session?.role ?? "admin";
-  const email = session?.email ?? libraryInfo.demoCredentials.admin.email;
-  const initials = email.slice(0, 2).toUpperCase();
+  const email = user?.email ?? "";
+  const roleLabel = user?.roleLabel ?? "Member";
+  const initials =
+    user?.initials ?? (ready ? "?" : "·");
 
   return (
     <header className="sticky top-0 z-20 border-b border-ink-100 bg-white/85 backdrop-blur supports-[backdrop-filter]:bg-white/70">
@@ -49,27 +127,31 @@ export default function Topbar({ onMenu }: { onMenu: () => void }) {
           </svg>
         </button>
 
-        <div className="hidden flex-1 md:block">
-          <label className="relative block max-w-md">
-            <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-ink-400">
-              <svg
-                className="h-4 w-4"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.8"
-              >
-                <circle cx="11" cy="11" r="7" />
-                <path strokeLinecap="round" d="m20 20-3.5-3.5" />
-              </svg>
-            </span>
-            <input
-              type="search"
-              placeholder="Search members, payments, seats…"
-              className="w-full rounded-full border border-ink-200 bg-surface-muted py-2 pl-10 pr-4 text-sm text-ink-800 placeholder-ink-400 outline-none transition focus:border-azure-500 focus:bg-white focus:ring-4 focus:ring-azure-500/15"
-            />
-          </label>
-        </div>
+        {hideMemberSearch ? (
+          <div className="hidden min-w-0 flex-1 md:block" aria-hidden />
+        ) : (
+          <div className="hidden flex-1 md:block">
+            <label className="relative block max-w-md">
+              <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-ink-400">
+                <svg
+                  className="h-4 w-4"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                >
+                  <circle cx="11" cy="11" r="7" />
+                  <path strokeLinecap="round" d="m20 20-3.5-3.5" />
+                </svg>
+              </span>
+              <input
+                type="search"
+                placeholder="Search (coming soon)"
+                className="w-full rounded-full border border-ink-200 bg-surface-muted py-2 pl-10 pr-4 text-sm text-ink-800 placeholder-ink-400 outline-none transition focus:border-azure-500 focus:bg-white focus:ring-4 focus:ring-azure-500/15"
+              />
+            </label>
+          </div>
+        )}
 
         <div className="ml-auto flex items-center gap-2">
           <button
@@ -103,10 +185,10 @@ export default function Topbar({ onMenu }: { onMenu: () => void }) {
               </span>
               <span className="hidden flex-col items-start sm:flex">
                 <span className="text-xs font-semibold text-ink-900">
-                  {role === "admin" ? "Admin" : "Member"}
+                  {ready ? roleLabel : "Loading…"}
                 </span>
                 <span className="font-mono text-[10px] text-ink-500">
-                  {email}
+                  {ready ? (email || "—") : "—"}
                 </span>
               </span>
               <svg
@@ -129,13 +211,18 @@ export default function Topbar({ onMenu }: { onMenu: () => void }) {
                 />
                 <div className="absolute right-0 z-20 mt-2 w-56 overflow-hidden rounded-xl border border-ink-100 bg-white shadow-card-hover">
                   <div className="border-b border-ink-100 px-4 py-3">
-                    <p className="text-xs font-semibold text-ink-900 capitalize">
-                      {role}
+                    <p className="text-xs font-semibold text-ink-900">
+                      {ready ? roleLabel : "Loading…"}
                     </p>
-                    <p className="font-mono text-[10px] text-ink-500">{email}</p>
+                    <p className="font-mono text-[10px] text-ink-500">
+                      {ready ? (email || "—") : "—"}
+                    </p>
                   </div>
                   <button
-                    onClick={signOut}
+                    onClick={() => {
+                      setMenuOpen(false);
+                      void signOut();
+                    }}
                     className="flex w-full items-center gap-2 px-4 py-2.5 text-left text-sm text-ink-700 hover:bg-ink-50"
                   >
                     <svg

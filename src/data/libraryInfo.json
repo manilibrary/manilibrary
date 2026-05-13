@@ -126,9 +126,17 @@
   "developers": [
     {
       "name": "Abhishek Kumar Chaudhary",
-      "role": "Web Developer",
+      "role": "Web Developer · App Developer",
       "url": "https://abhishek-chaudhary.com#contact",
-      "label": "abhishek-chaudhary.com"
+      "label": "Portfolio",
+      "creditName": "Abhishek Chaudhary"
+    },
+    {
+      "name": "Saroj Kumar",
+      "role": "Web Developer · App Developer",
+      "url": "https://saroj-kumar-portfolio-ten-rho.vercel.app",
+      "label": "Portfolio",
+      "creditName": "Saroj kumar"
     }
   ],
   "demoCredentials": {
