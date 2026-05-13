@@ -52,7 +52,7 @@ export default function SettingsPage() {
           </div>
         </Card>
 
-        <Card title="Developers" wide>
+        <Card title="Team" wide>
           <ul className="space-y-3">
             {libraryInfo.developers.map((d) => (
               <li

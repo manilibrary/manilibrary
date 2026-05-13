@@ -1,13 +1,18 @@
 "use client";
 
-import Link from "next/link";
-import { usePathname } from "next/navigation";
+import Link, { useLinkStatus } from "next/link";
+import { usePathname, useRouter } from "next/navigation";
+import { Fragment, useCallback, useEffect, useState, type ReactNode } from "react";
 import Logo from "@/components/Logo";
+import { createClient } from "@/lib/supabase/client";
+import { CLIENT_DATA_CACHE_TTL_MS, ddcKey, getClientCache, setClientCache } from "@/lib/client-data-cache";
 
 type Item = {
   href: string;
   label: string;
-  icon: React.ReactNode;
+  icon: ReactNode;
+  /** When set, a small section label is shown above this link (member nav). */
+  groupStart?: string;
 };
 
 const ICON = {
@@ -20,7 +25,7 @@ const ICON = {
   viewBox: "0 0 24 24",
 };
 
-const items: Item[] = [
+const staffWorkspaceItems: Item[] = [
   {
     href: "/dashboard",
     label: "Overview",
@@ -56,17 +61,6 @@ const items: Item[] = [
     ),
   },
   {
-    href: "/dashboard/attendance",
-    label: "Attendance",
-    icon: (
-      <svg {...ICON}>
-        <rect x="3" y="4" width="18" height="18" rx="2" />
-        <path d="M16 2v4M8 2v4M3 10h18" />
-        <path d="m9 16 2 2 4-4" />
-      </svg>
-    ),
-  },
-  {
     href: "/dashboard/subscriptions",
     label: "Subscriptions",
     icon: (
@@ -78,7 +72,64 @@ const items: Item[] = [
       </svg>
     ),
   },
+  {
+    href: "/dashboard/attendance",
+    label: "Attendance",
+    icon: (
+      <svg {...ICON}>
+        <rect x="3" y="4" width="18" height="18" rx="2" />
+        <path d="M16 2v4M8 2v4M3 10h18" />
+        <path d="m9 16 2 2 4-4" />
+      </svg>
+    ),
+  },
 ];
+
+const memberWorkspaceItems: Item[] = [
+  {
+    groupStart: "member",
+    href: "/dashboard/me/membership",
+    label: "Your account",
+    icon: (
+      <svg {...ICON}>
+        <circle cx="12" cy="8" r="3.5" />
+        <path d="M4 20a8 8 0 0 1 16 0" />
+      </svg>
+    ),
+  },
+  {
+    href: "/dashboard/me/my-membership",
+    label: "My membership",
+    icon: (
+      <svg {...ICON}>
+        <rect x="4" y="5" width="16" height="14" rx="2" />
+        <path d="M8 9h8M8 13h5" />
+      </svg>
+    ),
+  },
+  {
+    href: "/dashboard/me/attendance",
+    label: "Attendance",
+    icon: (
+      <svg {...ICON}>
+        <rect x="3" y="4" width="18" height="18" rx="2" />
+        <path d="M16 2v4M8 2v4M3 10h18" />
+        <path d="m9 16 2 2 4-4" />
+      </svg>
+    ),
+  },
+];
+
+const superadminNavItem: Item = {
+  href: "/dashboard/superadmin",
+  label: "Superadmin",
+  icon: (
+    <svg {...ICON}>
+      <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83" />
+      <circle cx="12" cy="12" r="3" />
+    </svg>
+  ),
+};
 
 const secondary: Item[] = [
   {
@@ -93,6 +144,58 @@ const secondary: Item[] = [
   },
 ];
 
+function SidebarNavLinkBody({
+  active,
+  icon,
+  label,
+}: {
+  active: boolean;
+  icon: ReactNode;
+  label: string;
+}) {
+  const { pending } = useLinkStatus();
+  return (
+    <span
+      className={`flex w-full min-w-0 items-center gap-3 transition-opacity ${pending ? "opacity-60" : ""}`}
+    >
+      <span className={active ? "text-azure-500" : "text-ink-400 group-hover:text-ink-600"}>{icon}</span>
+      <span className="truncate">{label}</span>
+    </span>
+  );
+}
+
+function SidebarNavLink({
+  href,
+  label,
+  icon,
+  active,
+  onClose,
+  onPrefetch,
+}: {
+  href: string;
+  label: string;
+  icon: ReactNode;
+  active: boolean;
+  onClose: () => void;
+  onPrefetch: (path: string) => void;
+}) {
+  return (
+    <Link
+      href={href}
+      prefetch
+      scroll={false}
+      onClick={onClose}
+      onMouseEnter={() => onPrefetch(href)}
+      onFocus={() => onPrefetch(href)}
+      className={`group flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium transition-colors ${
+        active ? "bg-azure-50 text-azure-700" : "text-ink-600 hover:bg-ink-50 hover:text-ink-900"
+      }`}
+    >
+      <SidebarNavLinkBody active={active} icon={icon} label={label} />
+    </Link>
+  );
+}
+
 export default function Sidebar({
   open,
   onClose,
@@ -101,10 +204,112 @@ export default function Sidebar({
   onClose: () => void;
 }) {
   const pathname = usePathname();
-  const isActive = (href: string) =>
-    href === "/dashboard"
-      ? pathname === "/dashboard"
-      : pathname.startsWith(href);
+  const router = useRouter();
+  // Default least-privilege until we know is_admin (avoids flashing staff nav for members).
+  const [workspaceItems, setWorkspaceItems] = useState<Item[]>(memberWorkspaceItems);
+
+  const prefetchPath = useCallback((path: string) => {
+    try {
+      router.prefetch(path);
+    } catch {
+      /* noop */
+    }
+  }, [router]);
+
+  useEffect(() => {
+    const urls = [...workspaceItems.map((i) => i.href), ...secondary.map((i) => i.href)];
+    for (const href of urls) {
+      prefetchPath(href);
+    }
+  }, [workspaceItems, prefetchPath]);
+
+  useEffect(() => {
+    const supabase = createClient();
+    let cancelled = false;
+
+    const load = async () => {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (cancelled) return;
+
+      if (!user) {
+        setWorkspaceItems(memberWorkspaceItems);
+        return;
+      }
+
+      const navKey = ddcKey.profileNav(user.id);
+      const cached = getClientCache<{ is_admin?: boolean | null; is_superadmin?: boolean | null }>(navKey);
+      if (cached) {
+        const isSuper = cached.is_superadmin === true;
+        if (cached.is_admin) {
+          const merged = [...staffWorkspaceItems];
+          if (isSuper && !merged.some((i) => i.href === superadminNavItem.href)) {
+            merged.push(superadminNavItem);
+          }
+          setWorkspaceItems(merged);
+        } else if (isSuper) {
+          setWorkspaceItems([...memberWorkspaceItems, superadminNavItem]);
+        } else {
+          setWorkspaceItems(memberWorkspaceItems);
+        }
+      }
+
+      const { data: profile, error: profileErr } = await supabase
+        .from("profiles")
+        .select("is_admin, is_superadmin")
+        .eq("user_id", user.id)
+        .maybeSingle();
+
+      if (cancelled) return;
+      if (profileErr) {
+        setWorkspaceItems(memberWorkspaceItems);
+        return;
+      }
+
+      setClientCache(
+        navKey,
+        { is_admin: profile?.is_admin ?? null, is_superadmin: profile?.is_superadmin ?? null },
+        CLIENT_DATA_CACHE_TTL_MS,
+      );
+
+      const isSuper = profile?.is_superadmin === true;
+      if (profile?.is_admin) {
+        const merged = [...staffWorkspaceItems];
+        if (isSuper && !merged.some((i) => i.href === superadminNavItem.href)) {
+          merged.push(superadminNavItem);
+        }
+        setWorkspaceItems(merged);
+      } else if (isSuper) {
+        setWorkspaceItems([...memberWorkspaceItems, superadminNavItem]);
+      } else {
+        setWorkspaceItems(memberWorkspaceItems);
+      }
+    };
+
+    void load();
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange(() => {
+      void load();
+    });
+
+    return () => {
+      cancelled = true;
+      subscription.unsubscribe();
+    };
+  }, []);
+
+  const isActive = (href: string) => {
+    if (href === "/dashboard") return pathname === href;
+    if (href === "/dashboard/me/membership") {
+      return pathname === href || pathname === "/dashboard/me";
+    }
+    if (href === "/dashboard/me/my-membership") {
+      return pathname === href || pathname.startsWith(`${href}/`);
+    }
+    return pathname === href || pathname.startsWith(`${href}/`);
+  };
 
   return (
     <>
@@ -112,7 +317,7 @@ export default function Sidebar({
         <button
           aria-label="Close sidebar"
           onClick={onClose}
-          className="fixed inset-0 z-30 bg-ink-900/40 backdrop-blur-sm lg:hidden"
+          className="fixed inset-0 z-30 bg-ink-900/50 lg:hidden"
         />
       )}
 
@@ -130,27 +335,26 @@ export default function Sidebar({
             // workspace
           </p>
           <ul className="mt-2 space-y-1">
-            {items.map((item) => (
-              <li key={item.href}>
-                <Link
-                  href={item.href}
-                  onClick={onClose}
-                  className={`group flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium transition-colors ${
-                    isActive(item.href)
-                      ? "bg-azure-50 text-azure-700"
-                      : "text-ink-600 hover:bg-ink-50 hover:text-ink-900"
-                  }`}
-                >
-                  <span
-                    className={
-                      isActive(item.href) ? "text-azure-500" : "text-ink-400 group-hover:text-ink-600"
-                    }
-                  >
-                    {item.icon}
-                  </span>
-                  {item.label}
-                </Link>
-              </li>
+            {workspaceItems.map((item) => (
+              <Fragment key={item.href}>
+                {item.groupStart ? (
+                  <li className="list-none pt-4 first:pt-1">
+                    <p className="px-3 font-mono text-[10px] uppercase tracking-widest text-ink-400">
+                      // {item.groupStart}
+                    </p>
+                  </li>
+                ) : null}
+                <li>
+                  <SidebarNavLink
+                    href={item.href}
+                    label={item.label}
+                    icon={item.icon}
+                    active={isActive(item.href)}
+                    onClose={onClose}
+                    onPrefetch={prefetchPath}
+                  />
+                </li>
+              </Fragment>
             ))}
           </ul>
 
@@ -160,24 +364,14 @@ export default function Sidebar({
           <ul className="mt-2 space-y-1">
             {secondary.map((item) => (
               <li key={item.href}>
-                <Link
+                <SidebarNavLink
                   href={item.href}
-                  onClick={onClose}
-                  className={`group flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium transition-colors ${
-                    isActive(item.href)
-                      ? "bg-azure-50 text-azure-700"
-                      : "text-ink-600 hover:bg-ink-50 hover:text-ink-900"
-                  }`}
-                >
-                  <span
-                    className={
-                      isActive(item.href) ? "text-azure-500" : "text-ink-400 group-hover:text-ink-600"
-                    }
-                  >
-                    {item.icon}
-                  </span>
-                  {item.label}
-                </Link>
+                  label={item.label}
+                  icon={item.icon}
+                  active={isActive(item.href)}
+                  onClose={onClose}
+                  onPrefetch={prefetchPath}
+                />
               </li>
             ))}
           </ul>
@@ -186,6 +380,10 @@ export default function Sidebar({
         <div className="border-t border-ink-100 p-4">
           <Link
             href="/"
+            prefetch
+            scroll={false}
+            onClick={onClose}
+            onMouseEnter={() => prefetchPath("/")}
             className="flex items-center gap-3 rounded-xl px-3 py-2 text-sm text-ink-600 hover:bg-ink-50"
           >
             <svg

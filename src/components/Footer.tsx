@@ -60,7 +60,7 @@ export default function Footer() {
               </li>
               <li>
                 <Link
-                  href="/login?role=admin"
+                  href="/login"
                   className="hover:text-azure-500"
                 >
                   Admin login
@@ -104,7 +104,7 @@ export default function Footer() {
                   rel="noopener noreferrer"
                   className="text-azure-500 hover:text-azure-600"
                 >
-                  {d.label}
+                  {d.creditName ?? d.label}
                 </a>
               </span>
             ))}

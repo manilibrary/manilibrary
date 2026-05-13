@@ -1,6 +1,8 @@
-import Link from "next/link";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
+import ActiveMembershipHeroNote from "@/components/landing/ActiveMembershipHeroNote";
+import HeroCTAs from "@/components/landing/HeroCTAs";
+import PlanChooseCTA from "@/components/landing/PlanChooseCTA";
 import StatsCounter from "@/components/StatsCounter";
 import libraryInfo from "@/data/libraryInfo.json";
 
@@ -44,33 +46,10 @@ function Hero() {
           <p className="mx-auto mt-6 max-w-xl text-base leading-relaxed text-ink-600 md:text-lg">
             {libraryInfo.shortDescription}
           </p>
-          <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
-            <Link
-              href="/login?role=member"
-              className="inline-flex items-center gap-2 rounded-full bg-azure-500 px-6 py-3 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-azure-600"
-            >
-              Reserve your seat
-              <svg
-                className="h-4 w-4"
-                viewBox="0 0 20 20"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M5 10h10m0 0-4-4m4 4-4 4"
-                />
-              </svg>
-            </Link>
-            <a
-              href="#facilities"
-              className="inline-flex items-center gap-2 rounded-full border border-ink-200 bg-white px-6 py-3 text-sm font-semibold text-ink-700 transition-colors hover:border-ink-300 hover:bg-ink-50"
-            >
-              Explore facilities
-            </a>
+          <div className="mt-8">
+            <HeroCTAs />
           </div>
+          <ActiveMembershipHeroNote />
           <div className="mt-6 flex flex-wrap items-center justify-center gap-2">
             {[
               {
@@ -421,16 +400,7 @@ function Plans() {
                     </li>
                   ))}
                 </ul>
-                <Link
-                  href="/login?role=member"
-                  className={`mt-7 inline-flex w-full items-center justify-center rounded-full px-5 py-2.5 text-sm font-semibold transition-colors ${
-                    popular
-                      ? "bg-azure-500 text-white hover:bg-azure-600"
-                      : "border border-ink-200 text-ink-800 hover:border-ink-300 hover:bg-ink-50"
-                  }`}
-                >
-                  Choose {plan.name}
-                </Link>
+                <PlanChooseCTA planName={plan.name} planId={plan.id} popular={Boolean(popular)} />
               </article>
             );
           })}

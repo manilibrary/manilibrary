@@ -1,0 +1,23 @@
+/** Colour tokens aligned with student-app `LibrarySeatMap.tsx` (Expo). */
+export const EXPO = {
+  ink: "#111827",
+  line: "rgba(17, 24, 39, 0.72)",
+  softLine: "rgba(17, 24, 39, 0.18)",
+  surface: "#FFFFFF",
+  floor: "#F7F7FB",
+  wallTop: "#F1F4F9",
+  wallSide: "#F4F6FA",
+  deskAvailableBorder: "#7DD3FC",
+  deskAvailableFill: "#FFFFFF",
+  chairAvailable: "#0EA5E9",
+  deskOccupiedBorder: "#FFC107",
+  deskOccupiedFill: "#FFFFFF",
+  chairOccupied: "#EAB308",
+  deskSelectedFill: "#16A34A",
+  deskSelectedBorder: "#15803D",
+  chairSelected: "#16A34A",
+  chairBlocked: "#94A3B8",
+  deskHomeBorder: "#7C3AED",
+  deskHomeFill: "#F5F3FF",
+  chairHome: "#7C3AED",
+} as const;
