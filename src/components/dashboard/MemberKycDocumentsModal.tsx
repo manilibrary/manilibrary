@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useState } from "react";
 
+import { KycDocListSkeleton } from "@/components/ui/ContentSkeletons";
+
 const DOC_ORDER = ["aadhaar_front", "aadhaar_back", "student_id"] as const;
 
 const DOC_LABELS: Record<string, string> = {
@@ -239,7 +241,7 @@ export default function MemberKycDocumentsModal({
           <section>
             <h3 className="font-mono text-[10px] uppercase tracking-widest text-ink-500">Uploaded files</h3>
             {loading ? (
-              <p className="mt-3 text-sm text-ink-600">Loading files…</p>
+              <KycDocListSkeleton />
             ) : fetchErr ? (
               <p className="mt-3 text-sm text-red-700" role="alert">
                 {fetchErr}

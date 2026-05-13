@@ -36,5 +36,5 @@ export const ROWS_SEAT_BLOCKS: RowsSeatBlockSpec[] = [
   },
 ];
 
-/** Non-selectable in short layout (matches Expo extras). */
-export const SHORT_TERM_EXTRA_BLOCKED = new Set([43, 46, 54]);
+/** Non-selectable in short layout (not sold / structural). */
+export const SHORT_TERM_EXTRA_BLOCKED = new Set([43, 48, 54]);

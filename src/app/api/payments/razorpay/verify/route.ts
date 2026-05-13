@@ -1,5 +1,6 @@
 import { apiError, apiSuccess } from "@/lib/api/json-response";
 import { finalizeRazorpayPaymentRow } from "@/lib/payments/finalize-razorpay-payment";
+import { promoteCheckoutKycStaging } from "@/lib/kyc/promote-checkout-kyc-staging";
 import { verifyRazorpayPaymentSignature } from "@/lib/payments/razorpay-hmac";
 import { createSupabaseRouteHandlerClient } from "@/lib/supabase/route-handler";
 import { createSupabaseServiceRoleClient } from "@/lib/supabase/service-role";
@@ -81,7 +82,13 @@ export async function POST(request: Request) {
   }
 
   if (pay.status === "paid") {
-    return apiSuccess("Payment was already recorded; membership should already be active.", { alreadyPaid: true });
+    const prom = await promoteCheckoutKycStaging(admin, user.id);
+    const kycPromoteWarning = prom.ok ? undefined : prom.error;
+    return apiSuccess("Payment was already recorded; membership should already be active.", {
+      alreadyPaid: true,
+      ...(prom.ok ? { kycPromoted: prom.promoted } : {}),
+      ...(kycPromoteWarning ? { kycPromoteWarning } : {}),
+    });
   }
 
   const fin = await finalizeRazorpayPaymentRow(admin, {
@@ -93,5 +100,12 @@ export async function POST(request: Request) {
     return apiError(fin.error, fin.status);
   }
 
-  return apiSuccess("Payment verified and membership activated.", { alreadyPaid: fin.alreadyPaid === true });
+  const prom = await promoteCheckoutKycStaging(admin, user.id);
+  const kycPromoteWarning = prom.ok ? undefined : prom.error;
+
+  return apiSuccess("Payment verified and membership activated.", {
+    alreadyPaid: fin.alreadyPaid === true,
+    ...(prom.ok ? { kycPromoted: prom.promoted } : {}),
+    ...(kycPromoteWarning ? { kycPromoteWarning } : {}),
+  });
 }

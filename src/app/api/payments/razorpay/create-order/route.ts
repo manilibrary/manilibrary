@@ -12,11 +12,11 @@ import {
 } from "@/lib/membership/windows";
 import {
   LONG_TERM_DURATION_OPTIONS,
+  computeOrderAmountRupees,
   resolveLongTermDuration,
   resolveShortTermDuration,
   rupeesToRazorpayPaise,
   SHORT_TERM_DURATION_OPTIONS,
-  TEST_AMOUNT_RUPEES,
   type MembershipPlanKind,
 } from "@/lib/payments/pricing";
 import {
@@ -96,7 +96,10 @@ export async function POST(request: Request) {
     return apiError("Sign in required.", 401);
   }
 
-  const amountRupees = TEST_AMOUNT_RUPEES[body.planKind];
+  const amountRupees = computeOrderAmountRupees(body.planKind, body.durationKey);
+  if (amountRupees == null || !Number.isFinite(amountRupees) || amountRupees <= 0) {
+    return apiError("Invalid plan duration for checkout.", 400);
+  }
   const amountPaise = rupeesToRazorpayPaise(amountRupees);
   const now = new Date();
 

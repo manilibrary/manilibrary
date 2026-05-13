@@ -2,6 +2,7 @@ import Razorpay from "razorpay";
 
 import { apiError, apiSuccess } from "@/lib/api/json-response";
 import { finalizeRazorpayPaymentRow } from "@/lib/payments/finalize-razorpay-payment";
+import { promoteCheckoutKycStaging } from "@/lib/kyc/promote-checkout-kyc-staging";
 import { rupeesToRazorpayPaise } from "@/lib/payments/pricing";
 import { createSupabaseRouteHandlerClient } from "@/lib/supabase/route-handler";
 import { createSupabaseServiceRoleClient } from "@/lib/supabase/service-role";
@@ -113,8 +114,13 @@ export async function POST(request: Request) {
     return apiError(fin.error, fin.status);
   }
 
+  const prom = await promoteCheckoutKycStaging(admin, user.id);
+  const kycPromoteWarning = prom.ok ? undefined : prom.error;
+
   return apiSuccess("Payment reconciled with Razorpay and membership updated if applicable.", {
     paymentId: match.id,
     alreadyPaid: fin.alreadyPaid === true,
+    ...(prom.ok ? { kycPromoted: prom.promoted } : {}),
+    ...(kycPromoteWarning ? { kycPromoteWarning } : {}),
   });
 }

@@ -15,7 +15,7 @@ import type { SeatVisual } from "./seatVisual";
 
 function visualForSeat(seat: number, selected: number | null, occupiedSeats: Set<number>): SeatVisual {
   if (LONG_TERM_BLOCKED.has(seat)) return "blocked";
-  if (LONG_TERM_HOME_HELD.has(seat)) return "homeHold";
+  if (LONG_TERM_HOME_HELD.has(seat)) return "occupiedLong";
   if (occupiedSeats.has(seat)) return "occupiedLong";
   if (selected === seat) return "selected";
   return "available";

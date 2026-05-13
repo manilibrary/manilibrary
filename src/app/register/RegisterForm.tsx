@@ -1,16 +1,17 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
 import AuthMarketingAside from "@/components/auth/AuthMarketingAside";
 import Logo from "@/components/Logo";
 import libraryInfo from "@/data/libraryInfo.json";
 import { createClient } from "@/lib/supabase/client";
-import { MEMBER_LANDING_PATH } from "@/lib/auth-landing";
+import { MEMBER_LANDING_PATH, sanitizeInternalNext } from "@/lib/auth-landing";
 
 export default function RegisterForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
@@ -53,13 +54,16 @@ export default function RegisterForm() {
     }
 
     if (data.session) {
-      router.replace(MEMBER_LANDING_PATH);
+      const next = sanitizeInternalNext(searchParams.get("next"));
+      router.replace(next ?? MEMBER_LANDING_PATH);
       router.refresh();
       return;
     }
 
     const q = new URLSearchParams({ registered: "1" });
     if (!data.session) q.set("confirm", "1");
+    const next = sanitizeInternalNext(searchParams.get("next"));
+    if (next) q.set("next", next);
     router.push(`/login?${q.toString()}`);
     router.refresh();
   };

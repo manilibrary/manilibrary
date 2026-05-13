@@ -43,7 +43,7 @@ export async function GET(request: NextRequest) {
   );
   const destination = new URL(nextPath, url.origin);
 
-  let response = NextResponse.redirect(destination);
+  const response = NextResponse.redirect(destination);
   const cookieStore = await cookies();
 
   const supabase = createServerClient(supabaseUrl, supabaseAnonKey, {

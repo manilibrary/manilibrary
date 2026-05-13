@@ -2,12 +2,12 @@
 
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useMemo, useState } from "react";
 import AuthMarketingAside from "@/components/auth/AuthMarketingAside";
 import Logo from "@/components/Logo";
 import libraryInfo from "@/data/libraryInfo.json";
 import { createClient } from "@/lib/supabase/client";
-import { MEMBER_LANDING_PATH, STAFF_LANDING_PATH } from "@/lib/auth-landing";
+import { MEMBER_LANDING_PATH, STAFF_LANDING_PATH, sanitizeInternalNext } from "@/lib/auth-landing";
 import { clearClientCache } from "@/lib/client-data-cache";
 import { clearAllUxPreferenceCookies } from "@/lib/ux-cookies";
 
@@ -39,6 +39,15 @@ function staffPortalKeyFromEnv(): string | undefined {
   return v || undefined;
 }
 
+function decodeQueryMessage(raw: string | null): string | null {
+  if (!raw) return null;
+  try {
+    return decodeURIComponent(raw);
+  } catch {
+    return raw;
+  }
+}
+
 export default function LoginForm() {
   const router = useRouter();
   const params = useSearchParams();
@@ -52,17 +61,19 @@ export default function LoginForm() {
   const [password, setPassword] = useState("");
   const [showPwd, setShowPwd] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    const msg = params.get("message");
-    if (msg) setError(decodeURIComponent(msg));
-  }, [params]);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  const urlMessageError = useMemo(
+    () => decodeQueryMessage(params.get("message")),
+    [params],
+  );
+  const displayError = submitError ?? urlMessageError;
+  const registerNext = sanitizeInternalNext(params.get("next"));
+  const registerHref = registerNext ? `/register?next=${encodeURIComponent(registerNext)}` : "/register";
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitting(true);
-    setError(null);
+    setSubmitError(null);
 
     const supabase = createClient();
     const { data, error: authError } = await supabase.auth.signInWithPassword({
@@ -71,14 +82,14 @@ export default function LoginForm() {
     });
 
     if (authError) {
-      setError(authError.message);
+      setSubmitError(authError.message);
       setSubmitting(false);
       return;
     }
 
     const user = data.user;
     if (!user) {
-      setError("No user returned from sign-in.");
+      setSubmitError("No user returned from sign-in.");
       setSubmitting(false);
       return;
     }
@@ -89,7 +100,7 @@ export default function LoginForm() {
     );
 
     if (profileError) {
-      setError(profileError.message);
+      setSubmitError(profileError.message);
       await supabase.auth.signOut();
       clearAllUxPreferenceCookies();
       clearClientCache();
@@ -98,7 +109,7 @@ export default function LoginForm() {
     }
 
     if (!profile) {
-      setError(
+      setSubmitError(
         "No library profile found for this account. In Supabase: check that trigger on_auth_user_created on auth.users inserts into public.profiles, RLS allows select on your own row, and this user has a profile row (backfill from auth.users if needed). Then try signing in again.",
       );
       await supabase.auth.signOut();
@@ -109,7 +120,7 @@ export default function LoginForm() {
     }
 
     if (staffPortalActive && !profile.is_admin) {
-      setError(
+      setSubmitError(
         "This staff sign-in link is only for admin accounts. Use the regular sign-in page for member access.",
       );
       await supabase.auth.signOut();
@@ -121,8 +132,13 @@ export default function LoginForm() {
 
     setSubmitting(false);
     clearClientCache();
+    const next = sanitizeInternalNext(params.get("next"));
     const dest =
-      profile.is_admin ? STAFF_LANDING_PATH : profile.is_superadmin ? "/dashboard/superadmin" : MEMBER_LANDING_PATH;
+      profile.is_admin
+        ? STAFF_LANDING_PATH
+        : profile.is_superadmin
+          ? "/dashboard/superadmin"
+          : next ?? MEMBER_LANDING_PATH;
     router.replace(dest);
     router.refresh();
   };
@@ -229,9 +245,9 @@ export default function LoginForm() {
               </Link>
             </div>
 
-            {error && (
+            {displayError && (
               <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
-                {error}
+                {displayError}
               </p>
             )}
 
@@ -252,10 +268,7 @@ export default function LoginForm() {
 
           <p className="mt-6 text-center text-sm text-ink-600">
             New to {libraryInfo.name}?{" "}
-            <Link
-              href="/register"
-              className="font-medium text-azure-500 hover:text-azure-600"
-            >
+            <Link href={registerHref} className="font-medium text-azure-500 hover:text-azure-600">
               Create an account
             </Link>
           </p>

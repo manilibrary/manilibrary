@@ -3,12 +3,14 @@
 import { usePathname, useRouter } from "next/navigation";
 import { useCallback, useState } from "react";
 import { MEMBER_MEMBERSHIP_PATH } from "@/lib/auth-landing";
+import { buildCheckoutFingerprint, type ResumableCheckoutPayload } from "@/lib/membership/resumable-checkout";
+import { flushMembershipIntakeDraftAfterPayment } from "@/lib/membership/membership-intake-draft";
 import { createClient } from "@/lib/supabase/client";
 import { formatPhoneForRazorpayPrefill } from "@/lib/payments/razorpay-prefill";
 import type { MembershipPlanKind } from "@/lib/payments/pricing";
-import { planTitle, TEST_AMOUNT_RUPEES } from "@/lib/payments/pricing";
+import { computeOrderAmountRupees, planTitle, TEST_AMOUNT_RUPEES } from "@/lib/payments/pricing";
 
-type RazorpayFail = { error?: { description?: string } };
+type RazorpayFail = { error?: { description?: string; code?: string; source?: string; step?: string } };
 
 function loadRazorpayScript(): Promise<void> {
   if (typeof window === "undefined") {
@@ -38,6 +40,10 @@ export default function MembershipCheckoutButton({
   membershipStartDate,
   durationKey,
   durationLabel,
+  fullWidth,
+  quietFooter,
+  quotedAmountRupees,
+  resumeCheckout = null,
 }: {
   planKind: MembershipPlanKind;
   seatNumber: number | null;
@@ -45,6 +51,17 @@ export default function MembershipCheckoutButton({
   membershipStartDate: string;
   durationKey: string;
   durationLabel: string;
+  /** Stretch button on narrow pay step */
+  fullWidth?: boolean;
+  /** Hide long Razorpay test hints (show in parent disclosure instead) */
+  quietFooter?: boolean;
+  /** Optional display override; otherwise derived from plan + duration whitelist */
+  quotedAmountRupees?: number;
+  /** When fingerprint matches current seat/dates/duration, reuse existing Razorpay order (no new create-order). */
+  resumeCheckout?: Pick<
+    ResumableCheckoutPayload,
+    "paymentId" | "orderId" | "amount" | "currency" | "keyId" | "fingerprint"
+  > | null;
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -52,7 +69,9 @@ export default function MembershipCheckoutButton({
   const [msg, setMsg] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
 
-  const amountInr = TEST_AMOUNT_RUPEES[planKind].toFixed(0);
+  const displayRupees =
+    quotedAmountRupees ?? computeOrderAmountRupees(planKind, durationKey) ?? TEST_AMOUNT_RUPEES[planKind];
+  const amountInr = displayRupees.toLocaleString("en-IN", { maximumFractionDigits: 0 });
 
   const pay = useCallback(async () => {
     setErr(null);
@@ -82,26 +101,49 @@ export default function MembershipCheckoutButton({
 
     setPhase("creating");
     try {
-      const res = await fetch("/api/payments/razorpay/create-order", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          planKind,
-          seatNumber,
-          membershipStartDate,
-          durationKey,
-        }),
+      const fingerprint = buildCheckoutFingerprint({
+        planKind,
+        seatNumber,
+        membershipStartDate,
+        durationKey,
       });
-      const data = (await res.json()) as Record<string, unknown>;
-      if (!res.ok) {
-        throw new Error(typeof data.error === "string" ? data.error : "Could not start checkout.");
-      }
+      const rc = resumeCheckout;
+      const useResume = rc != null && rc.fingerprint === fingerprint && seatNumber != null;
 
-      const keyId = data.keyId as string;
-      const orderId = data.orderId as string;
-      const amount = data.amount as number;
-      const currency = data.currency as string;
-      const paymentId = data.paymentId as string;
+      let keyId: string;
+      let orderId: string;
+      let amount: number;
+      let currency: string;
+      let paymentId: string;
+
+      if (useResume && rc) {
+        keyId = rc.keyId;
+        orderId = rc.orderId;
+        amount = rc.amount;
+        currency = rc.currency;
+        paymentId = rc.paymentId;
+      } else {
+        const res = await fetch("/api/payments/razorpay/create-order", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            planKind,
+            seatNumber,
+            membershipStartDate,
+            durationKey,
+          }),
+        });
+        const data = (await res.json()) as Record<string, unknown>;
+        if (!res.ok) {
+          throw new Error(typeof data.error === "string" ? data.error : "Could not start checkout.");
+        }
+
+        keyId = data.keyId as string;
+        orderId = data.orderId as string;
+        amount = data.amount as number;
+        currency = data.currency as string;
+        paymentId = data.paymentId as string;
+      }
 
       await loadRazorpayScript();
       const Razorpay = (window as unknown as { Razorpay: RazorpayConstructor }).Razorpay;
@@ -109,6 +151,13 @@ export default function MembershipCheckoutButton({
       setPhase("modal");
       await new Promise<void>((resolve, reject) => {
         const finishModal = () => setPhase("idle");
+        let abandonTimer: number | null = null;
+        const cancelAbandonTimer = () => {
+          if (abandonTimer != null) {
+            window.clearTimeout(abandonTimer);
+            abandonTimer = null;
+          }
+        };
 
         const checkoutOptions: Record<string, unknown> = {
           key: keyId,
@@ -124,6 +173,7 @@ export default function MembershipCheckoutButton({
           }) => {
             void (async () => {
               try {
+                cancelAbandonTimer();
                 const v = await fetch("/api/payments/razorpay/verify", {
                   method: "POST",
                   headers: { "Content-Type": "application/json" },
@@ -147,6 +197,7 @@ export default function MembershipCheckoutButton({
                   }
                 }
                 if (!v.ok && !vj.ok) throw new Error(vj.error ?? "Verification failed.");
+                await flushMembershipIntakeDraftAfterPayment();
                 setMsg(
                   vj.alreadyPaid
                     ? "Payment already recorded. Membership should be active."
@@ -155,6 +206,13 @@ export default function MembershipCheckoutButton({
                 router.replace(`${MEMBER_MEMBERSHIP_PATH}?paid=1`);
                 resolve();
               } catch (e) {
+                cancelAbandonTimer();
+                void fetch("/api/payments/razorpay/abandon-pending-checkout", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  credentials: "same-origin",
+                  body: JSON.stringify({ payment_id: paymentId }),
+                }).catch(() => {});
                 reject(e instanceof Error ? e : new Error("Verify failed"));
               } finally {
                 finishModal();
@@ -163,6 +221,15 @@ export default function MembershipCheckoutButton({
           },
           modal: {
             ondismiss: () => {
+              abandonTimer = window.setTimeout(() => {
+                abandonTimer = null;
+                void fetch("/api/payments/razorpay/abandon-pending-checkout", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  credentials: "same-origin",
+                  body: JSON.stringify({ payment_id: paymentId }),
+                }).catch(() => {});
+              }, 2500);
               finishModal();
               resolve();
             },
@@ -191,7 +258,25 @@ export default function MembershipCheckoutButton({
         const rzp = new Razorpay(checkoutOptions);
 
         rzp.on("payment.failed", (response: RazorpayFail) => {
+          cancelAbandonTimer();
           finishModal();
+          const errBody = response.error;
+          void fetch("/api/payments/razorpay/mark-checkout-failed", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            credentials: "same-origin",
+            body: JSON.stringify({
+              payment_id: paymentId,
+              error: errBody
+                ? {
+                    description: errBody.description,
+                    code: errBody.code,
+                    source: errBody.source,
+                    step: errBody.step,
+                  }
+                : undefined,
+            }),
+          }).catch(() => {});
           reject(new Error(response.error?.description ?? "Payment failed."));
         });
 
@@ -201,43 +286,53 @@ export default function MembershipCheckoutButton({
       setErr(e instanceof Error ? e.message : "Payment failed.");
       setPhase("idle");
     }
-  }, [planKind, seatNumber, router, pathname, membershipStartDate, durationKey, durationLabel]);
+  }, [planKind, seatNumber, router, pathname, membershipStartDate, durationKey, durationLabel, resumeCheckout]);
 
   return (
-    <div className="flex w-full flex-col gap-2 sm:w-auto sm:items-end">
+    <div
+      className={`flex w-full flex-col gap-2 ${fullWidth ? "items-stretch" : "sm:w-auto sm:items-end"}`}
+    >
       {err ? (
-        <p className="max-w-md text-right text-sm text-red-600" role="alert">
+        <p className={`text-sm text-red-600 ${fullWidth ? "" : "max-w-md text-right"}`} role="alert">
           {err}
         </p>
       ) : null}
       {msg ? (
-        <p className="max-w-md text-right text-sm text-emerald-700" role="status">
+        <p className={`text-sm text-emerald-700 ${fullWidth ? "" : "max-w-md text-right"}`} role="status">
           {msg}
         </p>
       ) : null}
-      <p className="text-right text-xs text-ink-500">
-        Test checkout: ₹{amountInr} · Razorpay test keys
-      </p>
-      <p className="max-w-md text-right text-xs leading-relaxed text-ink-500">
-        If you see a <strong className="font-medium">UPI QR</strong>, you usually <strong className="font-medium">do not</strong> scan it with a real
-        PhonePe/GPay in <strong className="font-medium">test mode</strong> — it won&apos;t complete. Tap{" "}
-        <strong className="font-medium">Card</strong> and use Razorpay&apos;s{" "}
-        <a
-          href="https://razorpay.com/docs/payments/payments/test-card-upi-details/"
-          className="text-azure-600 underline hover:text-azure-700"
-          target="_blank"
-          rel="noreferrer"
-        >
-          test card numbers
-        </a>
-        . With email + phone on your profile, checkout opens on <strong className="font-medium">Card</strong> first.
-        Close the modal to cancel.
-      </p>
+      {!quietFooter ? (
+        <>
+          <p className={`text-xs text-ink-500 ${fullWidth ? "" : "text-right"}`}>
+            Test checkout: ₹{amountInr} · Razorpay test keys
+          </p>
+          <p className={`text-xs leading-relaxed text-ink-500 ${fullWidth ? "" : "max-w-md text-right"}`}>
+            If you see a <strong className="font-medium">UPI QR</strong>, you usually <strong className="font-medium">do not</strong> scan it with a real
+            PhonePe/GPay in <strong className="font-medium">test mode</strong> — it won&apos;t complete. Tap{" "}
+            <strong className="font-medium">Card</strong> and use Razorpay&apos;s{" "}
+            <a
+              href="https://razorpay.com/docs/payments/payments/test-card-upi-details/"
+              className="text-azure-600 underline hover:text-azure-700"
+              target="_blank"
+              rel="noreferrer"
+            >
+              test card numbers
+            </a>
+            . With email + phone on your profile, checkout opens on <strong className="font-medium">Card</strong> first.
+            Close the modal to cancel.
+          </p>
+        </>
+      ) : (
+        <p className={`text-xs text-ink-500 ${fullWidth ? "" : "text-right"}`}>Test mode · ₹{amountInr}</p>
+      )}
       <button
         type="button"
         disabled={disabled || seatNumber == null || phase !== "idle"}
         onClick={() => void pay()}
-        className="inline-flex items-center justify-center rounded-full bg-azure-500 px-6 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-azure-600 disabled:cursor-not-allowed disabled:opacity-50"
+        className={`inline-flex items-center justify-center rounded-full bg-azure-500 px-6 py-3.5 text-sm font-semibold text-white shadow-sm transition hover:bg-azure-600 disabled:cursor-not-allowed disabled:opacity-50 sm:py-3 ${
+          fullWidth ? "w-full min-h-12" : ""
+        }`}
       >
         {phase === "creating"
           ? "Starting…"

@@ -5,11 +5,12 @@ import Link from "next/link";
 import { formatMembershipWindow, useActiveMembership } from "@/hooks/useActiveMembership";
 import { resolveMemberSeatDisplayLabel } from "@/lib/membership/seat-label";
 import { MEMBER_MEMBERSHIP_PATH } from "@/lib/auth-landing";
+import { MembershipGreetingSkeleton } from "@/components/ui/ContentSkeletons";
 
 export default function MembershipHubGreeting() {
   const { loading, membership, error } = useActiveMembership();
 
-  if (loading) return null;
+  if (loading) return <MembershipGreetingSkeleton />;
 
   if (error) {
     return (

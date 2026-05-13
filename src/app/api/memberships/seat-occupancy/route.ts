@@ -1,15 +1,50 @@
 import { apiError, apiSuccess } from "@/lib/api/json-response";
+import {
+  longTermCoversToday,
+  longTermWindowsOverlap,
+  resolveProposedBookingWindow,
+  shortTermActiveNow,
+  shortTermIntervalsOverlap,
+} from "@/lib/membership/seat-occupancy-window";
 import { parseNumericSeatFromStoredSeat } from "@/lib/membership/seat-label";
+import type { MembershipPlanKind } from "@/lib/payments/pricing";
+import { createSupabaseRouteHandlerClient } from "@/lib/supabase/route-handler";
 import { createSupabaseServiceRoleClient } from "@/lib/supabase/service-role";
 
 export const runtime = "nodejs";
 
+type PlanRow = {
+  seat_number: string | number | null;
+  valid_from: string | null;
+  valid_until: string | null;
+  starts_at: string | null;
+  ends_at: string | null;
+  plan_kind: string | null;
+};
+
+function isPlanKind(v: string | null): v is MembershipPlanKind {
+  return v === "short_term" || v === "long_term";
+}
+
 export async function GET(request: Request) {
+  const supabase = await createSupabaseRouteHandlerClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) {
+    return apiError("Sign in to load seat availability.", 401, { signedIn: false });
+  }
+
   const url = new URL(request.url);
-  const planKind = url.searchParams.get("planKind");
-  if (planKind !== "short_term" && planKind !== "long_term") {
+  const planKindRaw = url.searchParams.get("planKind");
+  if (!isPlanKind(planKindRaw)) {
     return apiError("Query param planKind must be short_term | long_term.", 400);
   }
+  const planKind = planKindRaw;
+
+  const startDate = url.searchParams.get("startDate")?.trim() ?? "";
+  const durationKey = url.searchParams.get("durationKey")?.trim() ?? "";
+  const useProposedWindow = startDate.length > 0 && durationKey.length > 0;
 
   let admin;
   try {
@@ -20,33 +55,52 @@ export async function GET(request: Request) {
   }
 
   const now = new Date();
-  const today = now.toISOString().slice(0, 10); // YYYY-MM-DD
+  const nowIso = now.toISOString();
+  const today = nowIso.slice(0, 10);
 
-  const base = admin
+  const { data: rows, error } = await admin
     .from("memberships")
-    .select("seat_number")
+    .select("seat_number, valid_from, valid_until, starts_at, ends_at, plan_kind")
     .eq("status", "active")
     .eq("plan_kind", planKind)
     .not("seat_number", "is", null);
 
-  const q =
-    planKind === "long_term"
-      ? base.lte("valid_from", today).gte("valid_until", today)
-      : base.lte("starts_at", now.toISOString()).gte("ends_at", now.toISOString());
-
-  const { data, error } = await q;
   if (error) {
     return apiError(error.message, 500);
   }
 
+  const list = (rows ?? []) as PlanRow[];
+
+  let overlapping: PlanRow[];
+
+  if (useProposedWindow) {
+    const win = resolveProposedBookingWindow(planKind, startDate, durationKey);
+    if ("error" in win) {
+      return apiError(win.error, 400);
+    }
+    if (win.planKind === "long_term") {
+      overlapping = list.filter((r) => longTermWindowsOverlap(r, win.startYmd, win.endYmd));
+    } else {
+      overlapping = list.filter((r) => shortTermIntervalsOverlap(r, win.startsIso, win.endsIso));
+    }
+  } else if (planKind === "long_term") {
+    overlapping = list.filter((r) => longTermCoversToday(r, today));
+  } else {
+    overlapping = list.filter((r) => shortTermActiveNow(r, nowIso));
+  }
+
   const seats = Array.from(
     new Set(
-      (data ?? [])
-        .map((r) => parseNumericSeatFromStoredSeat((r as { seat_number: string | number | null }).seat_number))
+      overlapping
+        .map((r) => parseNumericSeatFromStoredSeat(r.seat_number))
         .filter((n): n is number => n != null),
     ),
   ).sort((a, b) => a - b);
 
   const label = planKind === "long_term" ? "long-term" : "short-term";
-  return apiSuccess(`Active ${label} seat numbers loaded (${seats.length} seats).`, { planKind, seats });
+  return apiSuccess(`Active ${label} seat numbers loaded (${seats.length} seats).`, {
+    planKind,
+    seats,
+    window: useProposedWindow ? { startDate, durationKey } : { mode: "now" as const },
+  });
 }

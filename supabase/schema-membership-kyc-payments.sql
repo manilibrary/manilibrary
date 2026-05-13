@@ -104,6 +104,23 @@ create index if not exists verification_documents_device_user_id_idx
   on public.verification_documents (device_user_id);
 
 -- ---------------------------------------------------------------------------
+-- 3b) Checkout-only KYC staging (promoted after membership payment succeeds)
+-- ---------------------------------------------------------------------------
+create table if not exists public.kyc_checkout_pending_documents (
+  user_id          uuid not null references auth.users (id) on delete cascade,
+  doc_type         text not null
+                     check (doc_type in ('aadhaar_front', 'aadhaar_back', 'student_id')),
+  storage_bucket   text not null default 'kyc-private',
+  storage_path     text not null,
+  content_type     text not null,
+  updated_at       timestamptz not null default now(),
+  primary key (user_id, doc_type)
+);
+
+create index if not exists kyc_checkout_pending_documents_updated_idx
+  on public.kyc_checkout_pending_documents (updated_at);
+
+-- ---------------------------------------------------------------------------
 -- 4) Memberships (short-term = wall clock; long-term = calendar window)
 -- ---------------------------------------------------------------------------
 create table if not exists public.memberships (
@@ -357,6 +374,7 @@ create trigger trg_verification_documents_sync_device_user_id
 -- ---------------------------------------------------------------------------
 alter table public.verification_requests enable row level security;
 alter table public.verification_documents enable row level security;
+alter table public.kyc_checkout_pending_documents enable row level security;
 alter table public.memberships enable row level security;
 alter table public.payments enable row level security;
 
@@ -463,5 +481,6 @@ grant select, insert, update, delete on public.payments to authenticated;
 
 grant all on public.verification_requests to service_role;
 grant all on public.verification_documents to service_role;
+grant all on public.kyc_checkout_pending_documents to service_role;
 grant all on public.memberships to service_role;
 grant all on public.payments to service_role;

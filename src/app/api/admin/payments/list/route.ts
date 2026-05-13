@@ -1,4 +1,5 @@
 import { apiError, apiSuccess } from "@/lib/api/json-response";
+import { formatPaymentAdminDetail } from "@/lib/payments/payment-admin-detail";
 import { requireLibraryAdmin } from "@/lib/supabase/require-library-admin";
 import { createSupabaseServiceRoleClient } from "@/lib/supabase/service-role";
 
@@ -31,6 +32,7 @@ type PaymentRow = {
   razorpay_order_id: string | null;
   razorpay_payment_id: string | null;
   created_at: string;
+  detail: string | null;
 };
 
 type ProfileMini = {
@@ -81,6 +83,7 @@ export async function GET() {
       razorpay_order_id: rz.razorpay_order_id,
       razorpay_payment_id: rz.razorpay_payment_id,
       created_at: r.created_at,
+      detail: formatPaymentAdminDetail(r.status, r.metadata),
     };
   });
 

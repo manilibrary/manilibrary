@@ -91,8 +91,10 @@ export default function SettingsPage() {
       </div>
 
       <p className="rounded-xl border border-dashed border-ink-200 bg-surface-muted px-4 py-3 font-mono text-[11px] text-ink-500">
-        // values are read from <span className="text-ink-700">src/data/libraryInfo.json</span>.
-        Edit that file to update the website and dashboard simultaneously.
+        <span aria-hidden>{"// "}</span>
+        values are read from{" "}
+        <span className="text-ink-700">src/data/libraryInfo.json</span>. Edit that file to update the
+        website and dashboard simultaneously.
       </p>
     </div>
   );

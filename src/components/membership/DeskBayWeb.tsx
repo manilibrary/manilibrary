@@ -14,8 +14,6 @@ function deskClass(visual: SeatVisual): string {
       return "border-2 border-[#FFC107] bg-white";
     case "occupiedShort":
       return "border-2 border-sky-400 bg-white";
-    case "homeHold":
-      return "border-2 border-violet-500 bg-violet-50";
     case "blocked":
       return "border border-dashed border-red-400/80 bg-red-50/90";
     default:
@@ -32,8 +30,6 @@ function noClass(visual: SeatVisual): string {
     case "occupiedLong":
     case "occupiedShort":
       return "text-amber-800";
-    case "homeHold":
-      return "text-violet-900";
     default:
       return "text-sky-700";
   }
@@ -48,8 +44,6 @@ function chairColor(visual: SeatVisual): string {
       return EXPO.chairOccupied;
     case "selected":
       return EXPO.chairSelected;
-    case "homeHold":
-      return EXPO.chairHome;
     default:
       return EXPO.chairAvailable;
   }

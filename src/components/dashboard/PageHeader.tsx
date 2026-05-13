@@ -14,7 +14,8 @@ export default function PageHeader({
       <div>
         {eyebrow && (
           <p className="font-mono text-[10px] uppercase tracking-widest text-azure-500">
-            // {eyebrow}
+            <span aria-hidden>{"// "}</span>
+            {eyebrow}
           </p>
         )}
         <h1 className="mt-1.5 text-2xl font-semibold tracking-tight text-ink-900 md:text-3xl">

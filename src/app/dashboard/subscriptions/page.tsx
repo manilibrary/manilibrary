@@ -11,14 +11,21 @@ export default async function SubscriptionsPage({
   const sp = await searchParams;
   const raw = sp.focus;
   const focus = typeof raw === "string" ? raw : Array.isArray(raw) ? raw[0] : undefined;
-  const initialGroup = focus === "expiring" ? "expiring" : "all";
+  const initialGroup =
+    focus === "expiring"
+      ? "expiring"
+      : focus === "pending"
+        ? "pending"
+        : focus === "expired"
+          ? "expired"
+          : "all";
 
   return (
     <div className="space-y-8">
       <PageHeader
         eyebrow="subscriptions"
         title="Subscriptions"
-        description="Group memberships by status. Click a card to filter the table."
+        description="Filter by status (cards) and plan (chips). The default view hides pending payment and expired rows; use those cards to see them."
       />
       <StaffSubscriptionsPanel initialGroup={initialGroup} />
     </div>

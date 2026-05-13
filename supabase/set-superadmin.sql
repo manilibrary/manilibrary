@@ -1,0 +1,57 @@
+-- =============================================================================
+-- FULL SCRIPT: grant library superadmin (manilibrary checks profiles.is_superadmin)
+-- =============================================================================
+-- Where: Supabase Dashboard → SQL → New query → Run
+-- Before: the user must exist in Authentication and have a row in public.profiles
+--         (register once; handle_new_user creates the profile).
+-- After:  add-is-superadmin.sql or bootstrap-new-supabase-full.sql must have run
+--         so column is_superadmin exists.
+-- =============================================================================
+
+-- ---------------------------------------------------------------------------
+-- 1) Ensure column exists on public.profiles
+-- ---------------------------------------------------------------------------
+alter table public.profiles
+  add column if not exists is_superadmin boolean not null default false;
+
+-- ---------------------------------------------------------------------------
+-- 2) PROMOTE ONE USER TO SUPERADMIN — pick ONE of the following blocks only.
+-- ---------------------------------------------------------------------------
+
+-- 2a) By email (replace the email literal with the real superadmin sign-in email)
+update public.profiles as p
+set is_superadmin = true
+from auth.users as u
+where p.user_id = u.id
+  and lower(trim(u.email)) = lower(trim('REPLACE_WITH_SUPERADMIN_EMAIL@example.com'));
+
+-- 2b) By Supabase Auth user id (replace UUID; from Dashboard → Authentication → Users)
+--     Comment out 2a above and uncomment this block if you prefer UUID:
+--
+-- update public.profiles
+-- set is_superadmin = true
+-- where user_id = '00000000-0000-0000-0000-000000000000'::uuid;
+
+-- ---------------------------------------------------------------------------
+-- 3) VERIFY — list every profile marked superadmin
+-- ---------------------------------------------------------------------------
+select
+  p.user_id,
+  u.email,
+  p.is_superadmin,
+  p.is_admin,
+  p.device_user_id,
+  p.full_name
+from public.profiles as p
+inner join auth.users as u on u.id = p.user_id
+where p.is_superadmin is true
+order by u.email;
+
+-- ---------------------------------------------------------------------------
+-- 4) OPTIONAL — remove superadmin from one user (by email)
+-- ---------------------------------------------------------------------------
+-- update public.profiles as p
+-- set is_superadmin = false
+-- from auth.users as u
+-- where p.user_id = u.id
+--   and lower(trim(u.email)) = lower(trim('someone@example.com'));
