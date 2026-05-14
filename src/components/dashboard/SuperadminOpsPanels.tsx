@@ -119,6 +119,9 @@ export default function SuperadminOpsPanels() {
   } | null>(null);
   const [draftAdmin, setDraftAdmin] = useState(false);
   const [draftSuper, setDraftSuper] = useState(false);
+  const [deleteAck, setDeleteAck] = useState(false);
+  const [deleteBusy, setDeleteBusy] = useState(false);
+  const [deleteErr, setDeleteErr] = useState<string | null>(null);
 
   const loadProfile = useCallback(async (userIdOverride?: string) => {
     const id = (userIdOverride ?? profileId).trim();
@@ -154,6 +157,8 @@ export default function SuperadminOpsPanels() {
       setProfile(j.profile);
       setDraftAdmin(Boolean(j.profile.is_admin));
       setDraftSuper(Boolean(j.profile.is_superadmin));
+      setDeleteAck(false);
+      setDeleteErr(null);
     } catch (e) {
       setProfileErr(e instanceof Error ? e.message : "Network error.");
     } finally {
@@ -179,6 +184,7 @@ export default function SuperadminOpsPanels() {
       }
       setProfile(j.profile);
       setProfileMsg("Saved.");
+      setDeleteAck(false);
     } catch (e) {
       setProfileErr(e instanceof Error ? e.message : "Network error.");
     } finally {
@@ -421,6 +427,56 @@ export default function SuperadminOpsPanels() {
             >
               {(profile.verification_status ?? "").toLowerCase() === "pending" ? "Review KYC" : "View KYC"}
             </button>
+            <div className="mt-6 border-t border-red-100 pt-4">
+              <p className="text-sm font-semibold text-red-800">Danger zone</p>
+              <p className="mt-1 text-xs leading-relaxed text-red-800/90">
+                Permanently deletes this Auth account and linked library data: profile, KYC storage objects, memberships,
+                payments, verification rows, export audit rows for this member, membership event rows, and clears this
+                member from processed-by fields on archived attendance days. This cannot be undone.
+              </p>
+              <label className="mt-3 flex items-start gap-2 text-xs text-red-900">
+                <input
+                  type="checkbox"
+                  className="mt-0.5"
+                  checked={deleteAck}
+                  onChange={(e) => setDeleteAck(e.target.checked)}
+                />
+                <span>I understand this will permanently delete this account and all linked data.</span>
+              </label>
+              {deleteErr ? <p className="mt-2 text-xs text-red-800">{deleteErr}</p> : null}
+              <button
+                type="button"
+                disabled={deleteBusy || !deleteAck || profileBusy}
+                className="mt-3 rounded-full bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700 disabled:opacity-40"
+                onClick={() => {
+                  void (async () => {
+                    if (!profile || !deleteAck) return;
+                    setDeleteErr(null);
+                    setDeleteBusy(true);
+                    try {
+                      const res = await fetch(`/api/superadmin/profiles/${encodeURIComponent(profile.user_id)}`, {
+                        method: "DELETE",
+                      });
+                      const j = (await res.json()) as { ok?: boolean; error?: string };
+                      if (!res.ok || !j.ok) {
+                        setDeleteErr(j.error ?? "Delete failed.");
+                        return;
+                      }
+                      setProfileMsg("User and all linked data were deleted.");
+                      setProfile(null);
+                      setProfileId("");
+                      setDeleteAck(false);
+                    } catch (e) {
+                      setDeleteErr(e instanceof Error ? e.message : "Delete failed.");
+                    } finally {
+                      setDeleteBusy(false);
+                    }
+                  })();
+                }}
+              >
+                {deleteBusy ? "Deleting…" : "Delete user permanently"}
+              </button>
+            </div>
           </div>
         ) : null}
       </section>
@@ -433,12 +489,12 @@ export default function SuperadminOpsPanels() {
             <p className="mt-3 text-sm text-red-700">{healthErr}</p>
           ) : health ? (
             <div className="mt-4 space-y-2">
-              <p className="text-xs font-semibold text-ink-700">Razorpay</p>
-              <Flag ok={health.razorpay.keyId} label="RAZORPAY_KEY_ID" />
-              <Flag ok={health.razorpay.keySecret} label="RAZORPAY_KEY_SECRET" />
-              <p className="pt-3 text-xs font-semibold text-ink-700">eTime / biometric</p>
-              <Flag ok={health.etime.apiOrigin} label="ETIME_API_ORIGIN" />
-              <Flag ok={health.etime.ready} label="Any eTime auth path ready" />
+              <p className="text-xs font-semibold text-ink-700">Online payments</p>
+              <Flag ok={health.razorpay.keyId} label="Payment key set" />
+              <Flag ok={health.razorpay.keySecret} label="Payment secret set" />
+              <p className="pt-3 text-xs font-semibold text-ink-700">Biometric gate</p>
+              <Flag ok={health.etime.apiOrigin} label="Gate server address set" />
+              <Flag ok={health.etime.ready} label="Gate login details ready" />
             </div>
           ) : (
             <SuperadminHealthSkeleton />
@@ -482,11 +538,11 @@ export default function SuperadminOpsPanels() {
                   <tr>
                     <th className="py-2 pr-2">When</th>
                     <th className="py-2 pr-2">Member</th>
-                    <th className="py-2 pr-2">Device user ID</th>
+                    <th className="py-2 pr-2">Library no.</th>
                     <th className="py-2 pr-2">₹</th>
                     <th className="py-2 pr-2">Status</th>
-                    <th className="py-2 pr-2">Payment id</th>
-                    <th className="py-2">Membership id</th>
+                    <th className="py-2 pr-2">Payment ref.</th>
+                    <th className="py-2">Membership ref.</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-ink-100 text-ink-800">

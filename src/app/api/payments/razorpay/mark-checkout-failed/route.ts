@@ -1,4 +1,4 @@
-import { apiError, apiSuccess } from "@/lib/api/json-response";
+import { apiError, apiSuccess, apiErrorSafe } from "@/lib/api/json-response";
 import { cancelPendingPaymentMembership } from "@/lib/payments/cancel-pending-checkout-membership";
 import { sanitizeCheckoutFailurePayload } from "@/lib/payments/sanitize-checkout-failure";
 import { createSupabaseRouteHandlerClient } from "@/lib/supabase/route-handler";
@@ -40,8 +40,7 @@ export async function POST(request: Request) {
   try {
     admin = createSupabaseServiceRoleClient();
   } catch (e) {
-    const msg = e instanceof Error ? e.message : "Could not create Supabase admin client.";
-    return apiError(msg, 503);
+    return apiErrorSafe(e, 503, "Could not create Supabase admin client.");
   }
 
   const { data: pay, error: payErr } = await admin
@@ -77,7 +76,7 @@ export async function POST(request: Request) {
     .eq("status", "pending");
 
   if (upErr) {
-    return apiError(upErr.message, 500);
+    return apiErrorSafe(upErr, 500);
   }
 
   await cancelPendingPaymentMembership(admin, pay.membership_id as string | null | undefined);

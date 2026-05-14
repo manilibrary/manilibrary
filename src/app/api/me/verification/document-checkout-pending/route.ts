@@ -1,12 +1,18 @@
 import { randomUUID } from "crypto";
 
-import { apiError, apiSuccess } from "@/lib/api/json-response";
-import {
-  CHECKOUT_KYC_STAGING_SETUP,
-  isCheckoutKycStagingTableUnavailable,
-} from "@/lib/kyc/checkout-staging-errors";
+import { apiError, apiSuccess, apiErrorSafe } from "@/lib/api/json-response";
 import { createSupabaseRouteHandlerClient } from "@/lib/supabase/route-handler";
 import { createSupabaseServiceRoleClient } from "@/lib/supabase/service-role";
+import {
+  deriveUiVerificationStatus,
+  fetchDocumentsForVerification,
+  fetchLatestVerification,
+  fetchOpenVerification,
+  insertVerificationDocument,
+  listDocTypesForPhase,
+  replaceVerificationDocumentSlot,
+  type VerificationDocItem,
+} from "@/lib/verification/verification-repo";
 
 export const runtime = "nodejs";
 
@@ -31,21 +37,12 @@ export async function GET() {
   try {
     admin = createSupabaseServiceRoleClient();
   } catch (e) {
-    const msg = e instanceof Error ? e.message : "Server misconfiguration.";
-    return apiError(msg, 503);
+    return apiErrorSafe(e, 503, "Server misconfiguration.");
   }
 
-  const { data: rows, error } = await admin
-    .from("kyc_checkout_pending_documents")
-    .select("doc_type")
-    .eq("user_id", user.id);
-  if (error) {
-    if (isCheckoutKycStagingTableUnavailable(error)) {
-      return apiSuccess("OK", { stagedDocTypes: [], checkoutKycStagingReady: false });
-    }
-    return apiError(error.message, 500);
-  }
-  const stagedDocTypes = (rows ?? []).map((r) => r.doc_type as string).filter(Boolean);
+  const { data: latest } = await fetchLatestVerification(admin, user.id);
+  const docs = latest?.id ? await fetchDocumentsForVerification(admin, latest.id) : [];
+  const stagedDocTypes = listDocTypesForPhase(docs, "checkout_pending");
   return apiSuccess("OK", { stagedDocTypes, checkoutKycStagingReady: true });
 }
 
@@ -62,8 +59,7 @@ export async function POST(request: Request) {
   try {
     admin = createSupabaseServiceRoleClient();
   } catch (e) {
-    const msg = e instanceof Error ? e.message : "Server misconfiguration.";
-    return apiError(msg, 503);
+    return apiErrorSafe(e, 503, "Server misconfiguration.");
   }
 
   const form = await request.formData();
@@ -85,15 +81,14 @@ export async function POST(request: Request) {
     return apiError("Only JPEG, PNG, WebP, or PDF allowed.", 400);
   }
 
-  const { data: profRow, error: prErr } = await admin
-    .from("profiles")
-    .select("verification_status")
-    .eq("user_id", user.id)
-    .maybeSingle();
+  const { data: profRow, error: prErr } = await admin.from("profiles").select("is_verified").eq("user_id", user.id).maybeSingle();
   if (prErr) {
-    return apiError(prErr.message, 500);
+    return apiErrorSafe(prErr, 500);
   }
-  const vStatus = (profRow?.verification_status ?? "none").toLowerCase();
+
+  const { data: latestV } = await fetchLatestVerification(admin, user.id);
+  const latestDocs = latestV?.id ? await fetchDocumentsForVerification(admin, latestV.id) : [];
+  const vStatus = deriveUiVerificationStatus(profRow?.is_verified === true, latestV, latestDocs);
 
   if (vStatus === "approved") {
     return apiError("Checkout uploads are not available while you are verified.", 403);
@@ -108,20 +103,9 @@ export async function POST(request: Request) {
     return apiError("Checkout uploads are not available in your current verification state.", 403);
   }
 
-  const { data: prior, error: priorErr } = await admin
-    .from("kyc_checkout_pending_documents")
-    .select("storage_bucket, storage_path")
-    .eq("user_id", user.id)
-    .eq("doc_type", docType)
-    .maybeSingle();
-  if (priorErr) {
-    if (isCheckoutKycStagingTableUnavailable(priorErr)) {
-      return apiError(`Checkout ID uploads are not available yet. ${CHECKOUT_KYC_STAGING_SETUP}`, 503, {
-        hint: priorErr.message,
-      });
-    }
-    return apiError(priorErr.message, 500);
-  }
+  const { data: pendRow } = await fetchOpenVerification(admin, user.id);
+  const priorDocs = pendRow?.id ? await fetchDocumentsForVerification(admin, pendRow.id) : [];
+  const prior = priorDocs.find((d) => d.doc_type === docType && d.phase === "checkout_pending");
 
   const ext =
     ct === "image/png"
@@ -140,30 +124,56 @@ export async function POST(request: Request) {
     upsert: true,
   });
   if (upErr) {
-    return apiError(upErr.message, 502, {
+    return apiErrorSafe(upErr, 502, "Could not upload file.", {
       hint: "Create a private Storage bucket (e.g. kyc-private) and set KYC_STORAGE_BUCKET if different.",
     });
   }
 
-  const { error: rowErr } = await admin.from("kyc_checkout_pending_documents").upsert(
-    {
+  const newItem: VerificationDocItem = {
+    doc_type: docType,
+    storage_bucket: bucket(),
+    storage_path: path,
+    content_type: ct,
+    phase: "checkout_pending",
+  };
+
+  let verId = pendRow?.id;
+  if (verId) {
+    const { error: rowErr } = await replaceVerificationDocumentSlot(admin, {
+      verification_id: verId,
       user_id: user.id,
-      doc_type: docType,
-      storage_bucket: bucket(),
-      storage_path: path,
-      content_type: ct,
-      updated_at: new Date().toISOString(),
-    },
-    { onConflict: "user_id,doc_type" },
-  );
-  if (rowErr) {
-    await admin.storage.from(bucket()).remove([path]);
-    if (isCheckoutKycStagingTableUnavailable(rowErr)) {
-      return apiError(`Checkout ID uploads are not available yet. ${CHECKOUT_KYC_STAGING_SETUP}`, 503, {
-        hint: rowErr.message,
-      });
+      item: newItem,
+    });
+    if (rowErr) {
+      await admin.storage.from(bucket()).remove([path]);
+      return apiErrorSafe(rowErr, 400);
     }
-    return apiError(rowErr.message, 400);
+    const { error: tsErr } = await admin.from("verification").update({ updated_at: new Date().toISOString() }).eq("id", verId);
+    if (tsErr) {
+      await admin.storage.from(bucket()).remove([path]);
+      return apiErrorSafe(tsErr, 400);
+    }
+  } else {
+    const { data: ins, error: insErr } = await admin
+      .from("verification")
+      .insert({ user_id: user.id, status: "pending" })
+      .select("id")
+      .single();
+    if (insErr || !ins?.id) {
+      await admin.storage.from(bucket()).remove([path]);
+      return apiErrorSafe(insErr, 400, "Could not create verification row.");
+    }
+    verId = ins.id as string;
+    const { error: docErr } = await insertVerificationDocument(admin, {
+      verification_id: verId,
+      user_id: user.id,
+      item: newItem,
+    });
+    if (docErr) {
+      await admin.storage.from(bucket()).remove([path]);
+      await admin.from("verification").delete().eq("id", verId);
+      return apiErrorSafe(docErr, 400);
+    }
   }
 
   if (prior?.storage_path && prior.storage_path !== path) {

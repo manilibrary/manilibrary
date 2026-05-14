@@ -1,20 +1,53 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { formatDateTimeDdMmYyyy } from "@/lib/date-format";
 import { TableBodySkeleton } from "@/components/ui/ContentSkeletons";
 
-function MonoTrunc({ value }: { value: string | null | undefined }) {
-  if (!value) {
-    return <span className="text-ink-500">—</span>;
+function shortIdPreview(id: string): string {
+  const s = id.trim();
+  if (!s) return "—";
+  if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s)) {
+    return `${s.slice(0, 8)}…${s.slice(-4)}`;
   }
-  const display = value.length > 22 ? `${value.slice(0, 14)}…${value.slice(-5)}` : value;
+  if (s.length <= 14) return s;
+  return `${s.slice(0, 6)}…${s.slice(-4)}`;
+}
+
+function CopyIdCell({ value, copyLabel }: { value: string; copyLabel: string }) {
+  const [copied, setCopied] = useState(false);
+  const preview = useMemo(() => shortIdPreview(value), [value]);
+
+  const copy = useCallback(async () => {
+    try {
+      await navigator.clipboard.writeText(value);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 2000);
+    } catch {
+      setCopied(false);
+    }
+  }, [value]);
+
   return (
-    <span className="inline-block max-w-[12rem] font-mono text-xs break-all" title={value}>
-      {display}
-    </span>
+    <div className="w-[4.75rem] shrink-0" title={value}>
+      <p className="font-mono text-[10px] leading-tight tracking-tight text-ink-800">{preview}</p>
+      <button
+        type="button"
+        onClick={() => void copy()}
+        className="mt-1 inline-flex w-full justify-center rounded border border-ink-200 bg-white px-1 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-ink-700 hover:bg-ink-50"
+        aria-label={copyLabel}
+      >
+        {copied ? "OK" : "Copy"}
+      </button>
+    </div>
   );
+}
+
+function CopyIdCellOptional({ value, copyLabel }: { value: string | null | undefined; copyLabel: string }) {
+  const v = typeof value === "string" ? value.trim() : "";
+  if (!v) return <span className="text-ink-500">—</span>;
+  return <CopyIdCell value={v} copyLabel={copyLabel} />;
 }
 
 function DetailCell({ text }: { text: string | null }) {
@@ -22,7 +55,7 @@ function DetailCell({ text }: { text: string | null }) {
     return <span className="text-ink-500">—</span>;
   }
   return (
-    <p className="max-w-[min(28rem,55vw)] text-xs leading-snug text-ink-700" title={text}>
+    <p className="max-w-[14rem] text-xs leading-snug text-ink-700" title={text}>
       {text}
     </p>
   );
@@ -144,20 +177,21 @@ export default function StaffPaymentsPanel() {
         <table className="min-w-full text-left text-sm">
           <thead className="border-b border-ink-100 bg-surface-muted/80 font-mono text-[10px] uppercase tracking-widest text-ink-500">
             <tr>
+              <th className="w-[5.5rem] shrink-0 px-2 py-3">Row ID</th>
               <th className="min-w-[8rem] px-4 py-3">Member name</th>
-              <th className="min-w-[7rem] px-4 py-3">Member ID</th>
-              <th className="px-4 py-3">Device user ID</th>
-              <th className="min-w-[7rem] px-4 py-3">Razorpay payment</th>
-              <th className="min-w-[7rem] px-4 py-3">Razorpay order</th>
+              <th className="w-[5.5rem] shrink-0 px-2 py-3">Member ID</th>
+              <th className="px-4 py-3">Library no.</th>
+              <th className="w-[5.5rem] shrink-0 px-2 py-3">RZP pay</th>
+              <th className="w-[5.5rem] shrink-0 px-2 py-3">RZP order</th>
               <th className="px-4 py-3">Amount</th>
               <th className="px-4 py-3">Status</th>
-              <th className="min-w-[12rem] px-4 py-3">Detail</th>
+              <th className="min-w-[10rem] px-4 py-3">Detail</th>
               <th className="px-4 py-3">Provider</th>
               <th className="px-4 py-3">When</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-ink-100">
-            <TableBodySkeleton rows={7} cols={10} tdClass="px-4 py-3" />
+            <TableBodySkeleton rows={7} cols={11} tdClass="px-4 py-3" />
           </tbody>
         </table>
       </div>
@@ -171,9 +205,10 @@ export default function StaffPaymentsPanel() {
   return (
     <div className="space-y-4">
       <p className="text-xs text-ink-500">
-        Amounts are stored as whole rupees in <span className="font-mono">amount_rupees</span> (e.g. 500 = ₹500).
-        When a member&apos;s Razorpay checkout fires <span className="font-mono">payment.failed</span>, we store the
-        message in <span className="font-mono">Detail</span> for staff review.
+        Amounts use <span className="font-mono">amount_rupees</span> (500 = ₹500). Failed checkouts store a{" "}
+        <strong className="font-medium text-ink-600">short reason</strong> (for example &quot;Invalid card&quot;) in{" "}
+        <span className="font-mono">metadata.checkout_failure</span> — use <span className="font-mono">Copy</span> for full
+        IDs.
       </p>
 
       <div className="flex flex-wrap items-center gap-2">
@@ -205,14 +240,15 @@ export default function StaffPaymentsPanel() {
         <table className="min-w-full text-left text-sm">
           <thead className="border-b border-ink-100 bg-surface-muted/80 font-mono text-[10px] uppercase tracking-widest text-ink-500">
             <tr>
+              <th className="w-[5.5rem] shrink-0 px-2 py-3">Row ID</th>
               <th className="min-w-[8rem] px-4 py-3">Member name</th>
-              <th className="min-w-[7rem] px-4 py-3">Member ID</th>
-              <th className="px-4 py-3">Device user ID</th>
-              <th className="min-w-[7rem] px-4 py-3">Razorpay payment</th>
-              <th className="min-w-[7rem] px-4 py-3">Razorpay order</th>
+              <th className="w-[5.5rem] shrink-0 px-2 py-3">Member ID</th>
+              <th className="px-4 py-3">Library no.</th>
+              <th className="w-[5.5rem] shrink-0 px-2 py-3">RZP pay</th>
+              <th className="w-[5.5rem] shrink-0 px-2 py-3">RZP order</th>
               <th className="px-4 py-3">Amount</th>
               <th className="px-4 py-3">Status</th>
-              <th className="min-w-[12rem] px-4 py-3">Detail</th>
+              <th className="min-w-[10rem] px-4 py-3">Detail</th>
               <th className="px-4 py-3">Provider</th>
               <th className="px-4 py-3">When</th>
             </tr>
@@ -220,7 +256,7 @@ export default function StaffPaymentsPanel() {
           <tbody className="divide-y divide-ink-100">
             {filtered.length === 0 ? (
               <tr>
-                <td colSpan={10} className="px-4 py-6 text-center text-sm text-ink-500">
+                <td colSpan={11} className="px-4 py-6 text-center text-sm text-ink-500">
                   No rows for this filter.
                 </td>
               </tr>
@@ -230,18 +266,21 @@ export default function StaffPaymentsPanel() {
                 const inr = Number(r.amount_rupees).toFixed(2);
                 return (
                   <tr key={r.id} className="text-ink-800">
+                    <td className="px-2 py-3 align-top">
+                      <CopyIdCell value={r.id} copyLabel="Copy payment row id" />
+                    </td>
                     <td className="px-4 py-3">{p?.full_name ?? "—"}</td>
-                    <td className="px-4 py-3 align-top">
-                      <MonoTrunc value={r.user_id} />
+                    <td className="px-2 py-3 align-top">
+                      <CopyIdCell value={r.user_id} copyLabel="Copy member user id" />
                     </td>
                     <td className="px-4 py-3 font-mono">
                       {p ? String(p.device_user_id).padStart(4, "0") : "—"}
                     </td>
-                    <td className="px-4 py-3 align-top">
-                      <MonoTrunc value={r.razorpay_payment_id} />
+                    <td className="px-2 py-3 align-top">
+                      <CopyIdCellOptional value={r.razorpay_payment_id} copyLabel="Copy Razorpay payment id" />
                     </td>
-                    <td className="px-4 py-3 align-top">
-                      <MonoTrunc value={r.razorpay_order_id} />
+                    <td className="px-2 py-3 align-top">
+                      <CopyIdCellOptional value={r.razorpay_order_id} copyLabel="Copy Razorpay order id" />
                     </td>
                     <td className="px-4 py-3 font-mono">
                       {r.currency} {inr}

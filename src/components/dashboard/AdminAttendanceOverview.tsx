@@ -1,7 +1,15 @@
 "use client";
 
 import Link from "next/link";
-import { startTransition, useCallback, useEffect, useState } from "react";
+import { startTransition, useCallback, useEffect, useLayoutEffect, useState } from "react";
+
+import {
+  ADMIN_ATTENDANCE_SESSION_TTL_MS,
+  adminAttendanceOverviewDailyKey,
+  adminAttendanceOverviewPunchesKey,
+  readAdminAttendanceSessionCache,
+  writeAdminAttendanceSessionCache,
+} from "@/lib/client/admin-attendance-session-cache";
 
 type DailyItem = {
   date: string;
@@ -37,33 +45,59 @@ export default function AdminAttendanceOverview() {
   const [punches, setPunches] = useState<PunchItem[] | null>(null);
   const [punchErr, setPunchErr] = useState<string | null>(null);
 
+  useLayoutEffect(() => {
+    const d = readAdminAttendanceSessionCache<DailyItem[]>(
+      adminAttendanceOverviewDailyKey,
+      ADMIN_ATTENDANCE_SESSION_TTL_MS,
+    );
+    if (d != null) {
+      setDaily(d);
+    }
+    const p = readAdminAttendanceSessionCache<PunchItem[]>(
+      adminAttendanceOverviewPunchesKey,
+      ADMIN_ATTENDANCE_SESSION_TTL_MS,
+    );
+    if (p != null) {
+      setPunches(p);
+    }
+    setDailyErr(null);
+    setPunchErr(null);
+  }, []);
+
   const load = useCallback(async () => {
     try {
-      const res = await fetch("/api/admin/attendance/daily", { cache: "no-store" });
-      const j = (await res.json()) as { ok?: boolean; error?: string; items?: DailyItem[] };
-      if (!res.ok || !j.ok) {
-        setDailyErr(j.error ?? "Could not load today's attendance.");
-        setDaily([]);
+      const [dailyRes, punchRes] = await Promise.all([
+        fetch("/api/admin/attendance/daily", { cache: "no-store" }),
+        fetch("/api/admin/attendance/last-punches", { cache: "no-store" }),
+      ]);
+      const dailyJson = (await dailyRes.json()) as { ok?: boolean; error?: string; items?: DailyItem[] };
+      const punchJson = (await punchRes.json()) as { ok?: boolean; error?: string; items?: PunchItem[] };
+
+      if (!dailyRes.ok || !dailyJson.ok) {
+        setDailyErr(dailyJson.error ?? "Could not load today's attendance.");
+        setDaily((prev) => (prev != null && prev.length > 0 ? prev : []));
       } else {
         setDailyErr(null);
-        setDaily(j.items ?? []);
+        const next = dailyJson.items ?? [];
+        setDaily(next);
+        writeAdminAttendanceSessionCache(adminAttendanceOverviewDailyKey, next);
       }
-    } catch (e) {
-      setDailyErr(e instanceof Error ? e.message : "Network error.");
-    }
 
-    try {
-      const res = await fetch("/api/admin/attendance/last-punches", { cache: "no-store" });
-      const j = (await res.json()) as { ok?: boolean; error?: string; items?: PunchItem[] };
-      if (!res.ok || !j.ok) {
-        setPunchErr(j.error ?? "Could not load latest punches.");
-        setPunches([]);
+      if (!punchRes.ok || !punchJson.ok) {
+        setPunchErr(punchJson.error ?? "Could not load latest punches.");
+        setPunches((prev) => (prev != null && prev.length > 0 ? prev : []));
       } else {
         setPunchErr(null);
-        setPunches(j.items ?? []);
+        const nextP = punchJson.items ?? [];
+        setPunches(nextP);
+        writeAdminAttendanceSessionCache(adminAttendanceOverviewPunchesKey, nextP);
       }
     } catch (e) {
-      setPunchErr(e instanceof Error ? e.message : "Network error.");
+      const msg = e instanceof Error ? e.message : "Network error.";
+      setDailyErr(msg);
+      setPunchErr(msg);
+      setDaily((prev) => (prev != null && prev.length > 0 ? prev : []));
+      setPunches((prev) => (prev != null && prev.length > 0 ? prev : []));
     }
   }, []);
 
@@ -177,7 +211,7 @@ export default function AdminAttendanceOverview() {
             href="/dashboard/attendance"
             className="text-xs font-medium text-azure-600 hover:text-azure-700"
           >
-            Live tail →
+            Full attendance →
           </Link>
         </div>
 

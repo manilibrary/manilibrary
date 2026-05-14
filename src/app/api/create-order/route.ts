@@ -1,6 +1,6 @@
 import Razorpay from "razorpay";
 
-import { apiError, apiSuccess } from "@/lib/api/json-response";
+import { apiError, apiErrorSafe, apiSuccess } from "@/lib/api/json-response";
 
 export const runtime = "nodejs";
 
@@ -12,13 +12,11 @@ type RazorpaySdkError = {
 
 function mapRazorpaySdkError(e: unknown) {
   const err = e as RazorpaySdkError;
-  const msg =
-    err?.error?.description ?? err?.message ?? (e instanceof Error ? e.message : "Razorpay order creation failed.");
   const code = err?.statusCode;
   if (code === 401) {
     return apiError("Razorpay authentication failed (check RAZORPAY_KEY_ID / RAZORPAY_KEY_SECRET).", 401);
   }
-  return apiError(msg, 500);
+  return apiErrorSafe(e, 500, "Could not create order with the payment provider.");
 }
 
 export async function POST(request: Request) {

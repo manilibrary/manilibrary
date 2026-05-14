@@ -1,3 +1,4 @@
+import { safeClientErrorMessage } from "@/lib/api/json-response";
 import { createSupabaseRouteHandlerClient } from "@/lib/supabase/route-handler";
 import { createSupabaseServiceRoleClient } from "@/lib/supabase/service-role";
 
@@ -23,7 +24,7 @@ export async function requireLibraryAdmin(): Promise<LibraryAdminGate> {
   try {
     admin = createSupabaseServiceRoleClient();
   } catch (e) {
-    const msg = e instanceof Error ? e.message : "Could not create admin client.";
+    const msg = safeClientErrorMessage(e, "Could not create admin client.");
     return { ok: false, status: 503, message: msg };
   }
 
@@ -34,7 +35,7 @@ export async function requireLibraryAdmin(): Promise<LibraryAdminGate> {
     .maybeSingle();
 
   if (error) {
-    return { ok: false, status: 403, message: error.message };
+    return { ok: false, status: 403, message: safeClientErrorMessage(error, "Could not verify admin access.") };
   }
   if (data?.is_admin !== true) {
     return { ok: false, status: 403, message: "Library admin only." };
@@ -59,7 +60,7 @@ export async function requireLibraryAdminOrSuperAdmin(): Promise<LibraryAdminGat
   try {
     admin = createSupabaseServiceRoleClient();
   } catch (e) {
-    const msg = e instanceof Error ? e.message : "Could not create admin client.";
+    const msg = safeClientErrorMessage(e, "Could not create admin client.");
     return { ok: false, status: 503, message: msg };
   }
 
@@ -70,7 +71,7 @@ export async function requireLibraryAdminOrSuperAdmin(): Promise<LibraryAdminGat
     .maybeSingle();
 
   if (error) {
-    return { ok: false, status: 403, message: error.message };
+    return { ok: false, status: 403, message: safeClientErrorMessage(error, "Could not verify admin access.") };
   }
   if (data?.is_admin !== true && data?.is_superadmin !== true) {
     return { ok: false, status: 403, message: "Library admin or superadmin only." };

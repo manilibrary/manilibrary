@@ -322,7 +322,7 @@ export default function AdminLibraryInsights() {
                 <tr>
                   <th className="py-2 pr-2">When</th>
                   <th className="py-2 pr-2">Member</th>
-                  <th className="py-2 pr-2">Device user ID</th>
+                  <th className="py-2 pr-2">Library no.</th>
                   <th className="py-2 pr-2">Amount</th>
                   <th className="py-2">Status</th>
                 </tr>
@@ -370,7 +370,7 @@ export default function AdminLibraryInsights() {
                 <tr>
                   <th className="py-2 pr-2">Created</th>
                   <th className="py-2 pr-2">Member</th>
-                  <th className="py-2 pr-2">Device user ID</th>
+                  <th className="py-2 pr-2">Library no.</th>
                   <th className="py-2 pr-2">Plan</th>
                   <th className="py-2">Seat</th>
                 </tr>
@@ -430,7 +430,7 @@ export default function AdminLibraryInsights() {
               <tr>
                 <th className="py-2 pr-2">Member</th>
                 <th className="py-2 pr-2">Plan</th>
-                <th className="py-2 pr-2">Device user ID</th>
+                <th className="py-2 pr-2">Library no.</th>
                 <th className="py-2 pr-2">Seat</th>
                 <th className="py-2">Ends</th>
               </tr>

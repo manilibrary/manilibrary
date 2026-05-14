@@ -1,13 +1,13 @@
-import { apiError } from "@/lib/api/json-response";
+import { apiError, safeClientErrorMessage } from "@/lib/api/json-response";
 
 import { EtimeHttpError } from "./fetch-server";
 
 export function etimeErrorResponse(e: unknown) {
   if (e instanceof EtimeHttpError) {
-    return apiError(e.message, 502, { snippet: e.bodySnippet });
+    return apiError(safeClientErrorMessage(e, "The gate service did not respond."), 502, { snippet: e.bodySnippet });
   }
-  const msg = e instanceof Error ? e.message : "eTime request failed";
-  if (msg.includes("credentials missing")) {
+  const msg = safeClientErrorMessage(e, "The gate service returned an error.");
+  if (e instanceof Error && e.message.includes("credentials missing")) {
     return apiError(msg, 503);
   }
   return apiError(msg, 500);

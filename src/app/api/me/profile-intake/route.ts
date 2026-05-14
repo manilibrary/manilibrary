@@ -1,4 +1,5 @@
-import { apiError, apiSuccess } from "@/lib/api/json-response";
+import { apiError, apiSuccess, apiErrorSafe } from "@/lib/api/json-response";
+import { mergeProfileExtras } from "@/lib/profiles/profile-extras";
 import { createSupabaseRouteHandlerClient } from "@/lib/supabase/route-handler";
 import { createSupabaseServiceRoleClient } from "@/lib/supabase/service-role";
 
@@ -36,32 +37,32 @@ export async function PATCH(request: Request) {
     return apiError("Expected JSON body.", 400);
   }
 
-  const patch: Record<string, unknown> = {};
+  const extrasPatch: Record<string, unknown> = {};
 
   if ("aadhaar_last_four" in body) {
     const n = normLastFour(body.aadhaar_last_four);
     if (n === "__invalid__") {
       return apiError("Aadhaar last four must be exactly 4 digits.", 400);
     }
-    patch.aadhaar_last_four = n;
+    extrasPatch.aadhaar_last_four = n;
   }
   if ("student_roll_number" in body) {
     const s = body.student_roll_number == null ? null : String(body.student_roll_number).trim().slice(0, 120);
-    patch.student_roll_number = s || null;
+    extrasPatch.student_roll_number = s || null;
   }
   if ("institution_type" in body) {
     const t = body.institution_type == null || body.institution_type === "" ? null : String(body.institution_type);
     if (t && !INSTITUTIONS.has(t)) {
       return apiError("institution_type must be school, college, freelance, or other.", 400);
     }
-    patch.institution_type = t;
+    extrasPatch.institution_type = t;
   }
   if ("preparing_for" in body) {
     const s = body.preparing_for == null ? null : String(body.preparing_for).trim().slice(0, 200);
-    patch.preparing_for = s || null;
+    extrasPatch.preparing_for = s || null;
   }
 
-  if (Object.keys(patch).length === 0) {
+  if (Object.keys(extrasPatch).length === 0) {
     return apiError("No fields to update.", 400);
   }
 
@@ -69,13 +70,19 @@ export async function PATCH(request: Request) {
   try {
     admin = createSupabaseServiceRoleClient();
   } catch (e) {
-    const msg = e instanceof Error ? e.message : "Server misconfiguration.";
-    return apiError(msg, 503);
+    return apiErrorSafe(e, 503, "Server misconfiguration.");
   }
 
-  const { error } = await admin.from("profiles").update(patch).eq("user_id", user.id);
+  const { data: cur, error: ce } = await admin.from("profiles").select("profile_extras").eq("user_id", user.id).maybeSingle();
+  if (ce) {
+    return apiErrorSafe(ce, 400);
+  }
+
+  const merged = mergeProfileExtras(cur?.profile_extras ?? {}, extrasPatch);
+
+  const { error } = await admin.from("profiles").update({ profile_extras: merged }).eq("user_id", user.id);
   if (error) {
-    return apiError(error.message, 400);
+    return apiErrorSafe(error, 400);
   }
 
   return apiSuccess("Profile / intake fields saved.");

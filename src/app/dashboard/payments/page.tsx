@@ -9,7 +9,7 @@ export default function PaymentsPage() {
       <PageHeader
         eyebrow="payments"
         title="Payments"
-        description="Latest payment rows from Supabase (admin view)."
+        description="Latest payments (staff admin view)."
       />
       <StaffPaymentsPanel />
     </div>

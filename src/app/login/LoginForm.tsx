@@ -110,7 +110,7 @@ export default function LoginForm() {
 
     if (!profile) {
       setSubmitError(
-        "No library profile found for this account. In Supabase: check that trigger on_auth_user_created on auth.users inserts into public.profiles, RLS allows select on your own row, and this user has a profile row (backfill from auth.users if needed). Then try signing in again.",
+        "We could not find a library member profile for this account. Please contact the library or whoever manages accounts so your login can be linked, then try again.",
       );
       await supabase.auth.signOut();
       clearAllUxPreferenceCookies();

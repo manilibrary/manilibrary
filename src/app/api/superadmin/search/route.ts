@@ -1,7 +1,9 @@
-import { apiError, apiSuccess } from "@/lib/api/json-response";
+import { apiError, apiSuccess, apiErrorSafe } from "@/lib/api/json-response";
 import { formatProfileMemberLabel } from "@/lib/membership/profile-label";
+import { extrasToDisplayFields } from "@/lib/profiles/profile-extras";
 import { requireLibrarySuperAdmin } from "@/lib/supabase/require-library-super-admin";
 import { createSupabaseServiceRoleClient } from "@/lib/supabase/service-role";
+import { deriveUiVerificationStatus, mapLatestVerificationWithDocsByUserId } from "@/lib/verification/verification-repo";
 
 export const runtime = "nodejs";
 
@@ -9,7 +11,7 @@ const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 const PROFILE_SEARCH_SELECT =
-  "user_id, full_name, device_user_id, email, is_admin, is_superadmin, verification_status, aadhaar_last_four, student_roll_number, institution_type, preparing_for";
+  "user_id, full_name, device_user_id, email, is_admin, is_superadmin, is_verified, profile_extras";
 
 function safeIlikeFragment(s: string): string {
   return s.replace(/%/g, "").replace(/,/g, "").trim().slice(0, 120);
@@ -30,8 +32,7 @@ export async function GET(request: Request) {
   try {
     admin = createSupabaseServiceRoleClient();
   } catch (e) {
-    const msg = e instanceof Error ? e.message : "Server configuration error.";
-    return apiError(msg, 503);
+    return apiErrorSafe(e, 503, "Server configuration error.");
   }
 
   type Mem = Record<string, unknown>;
@@ -167,6 +168,25 @@ export async function GET(request: Request) {
   for (const p of payments) {
     const uid = p.user_id as string | undefined;
     if (uid) p.member_label = labelByUser[uid] ?? uid;
+  }
+
+  if (profiles.length > 0) {
+    const uids = [...new Set(profiles.map((p) => String(p.user_id ?? "")).filter(Boolean))];
+    const verByUser = await mapLatestVerificationWithDocsByUserId(admin, uids);
+    for (const p of profiles) {
+      const uid = String(p.user_id ?? "");
+      const x = extrasToDisplayFields(p.profile_extras);
+      p.aadhaar_last_four = x.aadhaar_last_four;
+      p.student_roll_number = x.student_roll_number;
+      p.institution_type = x.institution_type;
+      p.preparing_for = x.preparing_for;
+      const bundle = verByUser.get(uid);
+      p.verification_status = deriveUiVerificationStatus(
+        p.is_verified === true,
+        bundle?.row ?? null,
+        bundle?.docs ?? [],
+      );
+    }
   }
 
   return apiSuccess("Search complete.", { memberships, profiles, payments });
