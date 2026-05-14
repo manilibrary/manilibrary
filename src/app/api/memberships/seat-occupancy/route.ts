@@ -8,7 +8,7 @@ import {
 } from "@/lib/membership/seat-occupancy-window";
 import { parseNumericSeatFromStoredSeat } from "@/lib/membership/seat-label";
 import type { MembershipPlanKind } from "@/lib/payments/pricing";
-import { createSupabaseRouteHandlerClient } from "@/lib/supabase/route-handler";
+import { getAuthUserForApiRequest } from "@/lib/supabase/api-route-auth";
 import { createSupabaseServiceRoleClient } from "@/lib/supabase/service-role";
 
 export const runtime = "nodejs";
@@ -27,10 +27,9 @@ function isPlanKind(v: string | null): v is MembershipPlanKind {
 }
 
 export async function GET(request: Request) {
-  const supabase = await createSupabaseRouteHandlerClient();
   const {
     data: { user },
-  } = await supabase.auth.getUser();
+  } = await getAuthUserForApiRequest(request);
   if (!user) {
     return apiError("Sign in to load seat availability.", 401, { signedIn: false });
   }

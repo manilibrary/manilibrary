@@ -1,14 +1,13 @@
 import { apiError, apiSuccess, apiErrorSafe } from "@/lib/api/json-response";
-import { createSupabaseRouteHandlerClient } from "@/lib/supabase/route-handler";
+import { getAuthUserForApiRequest } from "@/lib/supabase/api-route-auth";
 import { createSupabaseServiceRoleClient } from "@/lib/supabase/service-role";
 
 export const runtime = "nodejs";
 
-export async function GET() {
-  const supabase = await createSupabaseRouteHandlerClient();
+export async function GET(request: Request) {
   const {
     data: { user },
-  } = await supabase.auth.getUser();
+  } = await getAuthUserForApiRequest(request);
   if (!user) {
     return apiError("Sign in required.", 401, { signedIn: false });
   }
