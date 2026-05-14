@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
+import { safeClientErrorMessage } from "@/lib/api/json-response";
 import {
   PAYMENT_METADATA_PLANNED_SEAT_KEY,
   isPendingMembershipSeatPlaceholder,
@@ -42,7 +43,11 @@ export async function finalizeRazorpayPaymentRow(
     .eq("id", input.paymentId);
 
   if (upPay) {
-    return { ok: false, status: 500, error: upPay.message };
+    return {
+      ok: false,
+      status: 500,
+      error: safeClientErrorMessage(upPay, "Could not update payment status."),
+    };
   }
 
   if (pay.membership_id) {
@@ -53,7 +58,14 @@ export async function finalizeRazorpayPaymentRow(
       .maybeSingle();
 
     if (memFetchErr) {
-      return { ok: false, status: 500, error: `Payment marked paid but could not load membership: ${memFetchErr.message}` };
+      return {
+        ok: false,
+        status: 500,
+        error: safeClientErrorMessage(
+          memFetchErr,
+          "Payment was recorded but membership details could not be loaded. Contact support.",
+        ),
+      };
     }
     if (!memRow) {
       return {
@@ -90,7 +102,14 @@ export async function finalizeRazorpayPaymentRow(
       .eq("id", pay.membership_id);
 
     if (upMem) {
-      return { ok: false, status: 500, error: `Payment marked paid but membership update failed: ${upMem.message}` };
+      return {
+        ok: false,
+        status: 500,
+        error: safeClientErrorMessage(
+          upMem,
+          "Payment was recorded but activating your seat failed. Contact support.",
+        ),
+      };
     }
   }
 

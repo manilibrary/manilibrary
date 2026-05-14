@@ -49,8 +49,8 @@ export default function EtimeAttendanceStaffPanel({ isAdmin }: { isAdmin: boolea
       <div className="rounded-2xl border border-ink-100 bg-white p-6 shadow-card">
         <p className="font-mono text-[10px] uppercase tracking-widest text-ink-500">Member view</p>
         <p className="mt-2 text-sm leading-relaxed text-ink-600">
-          When attendance is synced from the biometric system into Supabase, your daily summary and punch
-          history will appear here. Library staff use an admin-only test panel to call the vendor APIs.
+          When attendance is saved from the library gate, your summary will show here. Managers use the full
+          Attendance page for detailed lists and tools.
         </p>
       </div>
     );
@@ -59,11 +59,11 @@ export default function EtimeAttendanceStaffPanel({ isAdmin }: { isAdmin: boolea
   return (
     <div className="space-y-8 rounded-2xl border border-ink-100 bg-white p-6 shadow-card">
       <div>
-        <p className="font-mono text-[10px] uppercase tracking-widest text-azure-600">Staff · eTimeOffice</p>
-        <h2 className="mt-1 text-lg font-semibold text-ink-900">Device API smoke test</h2>
+        <p className="font-mono text-[10px] uppercase tracking-widest text-azure-600">Staff · Gate link test</p>
+        <h2 className="mt-1 text-lg font-semibold text-ink-900">Check biometric connection</h2>
         <p className="mt-2 text-sm leading-relaxed text-ink-600">
-          Proxies to eTimeOffice using server env credentials. Never expose those keys to the browser — only
-          this signed-in admin session can trigger the routes.
+          These buttons talk to the gate system from the library server (not from your browser). Use them only when
+          you are checking that the gate supplier connection is working.
         </p>
       </div>
 
@@ -74,10 +74,10 @@ export default function EtimeAttendanceStaffPanel({ isAdmin }: { isAdmin: boolea
       ) : null}
 
       <section className="space-y-3">
-        <h3 className="text-sm font-semibold text-ink-900">B1 — In/out summary (DownloadInOutPunchData)</h3>
+        <h3 className="text-sm font-semibold text-ink-900">Daily in / out (pick dates)</h3>
         <div className="flex flex-wrap items-end gap-3">
           <label className="flex flex-col gap-1 text-xs text-ink-600">
-            FromDate
+            From (DD/MM/YYYY)
             <input
               className="rounded-lg border border-ink-200 px-3 py-2 text-sm"
               value={inOutFrom}
@@ -86,7 +86,7 @@ export default function EtimeAttendanceStaffPanel({ isAdmin }: { isAdmin: boolea
             />
           </label>
           <label className="flex flex-col gap-1 text-xs text-ink-600">
-            ToDate
+            To (DD/MM/YYYY)
             <input
               className="rounded-lg border border-ink-200 px-3 py-2 text-sm"
               value={inOutTo}
@@ -111,10 +111,10 @@ export default function EtimeAttendanceStaffPanel({ isAdmin }: { isAdmin: boolea
       </section>
 
       <section className="space-y-3">
-        <h3 className="text-sm font-semibold text-ink-900">B2 — Raw punches (DownloadPunchDataMCID)</h3>
+        <h3 className="text-sm font-semibold text-ink-900">Punch list (pick dates)</h3>
         <div className="flex flex-wrap items-end gap-3">
           <label className="flex min-w-[200px] flex-1 flex-col gap-1 text-xs text-ink-600">
-            FromDate
+            From (DD/MM/YYYY)
             <input
               className="rounded-lg border border-ink-200 px-3 py-2 font-mono text-sm"
               value={mcFrom}
@@ -122,7 +122,7 @@ export default function EtimeAttendanceStaffPanel({ isAdmin }: { isAdmin: boolea
             />
           </label>
           <label className="flex min-w-[200px] flex-1 flex-col gap-1 text-xs text-ink-600">
-            ToDate
+            To (DD/MM/YYYY)
             <input
               className="rounded-lg border border-ink-200 px-3 py-2 font-mono text-sm"
               value={mcTo}
@@ -146,15 +146,15 @@ export default function EtimeAttendanceStaffPanel({ isAdmin }: { isAdmin: boolea
       </section>
 
       <section className="space-y-3">
-        <h3 className="text-sm font-semibold text-ink-900">B3 — Last punch stream (DownloadLastPunchData)</h3>
+        <h3 className="text-sm font-semibold text-ink-900">Latest punches (optional bookmark)</h3>
         <div className="flex flex-wrap items-end gap-3">
           <label className="flex min-w-[220px] flex-1 flex-col gap-1 text-xs text-ink-600">
-            LastRecord (optional; use MaxRecord from previous response)
+            Bookmark from last run (optional)
             <input
               className="rounded-lg border border-ink-200 px-3 py-2 font-mono text-sm"
               value={lastRecord}
               onChange={(e) => setLastRecord(e.target.value)}
-              placeholder="052026$41207"
+              placeholder="Paste value from last response if continuing"
             />
           </label>
           <button

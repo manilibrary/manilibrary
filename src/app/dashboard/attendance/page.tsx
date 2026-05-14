@@ -32,7 +32,7 @@ export default async function AttendancePage() {
       <PageHeader
         eyebrow="attendance"
         title="Attendance"
-        description="Daily in/out from the biometric device, matched to library members by Empcode = device_user_id. Live tail below auto-refreshes every 30 seconds."
+        description="Who checked in or out at the gate, by date."
       />
       {isAdmin ? (
         <AdminAttendancePanel />

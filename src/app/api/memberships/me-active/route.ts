@@ -1,4 +1,4 @@
-import { apiError, apiSuccess } from "@/lib/api/json-response";
+import { apiError, apiSuccess, apiErrorSafe } from "@/lib/api/json-response";
 import { createSupabaseRouteHandlerClient } from "@/lib/supabase/route-handler";
 import { createSupabaseServiceRoleClient } from "@/lib/supabase/service-role";
 
@@ -17,8 +17,7 @@ export async function GET() {
   try {
     admin = createSupabaseServiceRoleClient();
   } catch (e) {
-    const msg = e instanceof Error ? e.message : "Could not load membership.";
-    return apiError(msg, 503);
+    return apiErrorSafe(e, 503, "Could not load membership.");
   }
 
   const now = new Date();
@@ -37,7 +36,7 @@ export async function GET() {
     .maybeSingle();
 
   if (error && error.code !== "PGRST116") {
-    return apiError(error.message, 500);
+    return apiErrorSafe(error, 500);
   }
 
   const has = data != null;

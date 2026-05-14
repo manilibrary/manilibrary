@@ -1,4 +1,4 @@
-import { apiError, apiSuccess } from "@/lib/api/json-response";
+import { apiError, apiSuccess, apiErrorSafe } from "@/lib/api/json-response";
 import { formatMemberSeatToken, PENDING_MEMBERSHIP_SEAT_PLACEHOLDER } from "@/lib/membership/seat-label";
 import { requireLibrarySuperAdmin } from "@/lib/supabase/require-library-super-admin";
 import { createSupabaseServiceRoleClient } from "@/lib/supabase/service-role";
@@ -76,8 +76,7 @@ export async function PATCH(request: Request, ctx: { params: Promise<{ id: strin
   try {
     admin = createSupabaseServiceRoleClient();
   } catch (e) {
-    const msg = e instanceof Error ? e.message : "Server configuration error.";
-    return apiError(msg, 503);
+    return apiErrorSafe(e, 503, "Server configuration error.");
   }
 
   const { data, error } = await admin
@@ -97,7 +96,7 @@ export async function PATCH(request: Request, ctx: { params: Promise<{ id: strin
         409,
       );
     }
-    return apiError(error.message, 400);
+    return apiErrorSafe(error, 400);
   }
   if (!data) {
     return apiError("Membership not found.", 404);
@@ -125,8 +124,7 @@ export async function DELETE(_request: Request, ctx: { params: Promise<{ id: str
   try {
     admin = createSupabaseServiceRoleClient();
   } catch (e) {
-    const msg = e instanceof Error ? e.message : "Server configuration error.";
-    return apiError(msg, 503);
+    return apiErrorSafe(e, 503, "Server configuration error.");
   }
 
   const { data: row, error: fe } = await admin
@@ -136,7 +134,7 @@ export async function DELETE(_request: Request, ctx: { params: Promise<{ id: str
     .maybeSingle();
 
   if (fe) {
-    return apiError(fe.message, 500);
+    return apiErrorSafe(fe, 500);
   }
   if (!row) {
     return apiError("Membership not found.", 404);
@@ -146,24 +144,24 @@ export async function DELETE(_request: Request, ctx: { params: Promise<{ id: str
 
   const { error: clearPay } = await admin.from("memberships").update({ payment_id: null }).eq("id", id);
   if (clearPay) {
-    return apiError(clearPay.message, 400);
+    return apiErrorSafe(clearPay, 400);
   }
 
   const { error: delByMembership } = await admin.from("payments").delete().eq("membership_id", id);
   if (delByMembership) {
-    return apiError(delByMembership.message, 400);
+    return apiErrorSafe(delByMembership, 400);
   }
 
   if (paymentId) {
     const { error: delPay } = await admin.from("payments").delete().eq("id", paymentId);
     if (delPay) {
-      return apiError(delPay.message, 400);
+      return apiErrorSafe(delPay, 400);
     }
   }
 
   const { error: delMem } = await admin.from("memberships").delete().eq("id", id);
   if (delMem) {
-    return apiError(delMem.message, 400);
+    return apiErrorSafe(delMem, 400);
   }
 
   return apiSuccess("Membership and related payment rows deleted.");

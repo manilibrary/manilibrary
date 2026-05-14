@@ -153,7 +153,7 @@ export default function SuperadminMembershipsPanel() {
             <tr>
               <th className="px-3 py-2">Plan</th>
               <th className="px-3 py-2">Status</th>
-              <th className="px-3 py-2">Device user ID</th>
+              <th className="px-3 py-2">Library no.</th>
               <th
                 className="px-3 py-2"
                 title="Only active memberships hold a seat for others. Pending payment shows checkout choice only."

@@ -1,4 +1,4 @@
-import { apiError, apiSuccess } from "@/lib/api/json-response";
+import { apiError, apiSuccess, apiErrorSafe } from "@/lib/api/json-response";
 import { createSupabaseRouteHandlerClient } from "@/lib/supabase/route-handler";
 
 export const runtime = "nodejs";
@@ -26,7 +26,7 @@ export async function POST(request: Request) {
     const { data, error } = await supabase.auth.signInWithPassword({ email, password });
 
     if (error) {
-      return apiError(error.message, 401);
+      return apiErrorSafe(error, 401, "Invalid email or password.");
     }
     if (!data.session) {
       return apiError(
@@ -39,7 +39,6 @@ export async function POST(request: Request) {
       user: { id: data.user.id, email: data.user.email ?? email },
     });
   } catch (e) {
-    const msg = e instanceof Error ? e.message : "Server error.";
-    return apiError(msg, 503);
+    return apiErrorSafe(e, 503, "Could not complete sign in.");
   }
 }

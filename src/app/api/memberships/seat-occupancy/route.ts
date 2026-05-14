@@ -1,4 +1,4 @@
-import { apiError, apiSuccess } from "@/lib/api/json-response";
+import { apiError, apiSuccess, apiErrorSafe } from "@/lib/api/json-response";
 import {
   longTermCoversToday,
   longTermWindowsOverlap,
@@ -50,8 +50,7 @@ export async function GET(request: Request) {
   try {
     admin = createSupabaseServiceRoleClient();
   } catch (e) {
-    const msg = e instanceof Error ? e.message : "Could not create Supabase admin client.";
-    return apiError(msg, 503);
+    return apiErrorSafe(e, 503, "Could not create Supabase admin client.");
   }
 
   const now = new Date();
@@ -66,7 +65,7 @@ export async function GET(request: Request) {
     .not("seat_number", "is", null);
 
   if (error) {
-    return apiError(error.message, 500);
+    return apiErrorSafe(error, 500);
   }
 
   const list = (rows ?? []) as PlanRow[];

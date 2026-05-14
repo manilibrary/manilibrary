@@ -1,4 +1,4 @@
-import { apiError, apiSuccess } from "@/lib/api/json-response";
+import { apiError, apiSuccess, apiErrorSafe } from "@/lib/api/json-response";
 
 import {
   attendanceAnchorYmd,
@@ -175,8 +175,7 @@ export async function GET() {
   try {
     admin = createSupabaseServiceRoleClient();
   } catch (e) {
-    const msg = e instanceof Error ? e.message : "Could not load profile.";
-    return apiError(msg, 503);
+    return apiErrorSafe(e, 503, "Could not load profile.");
   }
 
   const { data: profile } = await admin

@@ -1,4 +1,6 @@
-const MAX_DESCRIPTION = 500;
+import { summarizePaymentFailureNote } from "@/lib/payments/payment-failure-summary";
+
+const MAX_RAW_DESCRIPTION = 800;
 const MAX_CODE = 80;
 const MAX_SOURCE = 80;
 const MAX_STEP = 80;
@@ -22,11 +24,11 @@ export function sanitizeCheckoutFailurePayload(
 ): CheckoutFailureSanitized {
   const rawDesc =
     typeof error?.description === "string" && error.description.trim()
-      ? error.description
+      ? clipField(error.description, MAX_RAW_DESCRIPTION)
       : "Payment failed.";
-  const description = clipField(rawDesc, MAX_DESCRIPTION) || "Payment failed.";
   const code =
     typeof error?.code === "string" && error.code.trim() ? clipField(error.code, MAX_CODE) : undefined;
+  const description = summarizePaymentFailureNote(rawDesc || "Payment failed.", code);
   const source =
     typeof error?.source === "string" && error.source.trim() ? clipField(error.source, MAX_SOURCE) : undefined;
   const step =

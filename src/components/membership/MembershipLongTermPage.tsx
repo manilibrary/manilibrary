@@ -48,21 +48,25 @@ export default function MembershipLongTermPage() {
   );
 
   useEffect(() => {
-    const start = searchParams.get("start");
-    const dk = searchParams.get("durationKey");
-    if (start && /^\d{4}-\d{2}-\d{2}$/.test(start)) {
-      setMembershipStartDate(start);
-    }
-    if (dk && LONG_TERM_DURATION_OPTIONS.some((o) => o.key === dk)) {
-      setDurationKey(dk as LongTermDurationKey);
-    }
+    queueMicrotask(() => {
+      const start = searchParams.get("start");
+      const dk = searchParams.get("durationKey");
+      if (start && /^\d{4}-\d{2}-\d{2}$/.test(start)) {
+        setMembershipStartDate(start);
+      }
+      if (dk && LONG_TERM_DURATION_OPTIONS.some((o) => o.key === dk)) {
+        setDurationKey(dk as LongTermDurationKey);
+      }
+    });
   }, [searchParams]);
 
   useEffect(() => {
     let cancelled = false;
     const occKey = ddcKey.seatOccupancy("long_term", membershipStartDate, durationKey);
     const cached = getClientCache<number[]>(occKey);
-    if (cached !== null && !cancelled) setOccupied(cached);
+    queueMicrotask(() => {
+      if (cached !== null && !cancelled) setOccupied(cached);
+    });
     void (async () => {
       try {
         const params = new URLSearchParams({
@@ -89,14 +93,18 @@ export default function MembershipLongTermPage() {
   }, [membershipStartDate, durationKey]);
 
   useEffect(() => {
-    if (hookMembership) setActiveMembership(hookMembership as ActiveMembership);
-    else setActiveMembership(null);
+    queueMicrotask(() => {
+      if (hookMembership) setActiveMembership(hookMembership as ActiveMembership);
+      else setActiveMembership(null);
+    });
   }, [hookMembership]);
 
   useEffect(() => {
     if (fromHub) {
-      setPendingResume(null);
-      setStep(1);
+      queueMicrotask(() => {
+        setPendingResume(null);
+        setStep(1);
+      });
     }
   }, [fromHub]);
 

@@ -1,6 +1,6 @@
 import { randomUUID } from "crypto";
 
-import { apiError, apiSuccess } from "@/lib/api/json-response";
+import { apiError, apiSuccess, apiErrorSafe } from "@/lib/api/json-response";
 import { createSupabaseRouteHandlerClient } from "@/lib/supabase/route-handler";
 import { createSupabaseServiceRoleClient } from "@/lib/supabase/service-role";
 
@@ -45,8 +45,7 @@ export async function POST(request: Request) {
   try {
     admin = createSupabaseServiceRoleClient();
   } catch (e) {
-    const msg = e instanceof Error ? e.message : "Server misconfiguration.";
-    return apiError(msg, 503);
+    return apiErrorSafe(e, 503, "Server misconfiguration.");
   }
 
   let formData: FormData;
@@ -82,7 +81,7 @@ export async function POST(request: Request) {
     upsert: true,
   });
   if (upErr) {
-    return apiError(upErr.message, 502, {
+    return apiErrorSafe(upErr, 502, "Could not upload avatar.", {
       hint: 'Create a public Storage bucket "avatars" (see supabase/storage-avatars-bucket.sql) or set AVATARS_STORAGE_BUCKET.',
     });
   }
@@ -92,7 +91,7 @@ export async function POST(request: Request) {
   const { error: updErr } = await admin.from("profiles").update({ avatar_url: avatarUrl }).eq("user_id", user.id);
   if (updErr) {
     await admin.storage.from(bucket()).remove([path]);
-    return apiError(updErr.message, 400);
+    return apiErrorSafe(updErr, 400);
   }
 
   if (oldPath && oldPath !== path) {
@@ -115,8 +114,7 @@ export async function DELETE() {
   try {
     admin = createSupabaseServiceRoleClient();
   } catch (e) {
-    const msg = e instanceof Error ? e.message : "Server misconfiguration.";
-    return apiError(msg, 503);
+    return apiErrorSafe(e, 503, "Server misconfiguration.");
   }
 
   const { data: prev } = await admin.from("profiles").select("avatar_url").eq("user_id", user.id).maybeSingle();
@@ -124,7 +122,7 @@ export async function DELETE() {
 
   const { error: updErr } = await admin.from("profiles").update({ avatar_url: null }).eq("user_id", user.id);
   if (updErr) {
-    return apiError(updErr.message, 400);
+    return apiErrorSafe(updErr, 400);
   }
 
   if (oldPath) {

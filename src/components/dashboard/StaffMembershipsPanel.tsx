@@ -3,10 +3,20 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import MemberKycDocumentsModal, { type MemberKycDetails } from "@/components/dashboard/MemberKycDocumentsModal";
+import LongTermSeatMap from "@/components/membership/LongTermSeatMap";
+import MembershipLegend from "@/components/membership/MembershipLegend";
+import ShortTermSeatMap from "@/components/membership/ShortTermSeatMap";
 import { formatDateDdMmYyyy, formatDateTimeDdMmYyyy } from "@/lib/date-format";
 import { MembershipSeatTableCell } from "@/components/membership/MembershipSeatTableCell";
+import { CLIENT_SEAT_OCC_CACHE_TTL_MS, ddcKey, getClientCache, setClientCache } from "@/lib/client-data-cache";
 import { resolveMemberSeatDisplayLabel } from "@/lib/membership/seat-label";
 import { addDaysYmd, DEFAULT_LIBRARY_TZ, todayYmdInTz } from "@/lib/membership/windows";
+import {
+  computeOrderAmountRupees,
+  LONG_TERM_DURATION_OPTIONS,
+  SHORT_TERM_DURATION_OPTIONS,
+  type MembershipPlanKind,
+} from "@/lib/payments/pricing";
 
 type MembershipWindowState = "current" | "starts_future" | "ended_past" | "unknown" | "inactive";
 
@@ -35,6 +45,7 @@ type ProfileMini = {
   student_roll_number: string | null;
   institution_type: string | null;
   preparing_for: string | null;
+  created_at?: string;
 };
 
 function formatMembershipPeriod(r: MembershipRow): string {
@@ -93,7 +104,7 @@ function MembershipStatusBadge({ s, windowState }: { s: string; windowState?: Me
   );
 }
 
-type MemberBrowseFilter = "all" | "verified" | "pending" | "unverified" | "pending_payment" | "expired";
+type MemberBrowseFilter = "all" | "active" | "verified" | "pending" | "unverified" | "pending_payment" | "expired";
 
 function matchesMemberBrowseFilter(v: string | undefined, f: MemberBrowseFilter, r: MembershipRow): boolean {
   const expired = isMembershipWindowExpired(r);
@@ -101,6 +112,7 @@ function matchesMemberBrowseFilter(v: string | undefined, f: MemberBrowseFilter,
 
   if (f === "expired") return expired;
   if (f === "pending_payment") return pendingPay;
+  if (f === "active") return r.status === "active" && !expired;
 
   if (expired) return false;
   if (pendingPay) return false;
@@ -115,6 +127,7 @@ function matchesMemberBrowseFilter(v: string | undefined, f: MemberBrowseFilter,
 
 const FILTER_CHIPS: { id: MemberBrowseFilter; label: string }[] = [
   { id: "all", label: "All" },
+  { id: "active", label: "Active" },
   { id: "verified", label: "Verified" },
   { id: "pending", label: "Pending review" },
   { id: "unverified", label: "Unverified" },
@@ -125,6 +138,7 @@ const FILTER_CHIPS: { id: MemberBrowseFilter; label: string }[] = [
 export default function StaffMembershipsPanel() {
   const [rows, setRows] = useState<MembershipRow[]>([]);
   const [profiles, setProfiles] = useState<Record<string, ProfileMini>>({});
+  const [accountOnly, setAccountOnly] = useState<ProfileMini[]>([]);
   const [err, setErr] = useState<string | null>(null);
   const [q, setQ] = useState("");
   const [browseFilter, setBrowseFilter] = useState<MemberBrowseFilter>("all");
@@ -134,6 +148,37 @@ export default function StaffMembershipsPanel() {
     title: string;
     details: MemberKycDetails;
   } | null>(null);
+
+  const [createMemberOpen, setCreateMemberOpen] = useState(false);
+
+  const [manUseExisting, setManUseExisting] = useState(false);
+  const [manExistingId, setManExistingId] = useState("");
+  const [manFullName, setManFullName] = useState("");
+  const [manEmail, setManEmail] = useState("");
+  const [manPhone, setManPhone] = useState("");
+  const [manPassword, setManPassword] = useState("");
+  const [manPlanKind, setManPlanKind] = useState<MembershipPlanKind>("long_term");
+  const [manDurationKey, setManDurationKey] = useState("lt_1m");
+  const [manSeat, setManSeat] = useState("");
+  const [manStart, setManStart] = useState(() => todayYmdInTz(DEFAULT_LIBRARY_TZ));
+  const [manAmount, setManAmount] = useState("");
+  const [manMethod, setManMethod] = useState<
+    "cash" | "upi_external" | "bank_transfer" | "card_terminal" | "other"
+  >("cash");
+  const [manExtRef, setManExtRef] = useState("");
+  const [manStaffNote, setManStaffNote] = useState("");
+  const [manMarkKyc, setManMarkKyc] = useState(false);
+  const [manBusy, setManBusy] = useState(false);
+  const [manErr, setManErr] = useState<string | null>(null);
+  const [manSuccess, setManSuccess] = useState<{
+    device_user_id: number;
+    membership_id: string;
+    payment_id: string;
+    temporary_password?: string;
+  } | null>(null);
+
+  const [enrollOccupiedSeats, setEnrollOccupiedSeats] = useState<number[]>([]);
+  const [enrollSeatOccErr, setEnrollSeatOccErr] = useState<string | null>(null);
 
   const [exportFromYmd, setExportFromYmd] = useState(() => {
     const to = todayYmdInTz(DEFAULT_LIBRARY_TZ);
@@ -190,6 +235,7 @@ export default function StaffMembershipsPanel() {
       error?: string;
       rows?: MembershipRow[];
       profiles?: Record<string, ProfileMini>;
+      account_only_profiles?: ProfileMini[];
     };
     if (!res.ok || !j.ok) {
       throw new Error(j.error ?? "Could not load members.");
@@ -197,7 +243,175 @@ export default function StaffMembershipsPanel() {
     setErr(null);
     setRows(j.rows ?? []);
     setProfiles(j.profiles ?? {});
+    setAccountOnly(j.account_only_profiles ?? []);
   }, []);
+
+  const catalogAmount = useMemo(
+    () => computeOrderAmountRupees(manPlanKind, manDurationKey),
+    [manPlanKind, manDurationKey],
+  );
+
+  const durationSelectOptions = useMemo(() => {
+    return manPlanKind === "long_term" ? LONG_TERM_DURATION_OPTIONS : SHORT_TERM_DURATION_OPTIONS;
+  }, [manPlanKind]);
+
+  const enrollOccupiedSet = useMemo(() => new Set(enrollOccupiedSeats), [enrollOccupiedSeats]);
+
+  const enrollMapSelectedSeat = useMemo(() => {
+    const n = parseInt(manSeat.trim(), 10);
+    return Number.isFinite(n) && n >= 1 ? n : null;
+  }, [manSeat]);
+
+  useEffect(() => {
+    if (!createMemberOpen || !/^\d{4}-\d{2}-\d{2}$/.test(manStart)) return;
+
+    let cancelled = false;
+    const occKey = ddcKey.seatOccupancy(manPlanKind, manStart, manDurationKey);
+    const cached = getClientCache<number[]>(occKey);
+    queueMicrotask(() => {
+      if (cached !== null && !cancelled) setEnrollOccupiedSeats(cached);
+    });
+
+    void (async () => {
+      try {
+        const params = new URLSearchParams({
+          planKind: manPlanKind,
+          startDate: manStart,
+          durationKey: manDurationKey,
+        });
+        const res = await fetch(`/api/memberships/seat-occupancy?${params.toString()}`, {
+          cache: "no-store",
+          credentials: "same-origin",
+        });
+        const j = (await res.json()) as { ok?: boolean; seats?: number[]; error?: string };
+        if (cancelled) return;
+        if (!res.ok || !j.ok) {
+          setEnrollSeatOccErr(j.error ?? "Could not load seat occupancy.");
+          return;
+        }
+        setEnrollSeatOccErr(null);
+        if (Array.isArray(j.seats)) {
+          setEnrollOccupiedSeats(j.seats);
+          setClientCache(occKey, j.seats, CLIENT_SEAT_OCC_CACHE_TTL_MS);
+        }
+      } catch {
+        if (!cancelled) setEnrollSeatOccErr("Could not load seat occupancy.");
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [createMemberOpen, manPlanKind, manStart, manDurationKey]);
+
+  const submitManualEnroll = useCallback(async () => {
+    setManErr(null);
+    setManSuccess(null);
+    const seat = parseInt(manSeat.trim(), 10);
+    const amount = parseInt(manAmount.trim(), 10);
+    if (!Number.isFinite(seat) || seat < 1) {
+      setManErr("Enter a valid seat number (1–9999).");
+      return;
+    }
+    if (!Number.isFinite(amount) || amount < 1) {
+      setManErr("Enter amount collected in whole rupees.");
+      return;
+    }
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(manStart)) {
+      setManErr("Membership start must be a valid date.");
+      return;
+    }
+    if (manUseExisting) {
+      const id = manExistingId.trim();
+      if (!id) {
+        setManErr("Paste the member’s user id (UUID), or turn off “existing account”.");
+        return;
+      }
+    } else {
+      if (!manFullName.trim() || !manEmail.trim()) {
+        setManErr("Full name and email are required for a new account.");
+        return;
+      }
+    }
+    setManBusy(true);
+    try {
+      const body: Record<string, unknown> = {
+        plan_kind: manPlanKind,
+        seat_number: seat,
+        membership_start_date: manStart,
+        duration_key: manDurationKey,
+        amount_rupees: amount,
+        payment_method: manMethod,
+        external_reference: manExtRef.trim() || undefined,
+        staff_note: manStaffNote.trim() || undefined,
+        mark_kyc_verified: manMarkKyc,
+      };
+      if (manUseExisting && manExistingId.trim()) {
+        body.existing_user_id = manExistingId.trim();
+      } else {
+        body.full_name = manFullName.trim();
+        body.email = manEmail.trim();
+        body.phone = manPhone.trim() || undefined;
+        body.password = manPassword.trim() || undefined;
+      }
+      const res = await fetch("/api/admin/members/manual-enroll", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const j = (await res.json()) as {
+        ok?: boolean;
+        error?: string;
+        device_user_id?: number;
+        membership_id?: string;
+        payment_id?: string;
+        temporary_password?: string;
+      };
+      if (!res.ok || !j.ok) {
+        setManErr(j.error ?? "Enrollment failed.");
+        return;
+      }
+      setManSuccess({
+        device_user_id: j.device_user_id ?? 0,
+        membership_id: j.membership_id ?? "",
+        payment_id: j.payment_id ?? "",
+        temporary_password: j.temporary_password,
+      });
+      if (!manUseExisting) {
+        setManPassword("");
+        setManFullName("");
+        setManEmail("");
+        setManPhone("");
+      }
+      setManExtRef("");
+      setManStaffNote("");
+      setManMarkKyc(false);
+      setRefreshKey((k) => k + 1);
+      await load();
+    } catch (e) {
+      setManErr(e instanceof Error ? e.message : "Network error.");
+    } finally {
+      setManBusy(false);
+    }
+  }, [
+    manUseExisting,
+    manExistingId,
+    manFullName,
+    manEmail,
+    manPhone,
+    manPassword,
+    manPlanKind,
+    manDurationKey,
+    manSeat,
+    manStart,
+    manAmount,
+    manMethod,
+    manExtRef,
+    manStaffNote,
+    manMarkKyc,
+    load,
+  ]);
 
   useEffect(() => {
     let cancelled = false;
@@ -235,8 +449,9 @@ export default function StaffMembershipsPanel() {
       const hint = windowHint(r) ?? "";
       const expiredTag = isMembershipWindowExpired(r) ? "expired" : "";
       const pendingPayTag = isPendingPaymentMembership(r) ? "pending payment" : "";
+      const activeTag = r.status === "active" && !isMembershipWindowExpired(r) ? "active" : "";
       const member = p
-        ? `${p.full_name} ${String(p.device_user_id).padStart(4, "0")} ${p.email ?? ""} ${p.aadhaar_last_four ?? ""} ${p.student_roll_number ?? ""} ${p.institution_type ?? ""} ${p.preparing_for ?? ""} ${v} ${expiredTag} ${pendingPayTag}`
+        ? `${p.full_name} ${String(p.device_user_id).padStart(4, "0")} ${p.email ?? ""} ${p.aadhaar_last_four ?? ""} ${p.student_roll_number ?? ""} ${p.institution_type ?? ""} ${p.preparing_for ?? ""} ${v} ${expiredTag} ${pendingPayTag} ${activeTag}`
         : "";
       return (
         member.toLowerCase().includes(needle) ||
@@ -258,6 +473,372 @@ export default function StaffMembershipsPanel() {
 
   return (
     <div className="space-y-4">
+      <div className="rounded-2xl border border-violet-200 bg-violet-50/40 p-4 shadow-sm">
+        {!createMemberOpen ? (
+          <div className="flex flex-wrap items-end justify-between gap-4">
+            <div className="max-w-2xl">
+              <p className="font-mono text-[10px] uppercase tracking-widest text-violet-900">Create member</p>
+              <p className="mt-1 text-sm leading-relaxed text-ink-700">
+                Walk-in or when the app / Razorpay checkout is unavailable: open the form to add a login (library
+                number is automatic), an <strong>active</strong> seat, and a <strong>paid</strong> manual record for
+                cash, UPI on another phone, bank transfer, etc.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                setCreateMemberOpen(true);
+                setManErr(null);
+                setManSuccess(null);
+              }}
+              className="shrink-0 rounded-full border border-violet-700 bg-violet-700 px-5 py-2.5 text-sm font-semibold text-white hover:bg-violet-800"
+            >
+              Create member
+            </button>
+          </div>
+        ) : (
+          <>
+            <div className="flex flex-wrap items-start justify-between gap-3 border-b border-violet-100 pb-3">
+              <div className="min-w-0 max-w-3xl">
+                <p className="font-mono text-[10px] uppercase tracking-widest text-violet-900">New member enrollment</p>
+                <p className="mt-1 text-xs leading-relaxed text-ink-700">
+                  Payment is stored as <span className="font-mono">manual</span> with your method and reference for
+                  audit. Use “Existing account” if the member already has a login and you only need to add this plan.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  if (manBusy) return;
+                  setCreateMemberOpen(false);
+                  setManErr(null);
+                  setManSuccess(null);
+                }}
+                className="shrink-0 rounded-full border border-ink-200 bg-white px-4 py-2 text-sm font-semibold text-ink-800 hover:bg-ink-50 disabled:opacity-50"
+                disabled={manBusy}
+              >
+                Close
+              </button>
+            </div>
+            <form
+              className="mt-4 space-y-4"
+              autoComplete="off"
+              onSubmit={(e) => {
+                e.preventDefault();
+                void submitManualEnroll();
+              }}
+            >
+          <label className="flex items-center gap-2 text-xs text-ink-700">
+            <input
+              type="checkbox"
+              checked={manUseExisting}
+              onChange={(e) => setManUseExisting(e.target.checked)}
+              disabled={manBusy}
+            />
+            Existing account only (paste Supabase <span className="font-mono">user_id</span> — no new login created)
+          </label>
+          {manUseExisting ? (
+            <label className="flex max-w-xl flex-col gap-1 text-xs text-ink-600">
+              Member user id (UUID)
+              <input
+                className="rounded-lg border border-ink-200 bg-white px-3 py-2 font-mono text-sm"
+                value={manExistingId}
+                onChange={(e) => setManExistingId(e.target.value)}
+                placeholder="00000000-0000-0000-0000-000000000000"
+                disabled={manBusy}
+                autoComplete="off"
+                name="staff_enroll_existing_user_id"
+              />
+            </label>
+          ) : (
+            <div className="space-y-2">
+              <div className="flex flex-wrap gap-3">
+                <label className="flex min-w-[140px] flex-1 flex-col gap-1 text-xs text-ink-600">
+                  Full name
+                  <input
+                    className="rounded-lg border border-ink-200 bg-white px-3 py-2 text-sm"
+                    value={manFullName}
+                    onChange={(e) => setManFullName(e.target.value)}
+                    disabled={manBusy}
+                    autoComplete="off"
+                    name="staff_enroll_member_full_name"
+                  />
+                </label>
+                <label className="flex min-w-[180px] flex-1 flex-col gap-1 text-xs text-ink-600">
+                  Email (login)
+                  <input
+                    type="email"
+                    className="rounded-lg border border-ink-200 bg-white px-3 py-2 text-sm"
+                    value={manEmail}
+                    onChange={(e) => setManEmail(e.target.value)}
+                    disabled={manBusy}
+                    autoComplete="off"
+                    name="staff_enroll_member_email"
+                  />
+                </label>
+                <label className="flex min-w-[120px] flex-col gap-1 text-xs text-ink-600">
+                  Phone <span className="text-ink-400">(opt.)</span>
+                  <input
+                    type="tel"
+                    className="rounded-lg border border-ink-200 bg-white px-3 py-2 text-sm"
+                    value={manPhone}
+                    onChange={(e) => setManPhone(e.target.value)}
+                    disabled={manBusy}
+                    autoComplete="off"
+                    name="staff_enroll_member_phone"
+                    data-lpignore="true"
+                    data-1p-ignore="true"
+                  />
+                </label>
+                <label className="flex min-w-[140px] flex-col gap-1 text-xs text-ink-600">
+                  Password <span className="text-ink-400">(opt.)</span>
+                  <input
+                    type="password"
+                    className="rounded-lg border border-ink-200 bg-white px-3 py-2 text-sm"
+                    value={manPassword}
+                    onChange={(e) => setManPassword(e.target.value)}
+                    disabled={manBusy}
+                    autoComplete="new-password"
+                    name="staff_enroll_member_password"
+                    data-lpignore="true"
+                    data-1p-ignore="true"
+                  />
+                </label>
+              </div>
+              <p className="text-[11px] leading-relaxed text-ink-500">
+                Phone and password are for the <strong>new member’s</strong> mobile app login — not your staff
+                account. Browsers and password managers often guess wrong on admin pages; if yours autofills, clear the
+                fields before saving.
+              </p>
+            </div>
+          )}
+          <div className="flex flex-wrap gap-3">
+            <label className="flex flex-col gap-1 text-xs text-ink-600">
+              Plan
+              <select
+                className="rounded-lg border border-ink-200 bg-white px-3 py-2 text-sm"
+                value={manPlanKind}
+                onChange={(e) => {
+                  const pk = e.target.value as MembershipPlanKind;
+                  setManPlanKind(pk);
+                  setManDurationKey(pk === "long_term" ? "lt_1m" : "st_1d");
+                }}
+                disabled={manBusy}
+              >
+                <option value="long_term">Main hall · long term</option>
+                <option value="short_term">Row hall · short term</option>
+              </select>
+            </label>
+            <label className="flex min-w-[200px] flex-col gap-1 text-xs text-ink-600">
+              Duration
+              <select
+                className="rounded-lg border border-ink-200 bg-white px-3 py-2 text-sm"
+                value={manDurationKey}
+                onChange={(e) => setManDurationKey(e.target.value)}
+                disabled={manBusy}
+              >
+                {durationSelectOptions.map((o) => (
+                  <option key={o.key} value={o.key}>
+                    {o.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="flex flex-col gap-1 text-xs text-ink-600">
+              Start (library day)
+              <input
+                type="date"
+                className="rounded-lg border border-ink-200 bg-white px-3 py-2 text-sm"
+                value={manStart}
+                onChange={(e) => setManStart(e.target.value)}
+                disabled={manBusy}
+              />
+            </label>
+            <label className="flex w-24 flex-col gap-1 text-xs text-ink-600">
+              Seat #
+              <input
+                inputMode="numeric"
+                className="rounded-lg border border-ink-200 bg-white px-3 py-2 text-sm"
+                value={manSeat}
+                onChange={(e) => setManSeat(e.target.value)}
+                disabled={manBusy}
+                autoComplete="off"
+                name="staff_enroll_seat_number"
+              />
+            </label>
+            <label className="flex w-32 flex-col gap-1 text-xs text-ink-600">
+              Amount (₹)
+              <input
+                inputMode="numeric"
+                className="rounded-lg border border-ink-200 bg-white px-3 py-2 text-sm"
+                value={manAmount}
+                onChange={(e) => setManAmount(e.target.value)}
+                placeholder={catalogAmount != null ? String(catalogAmount) : ""}
+                disabled={manBusy}
+                autoComplete="off"
+                name="staff_enroll_amount_rupees"
+              />
+            </label>
+          </div>
+          {catalogAmount != null ? (
+            <p className="text-xs text-ink-500">
+              Suggested catalog total for this plan/duration: <span className="font-mono">₹{catalogAmount}</span> — you
+              may enter a different amount if you agreed a discount or rounded cash.
+            </p>
+          ) : null}
+          <div className="rounded-2xl border border-ink-100 bg-white p-3 shadow-inner sm:p-4">
+            <div className="mb-2 flex flex-wrap items-end justify-between gap-2">
+              <div>
+                <p className="font-mono text-[10px] uppercase tracking-widest text-ink-500">Floor map</p>
+                <p className="text-xs text-ink-600">
+                  {manPlanKind === "long_term" ? "Main hall (long term)" : "Row hall (short term)"} · taken seats overlap
+                  the start date + duration above. Tap a free seat to fill “Seat #”.
+                </p>
+              </div>
+              <p className="font-mono text-xs text-ink-600">
+                Selected: <span className="font-semibold text-violet-700">{enrollMapSelectedSeat ?? "—"}</span>
+              </p>
+            </div>
+            {enrollSeatOccErr ? (
+              <p className="mb-2 rounded border border-amber-200 bg-amber-50 px-2 py-1.5 text-xs text-amber-900">
+                {enrollSeatOccErr}
+              </p>
+            ) : null}
+            <div className="mb-3">
+              <MembershipLegend mode={manPlanKind === "long_term" ? "long" : "short"} layout="strip" />
+            </div>
+            <div className="overflow-x-auto pb-1">
+              {manPlanKind === "long_term" ? (
+                <LongTermSeatMap
+                  selected={enrollMapSelectedSeat}
+                  onSelect={(n) => setManSeat(String(n))}
+                  occupiedSeats={enrollOccupiedSet}
+                />
+              ) : (
+                <ShortTermSeatMap
+                  selected={enrollMapSelectedSeat}
+                  onSelect={(n) => setManSeat(String(n))}
+                  occupiedSeats={enrollOccupiedSet}
+                />
+              )}
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-3">
+            <label className="flex min-w-[160px] flex-col gap-1 text-xs text-ink-600">
+              Payment method
+              <select
+                className="rounded-lg border border-ink-200 bg-white px-3 py-2 text-sm"
+                value={manMethod}
+                onChange={(e) =>
+                  setManMethod(e.target.value as typeof manMethod)
+                }
+                disabled={manBusy}
+              >
+                <option value="cash">Cash</option>
+                <option value="upi_external">UPI (other app / bank app)</option>
+                <option value="bank_transfer">Bank transfer / NEFT / IMPS</option>
+                <option value="card_terminal">Card (terminal / POS)</option>
+                <option value="other">Other</option>
+              </select>
+            </label>
+            <label className="flex min-w-[220px] flex-1 flex-col gap-1 text-xs text-ink-600">
+              UPI / bank ref / receipt id <span className="font-normal text-ink-400">(recommended)</span>
+              <input
+                className="rounded-lg border border-ink-200 bg-white px-3 py-2 text-sm"
+                value={manExtRef}
+                onChange={(e) => setManExtRef(e.target.value)}
+                placeholder="e.g. UPI txn id, RR number"
+                disabled={manBusy}
+              />
+            </label>
+          </div>
+          <label className="flex max-w-2xl flex-col gap-1 text-xs text-ink-600">
+            Internal note <span className="font-normal text-ink-400">(optional)</span>
+            <textarea
+              className="min-h-[4rem] rounded-lg border border-ink-200 bg-white px-3 py-2 text-sm"
+              value={manStaffNote}
+              onChange={(e) => setManStaffNote(e.target.value)}
+              disabled={manBusy}
+            />
+          </label>
+          <label className="flex items-center gap-2 text-xs text-ink-700">
+            <input type="checkbox" checked={manMarkKyc} onChange={(e) => setManMarkKyc(e.target.checked)} disabled={manBusy} />
+            Mark member as KYC verified (physical Aadhaar / ID checked at desk)
+          </label>
+          <div className="flex flex-wrap items-center gap-3">
+            <button
+              type="submit"
+              disabled={manBusy}
+              className="rounded-full border border-violet-700 bg-violet-700 px-4 py-2 text-sm font-semibold text-white hover:bg-violet-800 disabled:opacity-50"
+            >
+              {manBusy ? "Saving…" : "Save enrollment"}
+            </button>
+          </div>
+          {manErr ? (
+            <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800" role="alert">
+              {manErr}
+            </p>
+          ) : null}
+          {manSuccess ? (
+            <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-3 text-sm text-emerald-950" role="status">
+              <p className="font-medium">Enrollment saved</p>
+              <p className="mt-1 font-mono text-xs">
+                Library no. {String(manSuccess.device_user_id).padStart(4, "0")} · membership{" "}
+                <span className="select-all">{manSuccess.membership_id}</span> · payment{" "}
+                <span className="select-all">{manSuccess.payment_id}</span>
+              </p>
+              {manSuccess.temporary_password ? (
+                <p className="mt-2 text-xs">
+                  New account temp password:{" "}
+                  <code className="rounded bg-white/80 px-1 font-mono">{manSuccess.temporary_password}</code>
+                </p>
+              ) : null}
+            </div>
+          ) : null}
+            </form>
+          </>
+        )}
+      </div>
+
+      {accountOnly.length > 0 ? (
+        <div className="overflow-x-auto rounded-2xl border border-amber-100 bg-amber-50/30 shadow-sm">
+          <div className="border-b border-amber-100 bg-amber-50/80 px-4 py-2">
+            <p className="font-mono text-[10px] uppercase tracking-widest text-amber-900">No membership yet</p>
+            <p className="text-xs text-amber-950/80">
+              Recent accounts (last ~40) with no membership row — e.g. just created or not enrolled. Library admin and
+              superadmin profiles are excluded. Everyone else stays here until checkout or staff adds a membership.
+            </p>
+          </div>
+          <table className="min-w-full text-left text-sm">
+            <thead className="border-b border-amber-100 bg-amber-50/50 font-mono text-[10px] uppercase tracking-widest text-ink-500">
+              <tr>
+                <th className="px-4 py-2">Member</th>
+                <th className="px-4 py-2">Library no.</th>
+                <th className="px-4 py-2">KYC</th>
+                <th className="px-4 py-2">Profile created</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-amber-100/80">
+              {accountOnly.map((p) => (
+                <tr key={p.user_id} className="text-ink-800">
+                  <td className="px-4 py-2">
+                    <div className="leading-tight">
+                      <div>{p.full_name}</div>
+                      {p.email ? <div className="text-xs text-ink-500">{p.email}</div> : null}
+                    </div>
+                  </td>
+                  <td className="px-4 py-2 font-mono">{String(p.device_user_id).padStart(4, "0")}</td>
+                  <td className="px-4 py-2 text-xs capitalize text-ink-600">{p.verification_status.replace(/_/g, " ")}</td>
+                  <td className="px-4 py-2 text-xs text-ink-500">
+                    {p.created_at ? formatDateTimeDdMmYyyy(p.created_at) : "—"}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : null}
+
       <div className="rounded-2xl border border-ink-100 bg-white p-4 shadow-sm">
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div className="min-w-[200px] max-w-xl">
@@ -333,7 +914,11 @@ export default function StaffMembershipsPanel() {
       </div>
 
       {rows.length === 0 ? (
-        <p className="text-sm text-ink-600">No membership rows yet.</p>
+        <p className="text-sm text-ink-600">
+          {accountOnly.length > 0
+            ? "No membership rows in the recent list — new accounts without a plan appear in “No membership yet” above."
+            : "No membership rows yet."}
+        </p>
       ) : (
         <div className="overflow-x-auto rounded-2xl border border-ink-100 bg-white shadow-sm">
           <table className="min-w-full text-left text-sm">
@@ -341,7 +926,7 @@ export default function StaffMembershipsPanel() {
               <tr>
                 <th className="px-4 py-3">Member</th>
                 <th className="px-4 py-3">KYC</th>
-                <th className="px-4 py-3">Device user ID</th>
+                <th className="px-4 py-3">Library no.</th>
                 <th className="px-4 py-3">Plan</th>
                 <th
                   className="px-4 py-3"

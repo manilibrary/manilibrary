@@ -35,6 +35,9 @@ type StatusMode = "eligible" | Group;
 
 type PlanFilter = "all" | "long_term" | "short_term";
 
+/** Narrows the default (eligible) table: all non-pending/non-expired, or only live seats, or only cancelled. */
+type EligibleSlice = "all" | "active_expiring" | "cancelled";
+
 function endDateOf(r: MembershipRow): string | null {
   if (r.plan_kind === "long_term") return r.valid_until;
   return r.ends_at;
@@ -64,9 +67,12 @@ function classify(r: MembershipRow, today: string, nowIso: string): Group {
   return "active";
 }
 
-function rowMatchesStatusMode(group: Group, mode: StatusMode): boolean {
-  if (mode === "eligible") return group !== "pending" && group !== "expired";
-  return group === mode;
+function rowMatchesStatusMode(group: Group, mode: StatusMode, slice: EligibleSlice): boolean {
+  if (mode !== "eligible") return group === mode;
+  if (group === "pending" || group === "expired") return false;
+  if (slice === "active_expiring") return group === "active" || group === "expiring";
+  if (slice === "cancelled") return group === "cancelled";
+  return true;
 }
 
 function rowMatchesPlan(r: MembershipRow, plan: PlanFilter): boolean {
@@ -106,6 +112,12 @@ function GroupBadge({ g }: { g: Group }) {
   );
 }
 
+const ELIGIBLE_SLICES: { id: EligibleSlice; label: string }[] = [
+  { id: "all", label: "All (default)" },
+  { id: "active_expiring", label: "Active & expiring" },
+  { id: "cancelled", label: "Cancelled" },
+];
+
 const PLAN_CHIPS: { id: PlanFilter; label: string }[] = [
   { id: "all", label: "All plans" },
   { id: "short_term", label: "Short term" },
@@ -121,6 +133,7 @@ export default function StaffSubscriptionsPanel({
   const [profiles, setProfiles] = useState<Record<string, ProfileMini>>({});
   const [err, setErr] = useState<string | null>(null);
   const [statusMode, setStatusMode] = useState<StatusMode>(() => (initialGroup === "all" ? "eligible" : initialGroup));
+  const [eligibleSlice, setEligibleSlice] = useState<EligibleSlice>("all");
   const [planFilter, setPlanFilter] = useState<PlanFilter>("all");
 
   useEffect(() => {
@@ -172,14 +185,21 @@ export default function StaffSubscriptionsPanel({
 
   const visible = useMemo(() => {
     return classified.filter(
-      ({ row, group }) => rowMatchesStatusMode(group, statusMode) && rowMatchesPlan(row, planFilter),
+      ({ row, group }) =>
+        rowMatchesStatusMode(group, statusMode, eligibleSlice) && rowMatchesPlan(row, planFilter),
     );
-  }, [classified, statusMode, planFilter]);
+  }, [classified, statusMode, eligibleSlice, planFilter]);
 
   const filterSummary = useMemo(() => {
     const parts: string[] = [];
     if (statusMode === "eligible") {
-      parts.push("Excluding pending payment and expired");
+      if (eligibleSlice === "active_expiring") {
+        parts.push("Active & expiring only");
+      } else if (eligibleSlice === "cancelled") {
+        parts.push("Cancelled only");
+      } else {
+        parts.push("Excluding pending payment and expired");
+      }
     } else {
       const labels: Record<Group, string> = {
         active: "Active",
@@ -194,7 +214,7 @@ export default function StaffSubscriptionsPanel({
       parts.push(planFilter === "short_term" ? "Short term only" : "Long term only");
     }
     return parts.join(" · ");
-  }, [statusMode, planFilter]);
+  }, [statusMode, eligibleSlice, planFilter]);
 
   if (err) {
     return (
@@ -217,7 +237,10 @@ export default function StaffSubscriptionsPanel({
           <button
             key={g}
             type="button"
-            onClick={() => setStatusMode((m) => (m === g ? "eligible" : g))}
+            onClick={() => {
+              setStatusMode((m) => (m === g ? "eligible" : g));
+              setEligibleSlice("all");
+            }}
             className={`rounded-2xl border bg-white p-4 text-left shadow-sm transition-colors ${
               statusMode === g ? "border-azure-300" : "border-ink-100 hover:border-azure-200"
             }`}
@@ -228,33 +251,59 @@ export default function StaffSubscriptionsPanel({
         ))}
       </div>
 
-      <div className="flex flex-wrap items-center gap-2">
-        {PLAN_CHIPS.map((c) => (
-          <button
-            key={c.id}
-            type="button"
-            onClick={() => setPlanFilter(c.id)}
-            className={`rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${
-              planFilter === c.id
-                ? "bg-azure-600 text-white"
-                : "border border-ink-200 bg-white text-ink-700 hover:bg-ink-50"
-            }`}
-          >
-            {c.label}
-          </button>
-        ))}
+      <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
+        {statusMode === "eligible" ? (
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-xs font-medium text-ink-600">Show</span>
+            {ELIGIBLE_SLICES.map((s) => (
+              <button
+                key={s.id}
+                type="button"
+                onClick={() => setEligibleSlice(s.id)}
+                className={`rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${
+                  eligibleSlice === s.id
+                    ? "bg-azure-600 text-white"
+                    : "border border-ink-200 bg-white text-ink-700 hover:bg-ink-50"
+                }`}
+              >
+                {s.label}
+              </button>
+            ))}
+          </div>
+        ) : (
+          <p className="text-xs text-ink-500">
+            Tip: click the same status card again to return to the default view and use the Show filters.
+          </p>
+        )}
+        <div className="flex flex-wrap items-center gap-2 sm:justify-end">
+          {PLAN_CHIPS.map((c) => (
+            <button
+              key={c.id}
+              type="button"
+              onClick={() => setPlanFilter(c.id)}
+              className={`rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${
+                planFilter === c.id
+                  ? "bg-azure-600 text-white"
+                  : "border border-ink-200 bg-white text-ink-700 hover:bg-ink-50"
+              }`}
+            >
+              {c.label}
+            </button>
+          ))}
+        </div>
       </div>
 
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-xs text-ink-500">
           {visible.length} row{visible.length === 1 ? "" : "s"} · {filterSummary}
         </p>
-        {statusMode !== "eligible" || planFilter !== "all" ? (
+        {statusMode !== "eligible" || planFilter !== "all" || eligibleSlice !== "all" ? (
           <button
             type="button"
             onClick={() => {
               setStatusMode("eligible");
               setPlanFilter("all");
+              setEligibleSlice("all");
             }}
             className="text-xs font-semibold text-azure-600 hover:text-azure-700"
           >
@@ -269,7 +318,7 @@ export default function StaffSubscriptionsPanel({
             <tr>
               <th className="px-4 py-3">Member</th>
               <th className="px-4 py-3">Plan</th>
-              <th className="px-4 py-3">Device user ID</th>
+              <th className="px-4 py-3">Library no.</th>
               <th
                 className="px-4 py-3"
                 title="Only active memberships reserve a seat; pending payment shows checkout choice only."

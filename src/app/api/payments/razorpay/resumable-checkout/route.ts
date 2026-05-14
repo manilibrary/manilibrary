@@ -1,13 +1,11 @@
-import { apiError, apiSuccess } from "@/lib/api/json-response";
+import { apiError, apiSuccess, apiErrorSafe } from "@/lib/api/json-response";
 import { PAYMENT_METADATA_PLANNED_SEAT_KEY, parseNumericSeatFromStoredSeat, resolveMemberSeatDisplayLabel } from "@/lib/membership/seat-label";
 import { buildCheckoutFingerprint, type ResumableCheckoutPayload } from "@/lib/membership/resumable-checkout";
 import { DEFAULT_LIBRARY_TZ, toYmdBoundary } from "@/lib/membership/windows";
 import {
-  LONG_TERM_DURATION_OPTIONS,
   resolveLongTermDuration,
   resolveShortTermDuration,
   rupeesToRazorpayPaise,
-  SHORT_TERM_DURATION_OPTIONS,
   type MembershipPlanKind,
 } from "@/lib/payments/pricing";
 import { createSupabaseRouteHandlerClient } from "@/lib/supabase/route-handler";
@@ -106,7 +104,7 @@ export async function GET(request: Request) {
     .limit(25);
 
   if (error) {
-    return apiError(error.message, 500);
+    return apiErrorSafe(error, 500);
   }
 
   const list = (rows ?? []) as PaymentRow[];

@@ -1,4 +1,4 @@
-import { apiError, apiSuccess } from "@/lib/api/json-response";
+import { apiError, apiSuccess, apiErrorSafe } from "@/lib/api/json-response";
 import { requireLibraryAdminOrSuperAdmin } from "@/lib/supabase/require-library-admin";
 import { createSupabaseServiceRoleClient } from "@/lib/supabase/service-role";
 
@@ -43,54 +43,40 @@ export async function POST(request: Request) {
   try {
     admin = createSupabaseServiceRoleClient();
   } catch (e) {
-    const msg = e instanceof Error ? e.message : "Server misconfiguration.";
-    return apiError(msg, 503);
+    return apiErrorSafe(e, 503, "Server misconfiguration.");
   }
 
   const now = new Date().toISOString();
   const newStatus = body.action === "reject" ? "rejected" : "resubmit";
 
   const { data: pending, error: findErr } = await admin
-    .from("verification_requests")
+    .from("verification")
     .select("id")
     .eq("user_id", body.user_id)
     .eq("status", "pending")
+    .is("deleted_at", null)
     .maybeSingle();
 
   if (findErr) {
-    return apiError(findErr.message, 500);
+    return apiErrorSafe(findErr, 500);
   }
   if (!pending?.id) {
     return apiError("No pending verification request for this member.", 400);
   }
 
   const { error: upVr } = await admin
-    .from("verification_requests")
+    .from("verification")
     .update({
       status: newStatus,
       reviewed_at: now,
       reviewed_by: gate.userId,
       student_message: body.student_message,
+      updated_at: now,
     })
     .eq("id", pending.id);
 
   if (upVr) {
-    return apiError(upVr.message, 400);
-  }
-
-  const profileVerification = body.action === "reject" ? "rejected" : "resubmit";
-
-  const { error: upProf } = await admin
-    .from("profiles")
-    .update({
-      verification_status: profileVerification,
-      verification_reviewed_at: now,
-      verification_reviewed_by: gate.userId,
-    })
-    .eq("user_id", body.user_id);
-
-  if (upProf) {
-    return apiError(upProf.message, 400);
+    return apiErrorSafe(upVr, 400);
   }
 
   const label = newStatus === "rejected" ? "rejected" : "resubmit requested";

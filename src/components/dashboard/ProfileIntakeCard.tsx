@@ -18,14 +18,14 @@ export type ProfileIntakeInitial = {
 
 type Props = {
   initial: ProfileIntakeInitial;
-  /** Doc types that already have a file in verification_documents (any of the user's requests). */
+  /** Doc types that already have a submitted file on the open `verification` row (`verification_documents`). */
   uploadedDocs?: Record<string, boolean>;
-  /** During checkout: doc types queued in kyc_checkout_pending_documents (replaceable until payment). */
+  /** During checkout: doc types staged in `verification_documents` with phase `checkout_pending`. */
   checkoutStagedDocs?: Record<string, boolean>;
   onSaved?: () => void;
   /** After a checkout-staged upload succeeds; parent refetches staged list. */
   onStagedDocChange?: () => void;
-  /** Checkout only: false when `kyc_checkout_pending_documents` is not on Supabase yet (run migration SQL). */
+  /** Checkout only: false when checkout staging API reports the schema is not ready. */
   checkoutKycStagingReady?: boolean;
   /** Membership checkout: keep profile PATCH off the server until payment succeeds (sessionStorage draft). */
   persistMode?: "immediate" | "defer_to_payment";
@@ -169,15 +169,17 @@ export default function ProfileIntakeCard({
   const v = statusBadge(initial.verification_status);
 
   useEffect(() => {
-    if (isDefer) {
-      setEditingFields(true);
-      return;
-    }
-    if (verifiedOnDashboard) {
-      setEditingFields(false);
-    } else {
-      setEditingFields(true);
-    }
+    queueMicrotask(() => {
+      if (isDefer) {
+        setEditingFields(true);
+        return;
+      }
+      if (verifiedOnDashboard) {
+        setEditingFields(false);
+      } else {
+        setEditingFields(true);
+      }
+    });
   }, [isDefer, verifiedOnDashboard]);
 
   useEffect(() => {
@@ -198,7 +200,9 @@ export default function ProfileIntakeCard({
   }, [profileMenuOpen]);
 
   useEffect(() => {
-    if (!deferStagingOk) setUpErr(null);
+    if (!deferStagingOk) {
+      queueMicrotask(() => setUpErr(null));
+    }
   }, [deferStagingOk]);
 
   useEffect(() => {

@@ -1,8 +1,10 @@
 import ExcelJS from "exceljs";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
+import { parseAttendanceMemberRowsJson } from "@/lib/etime/attendance-history-store";
 import { resolveMemberSeatDisplayLabel } from "@/lib/membership/seat-label";
 import { DEFAULT_LIBRARY_TZ, membershipCoversLibraryDay } from "@/lib/membership/windows";
+import { deriveUiVerificationStatus, mapLatestVerificationWithDocsByUserId } from "@/lib/verification/verification-repo";
 
 const HEADER_FILL = "FF1F4E79";
 const HEADER_FONT = "FFFFFFFF";
@@ -29,9 +31,9 @@ type ProfileRow = {
   full_name: string;
   phone: string | null;
   email: string | null;
-  verification_status: string | null;
+  is_verified: boolean | null;
+  profile_extras: unknown;
   created_at: string;
-  device_enrolled_at: string | null;
   is_admin: boolean | null;
   is_superadmin: boolean | null;
 };
@@ -181,38 +183,59 @@ function zebraBody(sheet: ExcelJS.Worksheet, firstDataRow: number, lastRow: numb
   }
 }
 
+function ymdFromAttendanceDay(d: unknown): string {
+  if (typeof d === "string") return d.slice(0, 10);
+  return String(d ?? "").slice(0, 10);
+}
+
 async function fetchAllAttendanceForRange(
   admin: SupabaseClient,
   lo: string,
   hi: string,
 ): Promise<{ rows: AttendanceHistoryRow[]; capped: boolean }> {
   const rows: AttendanceHistoryRow[] = [];
-  const pageSize = 1000;
-  for (let offset = 0; offset < ATTENDANCE_CAP; offset += pageSize) {
-    const limit = Math.min(pageSize, ATTENDANCE_CAP - offset);
-    const { data, error } = await admin
-      .from("attendance_history_entries")
-      .select(
-        "library_day_ymd, date_dmy, device_user_id, empcode, full_name, seat_label, in_time, out_time, work_time, status, status_ui, status_ui_label, remark, source, archived_at",
-      )
-      .gte("library_day_ymd", lo)
-      .lte("library_day_ymd", hi)
-      .order("library_day_ymd", { ascending: true })
-      .order("device_user_id", { ascending: true })
-      .range(offset, offset + limit - 1);
+  const { data: days, error } = await admin
+    .from("attendance_days")
+    .select("library_day_ymd, member_rows, archived_at")
+    .is("deleted_at", null)
+    .gte("library_day_ymd", lo)
+    .lte("library_day_ymd", hi)
+    .order("library_day_ymd", { ascending: true });
 
-    if (error) {
-      if (error.code === "42P01") {
-        return { rows: [], capped: false };
+  if (error) {
+    if (error.code === "42P01") {
+      return { rows: [], capped: false };
+    }
+    throw new Error(error.message);
+  }
+
+  for (const day of days ?? []) {
+    const dayYmd = ymdFromAttendanceDay((day as { library_day_ymd?: unknown }).library_day_ymd);
+    const archivedAt = String((day as { archived_at?: string }).archived_at ?? "");
+    let batch = parseAttendanceMemberRowsJson((day as { member_rows?: unknown }).member_rows);
+    batch = batch.slice().sort((a, b) => a.device_user_id - b.device_user_id);
+    for (const r of batch) {
+      rows.push({
+        library_day_ymd: r.library_day_ymd || dayYmd,
+        date_dmy: r.date_dmy,
+        device_user_id: r.device_user_id,
+        empcode: r.empcode,
+        full_name: r.full_name,
+        seat_label: r.seat_label,
+        in_time: r.in_time,
+        out_time: r.out_time,
+        work_time: r.work_time,
+        status: r.status,
+        status_ui: r.status_ui,
+        status_ui_label: r.status_ui_label,
+        remark: r.remark,
+        source: r.source,
+        archived_at: archivedAt,
+      });
+      if (rows.length >= ATTENDANCE_CAP) {
+        return { rows: rows.slice(0, ATTENDANCE_CAP), capped: true };
       }
-      throw new Error(error.message);
     }
-    const batch = (data ?? []) as AttendanceHistoryRow[];
-    rows.push(...batch);
-    if (rows.length >= ATTENDANCE_CAP) {
-      return { rows: rows.slice(0, ATTENDANCE_CAP), capped: true };
-    }
-    if (batch.length < limit) break;
   }
   return { rows, capped: false };
 }
@@ -232,13 +255,17 @@ export async function buildLibraryExportWorkbook(
   const { data: profilesRaw, error: pe } = await admin
     .from("profiles")
     .select(
-      "user_id, device_user_id, full_name, phone, email, verification_status, created_at, device_enrolled_at, is_admin, is_superadmin",
+      "user_id, device_user_id, full_name, phone, email, is_verified, profile_extras, created_at, is_admin, is_superadmin",
     )
     .or("is_superadmin.is.null,is_superadmin.eq.false")
     .order("device_user_id", { ascending: true });
 
   if (pe) throw new Error(pe.message);
   const profiles = (profilesRaw ?? []) as ProfileRow[];
+  const verByUser = await mapLatestVerificationWithDocsByUserId(
+    admin,
+    profiles.map((p) => p.user_id),
+  );
 
   const userIds = profiles.map((p) => p.user_id);
   const memberships: MembershipRow[] = [];
@@ -322,9 +349,9 @@ export async function buildLibraryExportWorkbook(
     views: [{ state: "frozen", ySplit: 1, showGridLines: true }],
   });
   const dirHeaders = [
-    "Empcode",
+    "Member no.",
     "Full name",
-    "Device user ID",
+    "Library no.",
     "Email",
     "Phone",
     "Verification",
@@ -344,16 +371,18 @@ export async function buildLibraryExportWorkbook(
   for (const p of profiles) {
     const m = pickDirectoryMembership(p.user_id, memberships, libraryToday);
     const seat = m ? membershipSeatDisplay(m) : "—";
+    const bundle = verByUser.get(p.user_id);
+    const verificationLabel = deriveUiVerificationStatus(p.is_verified === true, bundle?.row ?? null, bundle?.docs ?? []);
     dirRows.push([
       empcodeFromDeviceUserId(p.device_user_id),
       p.full_name,
       p.device_user_id,
       p.email ?? "",
       p.phone ?? "",
-      p.verification_status ?? "",
+      verificationLabel,
       p.is_admin === true ? "Yes" : "No",
       formatInLibraryTz(p.created_at),
-      p.device_enrolled_at ? formatInLibraryTz(p.device_enrolled_at) : "",
+      "",
       m ? `${m.plan_kind} · ${membershipWindowLabel(m)}` : "—",
       seat,
       m?.status ?? "—",
@@ -374,7 +403,7 @@ export async function buildLibraryExportWorkbook(
   const memHeaders = [
     "Full name",
     "Plan",
-    "Device user ID",
+    "Library no.",
     "Status",
     "Seat",
     "Window",
@@ -429,7 +458,7 @@ export async function buildLibraryExportWorkbook(
   const payHeaders = [
     "Date",
     "Name",
-    "Device user ID",
+    "Library no.",
     "Amount (₹)",
     "Currency",
     "Status",
@@ -471,8 +500,8 @@ export async function buildLibraryExportWorkbook(
   const attHeaders = [
     "Library date",
     "Device date",
-    "Empcode",
-    "Device user ID",
+    "On reader",
+    "Library no.",
     "Name",
     "Seat",
     "In",
@@ -522,9 +551,9 @@ export async function buildLibraryExportWorkbook(
     views: [{ state: "frozen", ySplit: 1, showGridLines: true }],
   });
   const sumHeaders = [
-    "Empcode",
+    "On reader",
     "Name",
-    "Device user ID",
+    "Library no.",
     "Rows in period",
     "Distinct days",
     "Days present",

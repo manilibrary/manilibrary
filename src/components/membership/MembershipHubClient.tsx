@@ -85,9 +85,11 @@ export default function MembershipHubClient() {
   const [hubResumeDismissing, setHubResumeDismissing] = useState(false);
 
   useEffect(() => {
-    const focus = searchParams.get("focus");
-    if (focus === "row") setDailyHours(6);
-    else if (focus === "main") setDailyHours(12);
+    queueMicrotask(() => {
+      const focus = searchParams.get("focus");
+      if (focus === "row") setDailyHours(6);
+      else if (focus === "main") setDailyHours(12);
+    });
   }, [searchParams]);
 
   useEffect(() => {

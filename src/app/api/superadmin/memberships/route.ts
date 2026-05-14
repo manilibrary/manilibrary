@@ -1,4 +1,4 @@
-import { apiError, apiSuccess } from "@/lib/api/json-response";
+import { apiError, apiSuccess, apiErrorSafe } from "@/lib/api/json-response";
 import { formatProfileMemberLabel } from "@/lib/membership/profile-label";
 import { requireLibrarySuperAdmin } from "@/lib/supabase/require-library-super-admin";
 import { createSupabaseServiceRoleClient } from "@/lib/supabase/service-role";
@@ -18,8 +18,7 @@ export async function GET(request: Request) {
   try {
     admin = createSupabaseServiceRoleClient();
   } catch (e) {
-    const msg = e instanceof Error ? e.message : "Server configuration error.";
-    return apiError(msg, 503);
+    return apiErrorSafe(e, 503, "Server configuration error.");
   }
 
   let query = admin
@@ -50,7 +49,7 @@ export async function GET(request: Request) {
 
   const { data: items, error } = await query;
   if (error) {
-    return apiError(error.message, 500);
+    return apiErrorSafe(error, 500);
   }
 
   const userIds = Array.from(new Set((items ?? []).map((r) => r.user_id).filter(Boolean)));

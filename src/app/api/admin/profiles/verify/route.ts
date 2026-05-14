@@ -1,4 +1,4 @@
-import { apiError, apiSuccess } from "@/lib/api/json-response";
+import { apiError, apiSuccess, apiErrorSafe } from "@/lib/api/json-response";
 import { requireLibraryAdminOrSuperAdmin } from "@/lib/supabase/require-library-admin";
 import { createSupabaseServiceRoleClient } from "@/lib/supabase/service-role";
 
@@ -27,42 +27,38 @@ export async function POST(request: Request) {
   try {
     admin = createSupabaseServiceRoleClient();
   } catch (e) {
-    const msg = e instanceof Error ? e.message : "Server misconfiguration.";
-    return apiError(msg, 503);
+    return apiErrorSafe(e, 503, "Server misconfiguration.");
   }
 
   const now = new Date().toISOString();
 
   const { data: pending } = await admin
-    .from("verification_requests")
+    .from("verification")
     .select("id")
     .eq("user_id", body.user_id)
     .eq("status", "pending")
+    .is("deleted_at", null)
     .maybeSingle();
 
   if (pending?.id) {
-    await admin
-      .from("verification_requests")
+    const { error: upV } = await admin
+      .from("verification")
       .update({
         status: "approved",
         reviewed_at: now,
         reviewed_by: gate.userId,
+        updated_at: now,
       })
       .eq("id", pending.id);
+    if (upV) {
+      return apiErrorSafe(upV, 400);
+    }
+  } else {
+    const { error: pe } = await admin.from("profiles").update({ is_verified: true, updated_at: now }).eq("user_id", body.user_id);
+    if (pe) {
+      return apiErrorSafe(pe, 400);
+    }
   }
 
-  const { error: pe } = await admin
-    .from("profiles")
-    .update({
-      verification_status: "approved",
-      verification_reviewed_at: now,
-      verification_reviewed_by: gate.userId,
-    })
-    .eq("user_id", body.user_id);
-
-  if (pe) {
-    return apiError(pe.message, 400);
-  }
-
-  return apiSuccess("Member verification approved and profile marked verified.");
+  return apiSuccess("Member verification approved; profile is_verified synced from verification.");
 }

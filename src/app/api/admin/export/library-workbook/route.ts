@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { apiError } from "@/lib/api/json-response";
+import { apiError, apiErrorSafe } from "@/lib/api/json-response";
 import { buildLibraryExportWorkbook } from "@/lib/export/library-workbook";
 import { requireLibraryAdmin } from "@/lib/supabase/require-library-admin";
 import { createSupabaseServiceRoleClient } from "@/lib/supabase/service-role";
@@ -40,8 +40,7 @@ export async function GET(request: Request) {
   try {
     admin = createSupabaseServiceRoleClient();
   } catch (e) {
-    const msg = e instanceof Error ? e.message : "Server misconfiguration.";
-    return apiError(msg, 503);
+    return apiErrorSafe(e, 503, "Server misconfiguration.");
   }
 
   let buffer: Buffer;
@@ -51,8 +50,7 @@ export async function GET(request: Request) {
     buffer = out.buffer;
     stats = out.stats;
   } catch (e) {
-    const msg = e instanceof Error ? e.message : "Export failed.";
-    return apiError(msg, 500);
+    return apiErrorSafe(e, 500, "Export failed.");
   }
 
   try {

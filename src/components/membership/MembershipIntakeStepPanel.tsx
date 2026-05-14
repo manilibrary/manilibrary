@@ -7,7 +7,13 @@ import { useEffect, useState } from "react";
 import ProfileIntakeCard, { type ProfileIntakeInitial } from "@/components/dashboard/ProfileIntakeCard";
 import { ProfileIntakePanelSkeleton } from "@/components/ui/ContentSkeletons";
 import { CLIENT_DATA_CACHE_TTL_MS, ddcKey, getClientCache, setClientCache } from "@/lib/client-data-cache";
+import { extrasToDisplayFields } from "@/lib/profiles/profile-extras";
 import { createClient } from "@/lib/supabase/client";
+import {
+  deriveUiVerificationStatus,
+  type VerificationDocItem,
+  type VerificationRow,
+} from "@/lib/verification/verification-repo";
 
 type ProfileRow = {
   verification_status: string;
@@ -62,11 +68,21 @@ export default function MembershipIntakeStepPanel({
       if (cProf && !cancelled) setProfile(cProf);
       if (cDocs && !cancelled) setUploadedDocs(cDocs);
 
-      const profRes = await supabase
-        .from("profiles")
-        .select("verification_status, aadhaar_last_four, student_roll_number, institution_type, preparing_for")
-        .eq("user_id", user.id)
-        .maybeSingle();
+      const [profRes, verRes] = await Promise.all([
+        supabase
+          .from("profiles")
+          .select("is_verified, profile_extras")
+          .eq("user_id", user.id)
+          .maybeSingle(),
+        supabase
+          .from("verification")
+          .select("id, status")
+          .eq("user_id", user.id)
+          .is("deleted_at", null)
+          .order("submitted_at", { ascending: false })
+          .limit(1)
+          .maybeSingle(),
+      ]);
 
       if (cancelled) return;
       const { data: prof, error: pe } = profRes;
@@ -76,23 +92,76 @@ export default function MembershipIntakeStepPanel({
         return;
       }
       if (prof) {
-        setProfile(prof as ProfileRow);
-        setClientCache(kProf, prof, CLIENT_DATA_CACHE_TTL_MS);
+        const x = extrasToDisplayFields((prof as { profile_extras?: unknown }).profile_extras);
+        const latestRow = verRes.data as Pick<VerificationRow, "id" | "status"> | null;
+        const latestDocs: VerificationDocItem[] = [];
+        if (latestRow?.id) {
+          const { data: docRows } = await supabase
+            .from("verification_documents")
+            .select("doc_type, phase, storage_bucket, storage_path, content_type")
+            .eq("verification_id", latestRow.id)
+            .is("deleted_at", null);
+          for (const r of docRows ?? []) {
+            const o = r as Record<string, unknown>;
+            const docType = o.doc_type;
+            const phase = o.phase;
+            if (
+              typeof docType === "string" &&
+              (docType === "aadhaar_front" || docType === "aadhaar_back" || docType === "student_id") &&
+              (phase === "checkout_pending" || phase === "submitted") &&
+              typeof o.storage_bucket === "string" &&
+              typeof o.storage_path === "string" &&
+              typeof o.content_type === "string"
+            ) {
+              latestDocs.push({
+                doc_type: docType as VerificationDocItem["doc_type"],
+                storage_bucket: o.storage_bucket,
+                storage_path: o.storage_path,
+                content_type: o.content_type,
+                phase,
+              });
+            }
+          }
+        }
+        const rowForUi: Pick<VerificationRow, "status"> | null = latestRow
+          ? { status: String(latestRow.status ?? "none") }
+          : null;
+        const mapped: ProfileRow = {
+          verification_status: deriveUiVerificationStatus(
+            (prof as { is_verified?: boolean }).is_verified === true,
+            rowForUi,
+            latestDocs,
+          ),
+          aadhaar_last_four: x.aadhaar_last_four,
+          student_roll_number: x.student_roll_number,
+          institution_type: x.institution_type,
+          preparing_for: x.preparing_for,
+        };
+        setProfile(mapped);
+        setClientCache(kProf, mapped, CLIENT_DATA_CACHE_TTL_MS);
       }
 
-      const { data: pendReq } = await supabase
-        .from("verification_requests")
+      const { data: openVer } = await supabase
+        .from("verification")
         .select("id")
         .eq("user_id", user.id)
-        .eq("status", "pending")
+        .in("status", ["pending", "resubmit"])
+        .is("deleted_at", null)
+        .order("submitted_at", { ascending: false })
+        .limit(1)
         .maybeSingle();
 
       const docMap: Record<string, boolean> = {};
-      if (pendReq?.id) {
-        const { data: docs } = await supabase.from("verification_documents").select("doc_type").eq("verification_id", pendReq.id);
-        for (const row of docs ?? []) {
-          const t = row.doc_type as string | undefined;
-          if (t) docMap[t] = true;
+      if (openVer?.id) {
+        const { data: openDocs } = await supabase
+          .from("verification_documents")
+          .select("doc_type, phase")
+          .eq("verification_id", openVer.id)
+          .eq("phase", "submitted")
+          .is("deleted_at", null);
+        for (const r of openDocs ?? []) {
+          const o = r as { doc_type?: string };
+          if (o.doc_type) docMap[o.doc_type] = true;
         }
       }
       if (!cancelled) {

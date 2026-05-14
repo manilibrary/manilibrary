@@ -43,7 +43,7 @@ export default async function SuperadminPage() {
       <PageHeader
         eyebrow="superadmin"
         title="Operations"
-        description="Search across profiles, memberships, and payments; adjust admin flags; inspect environment and payment rows. Membership editing is below."
+        description="Look up members and payments, change who is admin, check that payments and the gate link are configured, and edit memberships below."
         actions={
           <span className="inline-flex items-center rounded-full border border-violet-300 bg-violet-50 px-3 py-1.5 text-xs font-semibold uppercase tracking-wider text-violet-900">
             Superadmin

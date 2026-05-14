@@ -1,4 +1,4 @@
-import { apiError, apiSuccess } from "@/lib/api/json-response";
+import { apiError, apiSuccess, apiErrorSafe } from "@/lib/api/json-response";
 import { formatPaymentAdminDetail } from "@/lib/payments/payment-admin-detail";
 import { requireLibraryAdmin } from "@/lib/supabase/require-library-admin";
 import { createSupabaseServiceRoleClient } from "@/lib/supabase/service-role";
@@ -56,7 +56,7 @@ export async function GET() {
     .limit(80);
 
   if (pe) {
-    return apiError(pe.message, 500);
+    return apiErrorSafe(pe, 500);
   }
 
   const rows: PaymentRow[] = (pays ?? []).map((raw) => {
@@ -95,7 +95,7 @@ export async function GET() {
       .select("user_id, full_name, device_user_id")
       .in("user_id", ids);
     if (prErr) {
-      return apiError(prErr.message, 500);
+      return apiErrorSafe(prErr, 500);
     }
     for (const p of (profs ?? []) as ProfileMini[]) {
       profiles[p.user_id] = p;

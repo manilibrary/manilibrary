@@ -1,4 +1,4 @@
-import { apiError, apiSuccess } from "@/lib/api/json-response";
+import { apiError, apiSuccess, apiErrorSafe } from "@/lib/api/json-response";
 import { resolveMemberSeatDisplayLabel } from "@/lib/membership/seat-label";
 import { toYmdBoundary } from "@/lib/membership/windows";
 import { createSupabaseRouteHandlerClient } from "@/lib/supabase/route-handler";
@@ -97,7 +97,7 @@ export async function GET() {
     .limit(80);
 
   if (error) {
-    return apiError(error.message, 500);
+    return apiErrorSafe(error, 500);
   }
 
   const list = (rows ?? []) as PaymentRow[];

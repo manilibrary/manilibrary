@@ -9,7 +9,7 @@ export default function MembersPage() {
       <PageHeader
         eyebrow="members"
         title="Members"
-        description="Recent memberships from Supabase (library admin only can open this page)."
+        description="Recent memberships. This page is only for library staff with admin access."
       />
       <StaffMembershipsPanel />
     </div>

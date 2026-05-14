@@ -2,7 +2,8 @@
  * Plain-language seat-map primer. Colours align with `MembershipLegend` swatches
  * (Free, Yours, Taken, Blocked) for both halls.
  */
-export default function MembershipSeatMapIntro({ mode: _mode }: { mode: "long" | "short" }) {
+export default function MembershipSeatMapIntro(props: { mode: "long" | "short" }) {
+  void props.mode;
   const occupiedLine = (
     <>
       <strong className="font-semibold text-ink-800">Amber</strong> seats are already booked for your selected dates

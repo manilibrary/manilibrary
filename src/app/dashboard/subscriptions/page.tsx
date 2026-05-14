@@ -25,7 +25,7 @@ export default async function SubscriptionsPage({
       <PageHeader
         eyebrow="subscriptions"
         title="Subscriptions"
-        description="Filter by status (cards) and plan (chips). The default view hides pending payment and expired rows; use those cards to see them."
+        description="Use the status cards for counts, then narrow the table with Show (all, active & expiring, or cancelled) and plan chips."
       />
       <StaffSubscriptionsPanel initialGroup={initialGroup} />
     </div>

@@ -1,6 +1,6 @@
 import Razorpay from "razorpay";
 
-import { apiError, apiSuccess } from "@/lib/api/json-response";
+import { apiError, apiSuccess, apiErrorSafe } from "@/lib/api/json-response";
 import {
   DEFAULT_LIBRARY_TZ,
   addDaysYmd,
@@ -117,7 +117,7 @@ export async function POST(request: Request) {
     .maybeSingle();
 
   if (existingErr && existingErr.code !== "PGRST116") {
-    return apiError(existingErr.message, 500);
+    return apiErrorSafe(existingErr, 500);
   }
   if (existingActive) {
     const until =
@@ -198,7 +198,11 @@ export async function POST(request: Request) {
         409,
       );
     }
-    return apiError(memErr?.message ?? "Could not create membership (run schema-membership-kyc-payments.sql?).", 400);
+    return apiErrorSafe(
+      memErr,
+      400,
+      "Could not create membership. Check your dates and seat, or try again later.",
+    );
   }
 
   const { data: payment, error: payErr } = await supabase
@@ -216,7 +220,7 @@ export async function POST(request: Request) {
     .single();
 
   if (payErr || !payment) {
-    return apiError(payErr?.message ?? "Could not create payment row.", 400);
+    return apiErrorSafe(payErr, 400, "Could not create payment row.");
   }
 
   const receipt = payment.id.replace(/-/g, "").slice(0, 40);
@@ -235,8 +239,7 @@ export async function POST(request: Request) {
       },
     })) as { id: string; amount: number; currency: string };
   } catch (e) {
-    const msg = e instanceof Error ? e.message : "Razorpay order failed";
-    return apiError(msg, 502);
+    return apiErrorSafe(e, 502, "Payment provider could not create the order. Try again in a moment.");
   }
 
   const { error: metaErr } = await supabase
