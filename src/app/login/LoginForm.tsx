@@ -6,9 +6,12 @@ import { useMemo, useState } from "react";
 import AuthMarketingAside from "@/components/auth/AuthMarketingAside";
 import Logo from "@/components/Logo";
 import libraryInfo from "@/data/libraryInfo.json";
+import TurnstileWidget from "@/components/security/TurnstileWidget";
 import { createClient } from "@/lib/supabase/client";
 import { MEMBER_LANDING_PATH, STAFF_LANDING_PATH, sanitizeInternalNext } from "@/lib/auth-landing";
 import { clearClientCache } from "@/lib/client-data-cache";
+import { FIELD_LIMITS } from "@/lib/security/field-limits";
+import { turnstileRequiredOnClient } from "@/lib/security/turnstile-client";
 import { clearAllUxPreferenceCookies } from "@/lib/ux-cookies";
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -57,9 +60,11 @@ export default function LoginForm() {
     staffPortalKey && params.get("staff") === staffPortalKey,
   );
 
+  const captchaRequired = turnstileRequiredOnClient();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPwd, setShowPwd] = useState(false);
+  const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const urlMessageError = useMemo(
@@ -75,21 +80,43 @@ export default function LoginForm() {
     setSubmitting(true);
     setSubmitError(null);
 
-    const supabase = createClient();
-    const { data, error: authError } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
-
-    if (authError) {
-      setSubmitError(authError.message);
+    if (captchaRequired && !turnstileToken) {
+      setSubmitError("Complete the security check below.");
       setSubmitting(false);
       return;
     }
 
-    const user = data.user;
-    if (!user) {
-      setSubmitError("No user returned from sign-in.");
+    const supabase = createClient();
+    try {
+      const res = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          email: email.trim().toLowerCase(),
+          password,
+          ...(turnstileToken ? { turnstileToken } : {}),
+        }),
+      });
+      const json = (await res.json()) as { ok?: boolean; error?: string };
+      if (!res.ok || json.ok === false) {
+        setSubmitError(json.error ?? "Sign in failed.");
+        setSubmitting(false);
+        return;
+      }
+    } catch {
+      setSubmitError("Network error. Try again.");
+      setSubmitting(false);
+      return;
+    }
+
+    const {
+      data: { user },
+      error: sessionError,
+    } = await supabase.auth.getUser();
+
+    if (sessionError || !user) {
+      setSubmitError("Sign-in succeeded but session was not saved. Try again.");
       setSubmitting(false);
       return;
     }
@@ -205,6 +232,7 @@ export default function LoginForm() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
+                maxLength={FIELD_LIMITS.emailMax}
                 className="w-full rounded-xl border border-ink-200 bg-white px-4 py-3 text-sm text-ink-900 outline-none transition focus:border-azure-500 focus:ring-4 focus:ring-azure-500/15"
               />
             </div>
@@ -232,6 +260,7 @@ export default function LoginForm() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
+                maxLength={FIELD_LIMITS.passwordMax}
                 className="w-full rounded-xl border border-ink-200 bg-white px-4 py-3 text-sm text-ink-900 outline-none transition focus:border-azure-500 focus:ring-4 focus:ring-azure-500/15"
               />
             </div>
@@ -244,6 +273,8 @@ export default function LoginForm() {
                 Forgot password?
               </Link>
             </div>
+
+            <TurnstileWidget onToken={setTurnstileToken} className="mt-2" />
 
             {displayError && (
               <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">

@@ -1,7 +1,7 @@
 import { randomUUID } from "crypto";
 
 import { apiError, apiSuccess, apiErrorSafe } from "@/lib/api/json-response";
-import { createSupabaseRouteHandlerClient } from "@/lib/supabase/route-handler";
+import { getAuthUserForApiRequest } from "@/lib/supabase/api-route-auth";
 import { createSupabaseServiceRoleClient } from "@/lib/supabase/service-role";
 import {
   deriveUiVerificationStatus,
@@ -24,10 +24,9 @@ function bucket(): string {
 }
 
 export async function POST(request: Request) {
-  const supabase = await createSupabaseRouteHandlerClient();
   const {
     data: { user },
-  } = await supabase.auth.getUser();
+  } = await getAuthUserForApiRequest(request);
   if (!user) {
     return apiError("Sign in required.", 401);
   }
@@ -40,11 +39,12 @@ export async function POST(request: Request) {
   }
 
   const form = await request.formData();
-  const file = form.get("file");
-  const docTypeRaw = form.get("docType");
-  if (!(file instanceof File)) {
+  const fileRaw = form.get("file") as unknown;
+  if (!(fileRaw instanceof File) && !(fileRaw instanceof Blob)) {
     return apiError("Missing file field.", 400);
   }
+  const file = fileRaw as File | Blob;
+  const docTypeRaw = form.get("docType");
   if (typeof docTypeRaw !== "string" || !DOC_TYPES.has(docTypeRaw)) {
     return apiError("docType must be aadhaar_front, aadhaar_back, or student_id.", 400);
   }

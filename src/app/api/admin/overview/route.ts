@@ -1,6 +1,8 @@
 import { apiError, apiSuccess } from "@/lib/api/json-response";
+import { displayPersonName } from "@/lib/format-person-name";
 import { formatProfileMemberLabel } from "@/lib/membership/profile-label";
 import { parseNumericSeatFromStoredSeat } from "@/lib/membership/seat-label";
+import { loadSiteVisitOverviewStats } from "@/lib/site-visits/site-visit-stats";
 import { requireLibraryAdminOrSuperAdmin } from "@/lib/supabase/require-library-admin";
 import { createSupabaseServiceRoleClient } from "@/lib/supabase/service-role";
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -47,7 +49,7 @@ async function profilesMiniByUserIds(
   const out: Record<string, { full_name: string; device_user_id: number; email: string | null }> = {};
   for (const p of data ?? []) {
     out[p.user_id] = {
-      full_name: p.full_name,
+      full_name: displayPersonName(p.full_name, "Member"),
       device_user_id: p.device_user_id,
       email: p.email ?? null,
     };
@@ -82,8 +84,8 @@ async function distinctActiveSeatCount(
   return seats.size;
 }
 
-export async function GET() {
-  const gate = await requireLibraryAdminOrSuperAdmin();
+export async function GET(request: Request) {
+  const gate = await requireLibraryAdminOrSuperAdmin(request);
   if (!gate.ok) {
     return apiError(gate.message, gate.status);
   }
@@ -115,7 +117,7 @@ export async function GET() {
     seatsShort,
     paidAllTimeAgg,
   ] = await Promise.all([
-    admin.from("profiles").select("user_id", { count: "exact", head: true }),
+    admin.from("profiles").select("user_id", { count: "exact", head: true }).is("deleted_at", null),
     admin
       .from("memberships")
       .select("id", { count: "exact", head: true })
@@ -142,7 +144,19 @@ export async function GET() {
       .gte("created_at", thirtyAgoIso),
     admin
       .from("payments")
-      .select("id, user_id, membership_id, amount_rupees, status, created_at, provider, provider_payment_id")
+      .select(
+        `
+        id,
+        user_id,
+        membership_id,
+        amount_rupees,
+        status,
+        created_at,
+        provider,
+        provider_payment_id,
+        memberships!payments_membership_id_fkey ( plan_kind )
+      `,
+      )
       .order("created_at", { ascending: false })
       .limit(10),
     admin
@@ -251,8 +265,16 @@ export async function GET() {
       created_at: string;
       provider: string | null;
       provider_payment_id: string | null;
+      memberships: { plan_kind: string } | { plan_kind: string }[] | null;
     };
     const pr = profs[p.user_id];
+    const mem = p.memberships;
+    const plan_kind =
+      mem == null
+        ? null
+        : Array.isArray(mem)
+          ? (mem[0]?.plan_kind ?? null)
+          : mem.plan_kind ?? null;
     return {
       id: p.id,
       user_id: p.user_id,
@@ -262,6 +284,7 @@ export async function GET() {
       created_at: p.created_at,
       provider: p.provider,
       provider_payment_id: p.provider_payment_id,
+      plan_kind,
       member_label: pr ? formatProfileMemberLabel(pr) : p.user_id,
       device_user_id: pr?.device_user_id ?? null,
     };
@@ -345,9 +368,18 @@ export async function GET() {
   const maxRev = Math.max(1, ...chartRevenue.map((x) => x.amountInr));
   const maxMem = Math.max(1, ...chartMemberships.map((x) => x.count));
 
+  const siteVisits = await loadSiteVisitOverviewStats(admin);
+  const registeredAccounts = profilesCount.count ?? 0;
+
   return apiSuccess("Admin overview statistics loaded.", {
     stats: {
-      totalMembers: profilesCount.count ?? 0,
+      totalMembers: registeredAccounts,
+      registeredAccounts,
+      siteVisitorsUniqueAllTime: siteVisits.uniqueAllTime,
+      siteVisitorsUniqueToday: siteVisits.uniqueToday,
+      siteVisitorsUnique30d: siteVisits.unique30d,
+      sitePageViewsToday: siteVisits.pageViewsToday,
+      sitePageViews30d: siteVisits.pageViews30d,
       activeLong: activeLong.count ?? 0,
       activeShort: activeShort.count ?? 0,
       activeTotal: (activeLong.count ?? 0) + (activeShort.count ?? 0),

@@ -1,4 +1,5 @@
 import { apiError, apiSuccess, apiErrorSafe } from "@/lib/api/json-response";
+import { displayPersonName } from "@/lib/format-person-name";
 import { parseAttendanceMemberRowsJson } from "@/lib/etime/attendance-history-store";
 import { requireLibraryAdmin } from "@/lib/supabase/require-library-admin";
 import { createSupabaseServiceRoleClient } from "@/lib/supabase/service-role";
@@ -13,7 +14,7 @@ function ymdFromDb(d: unknown): string {
 }
 
 export async function GET(request: Request) {
-  const gate = await requireLibraryAdmin();
+  const gate = await requireLibraryAdmin(request);
   if (!gate.ok) {
     return apiError(gate.message, gate.status);
   }
@@ -79,7 +80,7 @@ export async function GET(request: Request) {
         date_dmy: r.date_dmy,
         device_user_id: r.device_user_id,
         empcode: r.empcode,
-        full_name: r.full_name,
+        full_name: r.full_name ? displayPersonName(r.full_name, "—") : null,
         seat_label: r.seat_label,
         in_time: r.in_time,
         out_time: r.out_time,

@@ -1,5 +1,7 @@
 import { apiError, apiErrorSafe, apiSuccess } from "@/lib/api/json-response";
 import { isManualPaymentMethod, manualEnrollMember } from "@/lib/admin/manual-member-enroll";
+import { formatPersonName } from "@/lib/format-person-name";
+import { validateStaffNewMemberAccountFields } from "@/lib/security/validate-fields";
 import type { MembershipPlanKind } from "@/lib/payments/pricing";
 import { requireLibraryAdmin } from "@/lib/supabase/require-library-admin";
 import { createSupabaseServiceRoleClient } from "@/lib/supabase/service-role";
@@ -11,7 +13,7 @@ function isPlanKind(v: unknown): v is MembershipPlanKind {
 }
 
 export async function POST(request: Request) {
-  const gate = await requireLibraryAdmin();
+  const gate = await requireLibraryAdmin(request);
   if (!gate.ok) {
     return apiError(gate.message, gate.status);
   }
@@ -55,8 +57,14 @@ export async function POST(request: Request) {
   const mark_kyc_verified = raw.mark_kyc_verified === true;
 
   if (!existing_user_id) {
-    if (!full_name.trim() || !email.trim()) {
-      return apiError("full_name and email are required when existing_user_id is not set.", 400);
+    const acc = validateStaffNewMemberAccountFields({
+      name: full_name,
+      email,
+      phone: phone ?? "",
+      password: password ?? "",
+    });
+    if (!acc.ok) {
+      return apiError(acc.error, 400);
     }
   }
 
@@ -69,7 +77,7 @@ export async function POST(request: Request) {
 
   const result = await manualEnrollMember(admin, {
     existing_user_id,
-    full_name: full_name.trim(),
+    full_name: formatPersonName(full_name),
     email: email.trim(),
     phone: phone?.trim(),
     password,

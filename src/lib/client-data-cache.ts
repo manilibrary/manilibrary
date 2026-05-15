@@ -1,7 +1,15 @@
 /**
- * In-memory cache plus sessionStorage mirror for the same browser tab.
- * Speeds repeat navigations and full reloads; cleared on sign-out.
- * Do not store secrets — only data already returned from APIs under the user session.
+ * Tier-1 client cache: in-memory (fastest) + sessionStorage tab mirror (soft reload).
+ *
+ * Use for: lists already loaded, recent API responses, current-screen data while the app is open.
+ * Pattern: show cache immediately → revalidate from API in background → update cache.
+ *
+ * Not for: passwords, tokens, OTPs, card data, admin secrets, or trusting cached role/price/payment status.
+ * Offline / large persistent data → IndexedDB (not implemented here).
+ * Tiny UI prefs (theme, last tab) → localStorage elsewhere, not this module.
+ * Auth secrets → HttpOnly cookies / server session only.
+ *
+ * Cleared on sign-out via clearClientCache().
  */
 
 export const CLIENT_DATA_CACHE_TTL_MS = 8 * 60 * 1000; // 8 minutes
@@ -133,4 +141,9 @@ export const ddcKey = {
   seatOccupancy: (planKind: string, startDate: string, durationKey: string) =>
     `ml_ddc:seat_occ:${planKind}:${startDate}:${durationKey}`,
   memberPayments: (userId: string) => `ml_ddc:member_payments:${userId}`,
+  /** Staff admin members browse (/dashboard/members, /dashboard/subscriptions). */
+  adminMembersList: () => `ml_ddc:admin_members_list`,
+  adminPaymentsList: () => `ml_ddc:admin_payments_list`,
+  adminOverview: () => `ml_ddc:admin_overview`,
+  superadminMemberships: (query: string) => `ml_ddc:superadmin_memberships:${query || "__all__"}`,
 } as const;

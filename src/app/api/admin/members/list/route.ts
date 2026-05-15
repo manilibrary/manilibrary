@@ -1,4 +1,5 @@
 import { apiError, apiSuccess, apiErrorSafe } from "@/lib/api/json-response";
+import { displayPersonName } from "@/lib/format-person-name";
 import {
   addDaysYmd,
   DEFAULT_LIBRARY_TZ,
@@ -86,8 +87,8 @@ function membershipWindowState(row: MembershipRow, todayYmd: string): Membership
   return "unknown";
 }
 
-export async function GET() {
-  const gate = await requireLibraryAdmin();
+export async function GET(request: Request) {
+  const gate = await requireLibraryAdmin(request);
   if (!gate.ok) {
     return apiError(gate.message, gate.status);
   }
@@ -139,7 +140,7 @@ export async function GET() {
       const bundle = verByUser.get(p.user_id);
       profiles[p.user_id] = {
         user_id: p.user_id,
-        full_name: p.full_name,
+        full_name: displayPersonName(p.full_name, "Member"),
         device_user_id: p.device_user_id,
         email: p.email,
         verification_status: deriveUiVerificationStatus(p.is_verified === true, bundle?.row ?? null, bundle?.docs ?? []),
@@ -193,7 +194,7 @@ export async function GET() {
         const bundle = verOrphans.get(p.user_id);
         return {
           user_id: p.user_id,
-          full_name: p.full_name,
+          full_name: displayPersonName(p.full_name, "Member"),
           device_user_id: p.device_user_id,
           email: p.email,
           verification_status: deriveUiVerificationStatus(p.is_verified === true, bundle?.row ?? null, bundle?.docs ?? []),

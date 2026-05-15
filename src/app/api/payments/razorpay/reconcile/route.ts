@@ -4,7 +4,7 @@ import { apiError, apiErrorSafe, apiSuccess } from "@/lib/api/json-response";
 import { finalizeRazorpayPaymentRow } from "@/lib/payments/finalize-razorpay-payment";
 import { promoteCheckoutKycStaging } from "@/lib/kyc/promote-checkout-kyc-staging";
 import { rupeesToRazorpayPaise } from "@/lib/payments/pricing";
-import { createSupabaseRouteHandlerClient } from "@/lib/supabase/route-handler";
+import { getAuthUserForApiRequest } from "@/lib/supabase/api-route-auth";
 import { createSupabaseServiceRoleClient } from "@/lib/supabase/service-role";
 
 export const runtime = "nodejs";
@@ -34,11 +34,11 @@ export async function POST(request: Request) {
     return apiError("Expected JSON body.", 400);
   }
 
-  const supabase = await createSupabaseRouteHandlerClient();
   const {
     data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) {
+    error: authErr,
+  } = await getAuthUserForApiRequest(request);
+  if (authErr || !user) {
     return apiError("Sign in required.", 401);
   }
 

@@ -1,7 +1,7 @@
 import { randomUUID } from "crypto";
 
 import { apiError, apiSuccess, apiErrorSafe } from "@/lib/api/json-response";
-import { createSupabaseRouteHandlerClient } from "@/lib/supabase/route-handler";
+import { getAuthUserForApiRequest } from "@/lib/supabase/api-route-auth";
 import { createSupabaseServiceRoleClient } from "@/lib/supabase/service-role";
 
 export const runtime = "nodejs";
@@ -33,11 +33,11 @@ function pathFromPublicUrl(avatarUrl: string | null | undefined): string | null 
 }
 
 export async function POST(request: Request) {
-  const supabase = await createSupabaseRouteHandlerClient();
   const {
     data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) {
+    error: authErr,
+  } = await getAuthUserForApiRequest(request);
+  if (authErr || !user) {
     return apiError("Sign in required.", 401);
   }
 
@@ -101,12 +101,12 @@ export async function POST(request: Request) {
   return apiSuccess("Avatar uploaded and profile updated.", { avatarUrl });
 }
 
-export async function DELETE() {
-  const supabase = await createSupabaseRouteHandlerClient();
+export async function DELETE(request: Request) {
   const {
     data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) {
+    error: authErr,
+  } = await getAuthUserForApiRequest(request);
+  if (authErr || !user) {
     return apiError("Sign in required.", 401);
   }
 

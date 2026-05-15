@@ -1,5 +1,5 @@
 import { safeClientErrorMessage } from "@/lib/api/json-response";
-import { createSupabaseRouteHandlerClient } from "@/lib/supabase/route-handler";
+import { getAuthUserForApiRequest } from "@/lib/supabase/api-route-auth";
 import { createSupabaseServiceRoleClient } from "@/lib/supabase/service-role";
 
 export type LibraryAdminGate =
@@ -11,11 +11,10 @@ export type LibraryAdminGate =
  * The is_admin lookup uses the service-role client so it bypasses RLS on `profiles`
  * (avoids policy recursion through `is_library_admin()`).
  */
-export async function requireLibraryAdmin(): Promise<LibraryAdminGate> {
-  const supabase = await createSupabaseRouteHandlerClient();
+export async function requireLibraryAdmin(request: Request): Promise<LibraryAdminGate> {
   const {
     data: { user },
-  } = await supabase.auth.getUser();
+  } = await getAuthUserForApiRequest(request);
   if (!user) {
     return { ok: false, status: 401, message: "Sign in required." };
   }
@@ -47,11 +46,10 @@ export async function requireLibraryAdmin(): Promise<LibraryAdminGate> {
 /**
  * Library admin **or** superadmin — for KYC review routes that both roles may use.
  */
-export async function requireLibraryAdminOrSuperAdmin(): Promise<LibraryAdminGate> {
-  const supabase = await createSupabaseRouteHandlerClient();
+export async function requireLibraryAdminOrSuperAdmin(request: Request): Promise<LibraryAdminGate> {
   const {
     data: { user },
-  } = await supabase.auth.getUser();
+  } = await getAuthUserForApiRequest(request);
   if (!user) {
     return { ok: false, status: 401, message: "Sign in required." };
   }

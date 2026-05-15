@@ -1,5 +1,7 @@
 import { apiError, apiSuccess, apiErrorSafe } from "@/lib/api/json-response";
 import { createSupabaseRouteHandlerClient } from "@/lib/supabase/route-handler";
+import { guardAuthEmail, guardPublicAuthPost } from "@/lib/security/request-guards";
+import { validateRegisterFields } from "@/lib/security/validate-fields";
 
 export const runtime = "nodejs";
 
@@ -14,27 +16,23 @@ function wantsMobileSession(request: Request, body: Record<string, unknown>) {
  * For Expo, pass `"client":"expo"` to receive session tokens when email confirmation is off.
  */
 export async function POST(request: Request) {
-  let body: Record<string, unknown>;
-  try {
-    body = (await request.json()) as Record<string, unknown>;
-  } catch {
-    return apiError("Expected JSON body.", 400);
+  const pre = await guardPublicAuthPost(request);
+  if (!pre.ok) return pre.response;
+
+  const body = pre.body;
+  const validated = validateRegisterFields({
+    name: body.name,
+    email: body.email,
+    phone: body.phone,
+    password: body.password,
+  });
+  if (!validated.ok) {
+    return apiError(validated.error, 400);
   }
 
-  const name = typeof body.name === "string" ? body.name.trim() : "";
-  const email = typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
-  const phone = typeof body.phone === "string" ? body.phone.trim() : "";
-  const password = typeof body.password === "string" ? body.password : "";
-
-  if (name.length < 2) {
-    return apiError("Full name is required.", 400);
-  }
-  if (!email.includes("@")) {
-    return apiError("A valid email is required.", 400);
-  }
-  if (password.length < 6) {
-    return apiError("Password must be at least 6 characters.", 400);
-  }
+  const { name, email, phone, password } = validated;
+  const emailLimited = guardAuthEmail(email);
+  if (emailLimited) return emailLimited;
 
   const mobile = wantsMobileSession(request, body);
 
@@ -58,7 +56,28 @@ export async function POST(request: Request) {
       return apiError("No user returned from sign up.", 500);
     }
 
+    const createdEmail = (data.user.email ?? "").trim().toLowerCase();
+    if (createdEmail !== email) {
+      await supabase.auth.signOut();
+      return apiError("Account email mismatch. Please try again.", 400);
+    }
+
     if (data.session && mobile) {
+      const { data: profileRow, error: profErr } = await supabase
+        .from("profiles")
+        .select("user_id")
+        .eq("user_id", data.user.id)
+        .is("deleted_at", null)
+        .maybeSingle();
+
+      if (profErr || !profileRow) {
+        await supabase.auth.signOut();
+        return apiError(
+          "Your sign-up did not finish linking a library profile (required for this app). Ask staff to check the database trigger, or try again in a moment.",
+          503,
+        );
+      }
+
       const s = data.session;
       return apiSuccess("Account created.", {
         needsEmailConfirmation: false,

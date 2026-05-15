@@ -8,7 +8,7 @@ import { createSupabaseServiceRoleClient } from "@/lib/supabase/service-role";
 export const runtime = "nodejs";
 
 export async function POST(request: Request) {
-  const gate = await requireLibraryAdmin();
+  const gate = await requireLibraryAdmin(request);
   if (!gate.ok) {
     return apiError(gate.message, gate.status);
   }
@@ -60,8 +60,8 @@ export async function POST(request: Request) {
   });
 }
 
-export async function GET() {
-  const gate = await requireLibraryAdmin();
+export async function GET(request: Request) {
+  const gate = await requireLibraryAdmin(request);
   if (!gate.ok) {
     return apiError(gate.message, gate.status);
   }

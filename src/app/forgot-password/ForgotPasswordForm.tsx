@@ -3,12 +3,16 @@
 import Link from "next/link";
 import { useState } from "react";
 import AuthMarketingAside from "@/components/auth/AuthMarketingAside";
+import TurnstileWidget from "@/components/security/TurnstileWidget";
 import Logo from "@/components/Logo";
 import libraryInfo from "@/data/libraryInfo.json";
-import { createClient } from "@/lib/supabase/client";
+import { FIELD_LIMITS } from "@/lib/security/field-limits";
+import { turnstileRequiredOnClient } from "@/lib/security/turnstile-client";
 
 export default function ForgotPasswordForm() {
+  const captchaRequired = turnstileRequiredOnClient();
   const [email, setEmail] = useState("");
+  const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [sent, setSent] = useState(false);
@@ -16,26 +20,37 @@ export default function ForgotPasswordForm() {
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
-    setSubmitting(true);
 
-    const supabase = createClient();
-    const origin =
-      typeof window !== "undefined" ? window.location.origin : "";
-    // Server route exchanges PKCE `code` and sets cookies (avoids broken opens
-    // from mail in-app browsers). Use this exact URL in Supabase → Redirect URLs.
-    const { error: resetError } = await supabase.auth.resetPasswordForEmail(
-      email.trim(),
-      {
-        redirectTo: `${origin}/auth/callback`,
-      },
-    );
-
-    setSubmitting(false);
-    if (resetError) {
-      setError(resetError.message);
+    if (captchaRequired && !turnstileToken) {
+      setError("Complete the security check below.");
       return;
     }
-    setSent(true);
+
+    setSubmitting(true);
+    try {
+      const origin = typeof window !== "undefined" ? window.location.origin : "";
+      const res = await fetch("/api/auth/forgot-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          email: email.trim().toLowerCase(),
+          origin,
+          ...(turnstileToken ? { turnstileToken } : {}),
+        }),
+      });
+      const json = (await res.json()) as { ok?: boolean; error?: string };
+      if (!res.ok || json.ok === false) {
+        setError(json.error ?? "Could not send reset email.");
+        setSubmitting(false);
+        return;
+      }
+      setSent(true);
+    } catch {
+      setError("Network error. Try again.");
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -95,9 +110,12 @@ export default function ForgotPasswordForm() {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   required
+                  maxLength={FIELD_LIMITS.emailMax}
                   className="w-full rounded-xl border border-ink-200 bg-white px-4 py-3 text-sm text-ink-900 outline-none transition focus:border-azure-500 focus:ring-4 focus:ring-azure-500/15"
                 />
               </div>
+
+              <TurnstileWidget onToken={setTurnstileToken} />
 
               {error && (
                 <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
@@ -108,17 +126,16 @@ export default function ForgotPasswordForm() {
               <button
                 type="submit"
                 disabled={submitting}
-                className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-azure-500 px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-azure-600 disabled:cursor-not-allowed disabled:opacity-60"
+                className="inline-flex w-full items-center justify-center rounded-full bg-azure-500 px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-azure-600 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {submitting ? "Sending…" : "Send reset link"}
               </button>
             </form>
           )}
-
         </div>
 
-        <footer className="flex items-center justify-center gap-3 font-mono text-[10px] uppercase tracking-widest text-ink-400">
-          {libraryInfo.address.city}, {libraryInfo.address.state}
+        <footer className="pt-8 text-center text-xs text-ink-400 lg:text-left">
+          © {new Date().getFullYear()} {libraryInfo.name}
         </footer>
       </section>
 

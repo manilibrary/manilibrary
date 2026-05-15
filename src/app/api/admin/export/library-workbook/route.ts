@@ -12,7 +12,7 @@ function clamp(n: number, lo: number, hi: number): number {
 }
 
 export async function GET(request: Request) {
-  const gate = await requireLibraryAdmin();
+  const gate = await requireLibraryAdmin(request);
   if (!gate.ok) {
     return apiError(gate.message, gate.status);
   }

@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Inter, JetBrains_Mono } from "next/font/google";
+import SiteVisitTracker from "@/components/SiteVisitTracker";
 import libraryInfo from "@/data/libraryInfo.json";
 import "./globals.css";
 
@@ -66,6 +67,7 @@ export default function RootLayout({
       className={`${inter.variable} ${jetBrainsMono.variable} h-full antialiased`}
     >
       <body className="min-h-full bg-white text-ink-900 font-sans">
+        <SiteVisitTracker />
         {children}
       </body>
     </html>

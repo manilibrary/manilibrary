@@ -1,12 +1,21 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useMemo, useState } from "react";
 
+import { useStaleWhileRevalidate } from "@/hooks/useStaleWhileRevalidate";
+import { fetchAdminOverview, type AdminOverviewPayload } from "@/lib/client/fetch-admin-overview";
+import { ddcKey } from "@/lib/client-data-cache";
 import { resolveMemberSeatDisplayLabel } from "@/lib/membership/seat-label";
 
 type Stats = {
   totalMembers: number;
+  registeredAccounts: number;
+  siteVisitorsUniqueAllTime: number;
+  siteVisitorsUniqueToday: number;
+  siteVisitorsUnique30d: number;
+  sitePageViewsToday: number;
+  sitePageViews30d: number;
   activeLong: number;
   activeShort: number;
   activeTotal: number;
@@ -55,414 +64,317 @@ type ExpiringRow = {
 type ChartDay = { day: string; amountInr: number };
 type ChartMem = { day: string; count: number };
 
-type Payload = {
-  stats: Stats;
-  recentPayments: RecentPayment[];
-  recentMemberships: RecentMembership[];
-  expiringSoon: ExpiringRow[];
-  chart: {
-    revenueByDay: ChartDay[];
-    membershipsCreatedByDay: ChartMem[];
-    maxRevenueInr: number;
-    maxMembershipsCreated: number;
-  };
-  seatSnapshot: { longTermDistinctSeats: number; shortTermDistinctSeats: number };
-};
+type Payload = AdminOverviewPayload;
 
-function StatCard({
-  href,
-  title,
-  value,
-  sub,
-  tone,
-}: {
-  href?: string;
-  title: string;
-  value: string | number;
-  sub?: string;
-  tone?: "azure" | "emerald" | "amber" | "ink";
-}) {
-  const toneText =
-    tone === "emerald"
-      ? "text-emerald-700"
-      : tone === "amber"
-        ? "text-amber-700"
-        : tone === "ink"
-          ? "text-ink-900"
-          : "text-azure-700";
-  const inner = (
-    <div className="rounded-2xl border border-ink-100 bg-white p-5 shadow-card transition-colors hover:border-azure-200">
-      <p className="font-mono text-[10px] uppercase tracking-widest text-ink-500">{title}</p>
-      <p className={`mt-2 text-3xl font-semibold ${toneText}`}>{value}</p>
-      {sub ? <p className="mt-2 text-xs text-ink-500">{sub}</p> : null}
-    </div>
-  );
-  return href ? <Link href={href}>{inner}</Link> : inner;
+const TREND_DAYS = 14;
+
+function formatInr(n: number) {
+  return `₹${n.toLocaleString("en-IN")}`;
 }
 
-function MiniBars({
-  label,
-  days,
-  colorClass,
+function shortDayLabel(isoDay: string) {
+  const d = new Date(`${isoDay}T12:00:00Z`);
+  if (Number.isNaN(d.getTime())) return isoDay.slice(5);
+  return d.toLocaleDateString("en-IN", { day: "numeric", month: "short" });
+}
+
+function TrendChart({
+  mode,
+  revenueDays,
+  membershipDays,
+  maxRevenue,
+  maxMemberships,
 }: {
-  label: string;
-  days: { day: string; v: number; h: number }[];
-  colorClass: string;
+  mode: "revenue" | "memberships";
+  revenueDays: ChartDay[];
+  membershipDays: ChartMem[];
+  maxRevenue: number;
+  maxMemberships: number;
 }) {
+  const safeMaxRev = Math.max(maxRevenue, 1);
+  const safeMaxMem = Math.max(maxMemberships, 1);
+
+  const series =
+    mode === "revenue"
+      ? revenueDays.map((x) => ({ label: x.day, value: x.amountInr, max: safeMaxRev }))
+      : membershipDays.map((x) => ({ label: x.day, value: x.count, max: safeMaxMem }));
+
+  const peak = mode === "revenue" ? safeMaxRev : safeMaxMem;
+  const peakLabel =
+    mode === "revenue" ? `${formatInr(Math.round(peak))} max / day` : `${Math.round(peak)} max / day`;
+
   return (
-    <div className="rounded-2xl border border-ink-100 bg-white p-5 shadow-card">
-      <p className="font-mono text-[10px] uppercase tracking-widest text-ink-500">{label}</p>
-      <p className="mt-1 text-xs text-ink-500">Last 30 calendar days (UTC).</p>
-      <div className="mt-4 flex h-28 items-end gap-px">
-        {days.map((d) => (
-          <div
-            key={d.day}
-            title={`${d.day}: ${d.v}`}
-            className={`min-w-0 flex-1 rounded-t ${colorClass}`}
-            style={{ height: `${Math.max(4, d.h)}%` }}
-          />
-        ))}
+    <div>
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+        <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-ink-500">Last {TREND_DAYS} days</p>
+        <p className="font-mono text-[10px] text-ink-400">{peakLabel}</p>
       </div>
+      <div className="relative rounded-xl border border-ink-100 bg-gradient-to-b from-white to-ink-50/80 px-2 pb-2 pt-4 sm:px-3">
+        <div
+          className="pointer-events-none absolute inset-x-3 top-4 bottom-10 rounded-md bg-[length:100%_25%] bg-[linear-gradient(to_bottom,transparent_0,transparent_calc(100%-1px),rgb(241_245_249/0.9)_calc(100%-1px))] opacity-70"
+          aria-hidden
+        />
+        <div className="relative flex h-36 items-stretch justify-between gap-1 sm:gap-1.5">
+          {series.map((pt) => {
+            const h = Math.round((pt.value / pt.max) * 100);
+            const barH = pt.value > 0 ? Math.max(8, h) : 4;
+            return (
+              <div
+                key={pt.label}
+                className="flex h-full min-w-0 flex-1 flex-col justify-end"
+                title={`${pt.label}: ${pt.value}`}
+              >
+                <div
+                  className={
+                    mode === "revenue"
+                      ? "mx-auto w-full max-w-[18px] rounded-t-md bg-azure-600/90 shadow-sm transition-[height] duration-300"
+                      : "mx-auto w-full max-w-[18px] rounded-t-md bg-emerald-600/88 shadow-sm transition-[height] duration-300"
+                  }
+                  style={{ height: `${barH}%` }}
+                />
+              </div>
+            );
+          })}
+        </div>
+        <div className="mt-2 flex justify-between px-0.5 font-mono text-[9px] text-ink-400 sm:text-[10px]">
+          <span className="truncate">{series[0] ? shortDayLabel(series[0].label) : "—"}</span>
+          <span className="hidden truncate sm:inline">
+            {series[Math.floor(series.length / 2)] ? shortDayLabel(series[Math.floor(series.length / 2)].label) : "—"}
+          </span>
+          <span className="truncate">{series[series.length - 1] ? shortDayLabel(series[series.length - 1].label) : "—"}</span>
+        </div>
+      </div>
+      <p className="mt-2 text-[10px] text-ink-400">Daily totals in UTC. Open Payments or Subscriptions for full history.</p>
     </div>
   );
 }
 
 export default function AdminLibraryInsights() {
-  const [data, setData] = useState<Payload | null>(null);
-  const [err, setErr] = useState<string | null>(null);
+  const [trendMode, setTrendMode] = useState<"revenue" | "memberships">("revenue");
 
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const res = await fetch("/api/admin/overview", { cache: "no-store" });
-        const j = (await res.json()) as { ok?: boolean; error?: string } & Partial<Payload>;
-        if (cancelled) return;
-        if (!res.ok || !j.ok || !j.stats) {
-          setErr(j.error ?? "Could not load overview.");
-          return;
-        }
-        setData({
-          stats: {
-            totalMembers: j.stats.totalMembers ?? 0,
-            activeLong: j.stats.activeLong ?? 0,
-            activeShort: j.stats.activeShort ?? 0,
-            activeTotal: j.stats.activeTotal ?? 0,
-            paidCountToday: j.stats.paidCountToday ?? 0,
-            revenueTodayInr: j.stats.revenueTodayInr ?? 0,
-            revenue30dInr: j.stats.revenue30dInr ?? 0,
-            paidCount30d: j.stats.paidCount30d ?? 0,
-            totalPaidRevenueInr: j.stats.totalPaidRevenueInr ?? 0,
-            pendingPayments: j.stats.pendingPayments ?? 0,
-            newMemberships30d: j.stats.newMemberships30d ?? 0,
-          },
-          recentPayments: j.recentPayments ?? [],
-          recentMemberships: j.recentMemberships ?? [],
-          expiringSoon: j.expiringSoon ?? [],
-          chart: j.chart ?? {
-            revenueByDay: [],
-            membershipsCreatedByDay: [],
-            maxRevenueInr: 1,
-            maxMembershipsCreated: 1,
-          },
-          seatSnapshot: j.seatSnapshot ?? { longTermDistinctSeats: 0, shortTermDistinctSeats: 0 },
-        });
-      } catch (e) {
-        if (!cancelled) setErr(e instanceof Error ? e.message : "Network error.");
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+  const { data, loading, revalidating, error } = useStaleWhileRevalidate<Payload>({
+    cacheKey: ddcKey.adminOverview(),
+    fetcher: fetchAdminOverview,
+  });
 
-  if (err) {
-    return (
-      <p className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{err}</p>
-    );
+  const slicedChart = useMemo(() => {
+    if (!data) {
+      return {
+        revenue: [] as ChartDay[],
+        memberships: [] as ChartMem[],
+        maxRevenueInr: 1,
+        maxMembershipsCreated: 1,
+      };
+    }
+    const rev = data.chart.revenueByDay.slice(-TREND_DAYS);
+    const mem = data.chart.membershipsCreatedByDay.slice(-TREND_DAYS);
+    const maxRev = Math.max(1, ...rev.map((d) => d.amountInr), 1);
+    const maxMem = Math.max(1, ...mem.map((d) => d.count), 1);
+    return { revenue: rev, memberships: mem, maxRevenueInr: maxRev, maxMembershipsCreated: maxMem };
+  }, [data]);
+
+  if (error && !data) {
+    return <p className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{error}</p>;
   }
 
-  if (!data) {
+  if (loading && !data) {
     return (
-      <div className="space-y-6">
-        <div className="grid gap-4 sm:grid-cols-3">
-          {[0, 1, 2].map((i) => (
-            <div key={`inc-${i}`} className="h-28 animate-pulse rounded-2xl border border-ink-100 bg-white" />
-          ))}
-        </div>
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          {[0, 1, 2, 3].map((i) => (
-            <div key={i} className="h-28 animate-pulse rounded-2xl border border-ink-100 bg-white" />
-          ))}
-        </div>
-        <div className="grid gap-4 lg:grid-cols-2">
-          {[0, 1].map((i) => (
-            <div key={i} className="h-48 animate-pulse rounded-2xl border border-ink-100 bg-white" />
-          ))}
-        </div>
+      <div className="space-y-4">
+        <div className="h-36 animate-pulse rounded-2xl border border-ink-100 bg-white" />
+        <div className="h-52 animate-pulse rounded-2xl border border-ink-100 bg-white" />
       </div>
     );
   }
 
-  const { stats, chart } = data;
-  const revDays = chart.revenueByDay.map((x) => ({
-    day: x.day,
-    v: x.amountInr,
-    h: (x.amountInr / chart.maxRevenueInr) * 100,
-  }));
-  const memDays = chart.membershipsCreatedByDay.map((x) => ({
-    day: x.day,
-    v: x.count,
-    h: (x.count / chart.maxMembershipsCreated) * 100,
-  }));
+  if (!data) return null;
+
+  const { stats, expiringSoon } = data;
+  const pendingTone = stats.pendingPayments > 0;
+  const registered = stats.registeredAccounts || stats.totalMembers;
 
   return (
-    <div className="space-y-8">
-      <div className="grid gap-4 sm:grid-cols-3">
-        <StatCard
-          href="/dashboard/payments"
-          title="Total income (paid)"
-          value={`₹${stats.totalPaidRevenueInr.toLocaleString("en-IN")}`}
-          sub="All time · status paid"
-          tone="emerald"
-        />
-        <StatCard
-          href="/dashboard/payments"
-          title="Income — last 30 days"
-          value={`₹${stats.revenue30dInr.toLocaleString("en-IN")}`}
-          sub={`${stats.paidCount30d} paid charges`}
-          tone="azure"
-        />
-        <StatCard
-          href="/dashboard/payments"
-          title="Income — today"
-          value={`₹${stats.revenueTodayInr.toLocaleString("en-IN")}`}
-          sub={`${stats.paidCountToday} payments captured`}
-          tone="ink"
-        />
-      </div>
-
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <StatCard
-          href="/dashboard/members"
-          title="Total members"
-          value={stats.totalMembers}
-          sub={`${stats.newMemberships30d} new memberships in 30 days`}
-        />
-        <StatCard
-          href="/dashboard/subscriptions"
-          title="Active memberships"
-          value={stats.activeTotal}
-          sub={`${stats.activeLong} long-term · ${stats.activeShort} short-term`}
-          tone="emerald"
-        />
-        <StatCard
-          href="/dashboard/payments"
-          title="Paid charges (30 days)"
-          value={stats.paidCount30d}
-          sub={`₹${stats.revenue30dInr.toLocaleString("en-IN")} volume`}
-          tone="azure"
-        />
-        <StatCard
-          href="/dashboard/payments"
-          title="Pending payments"
-          value={stats.pendingPayments}
-          sub="Waiting on verify / capture"
-          tone={stats.pendingPayments > 0 ? "amber" : "ink"}
-        />
-      </div>
-
-      <div className="grid gap-4 lg:grid-cols-2">
-        <MiniBars label="Paid revenue (₹)" days={revDays} colorClass="bg-azure-400/90" />
-        <MiniBars
-          label="Memberships created (count)"
-          days={memDays}
-          colorClass="bg-emerald-400/90"
-        />
-      </div>
-
-      <div className="rounded-2xl border border-ink-100 bg-white p-5 shadow-card">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <p className="font-mono text-[10px] uppercase tracking-widest text-ink-500">Seat snapshot</p>
-            <p className="mt-1 text-sm text-ink-600">
-              Distinct seat numbers with an active plan today (long-term calendar · short-term clock).
+    <div className="space-y-4">
+      {revalidating ? (
+        <p className="text-right text-[10px] font-medium uppercase tracking-wider text-ink-400">Updating…</p>
+      ) : null}
+      <div className="overflow-hidden rounded-2xl border border-ink-100 bg-white shadow-sm">
+        <div
+          className="grid divide-y divide-ink-100 sm:grid-cols-2 sm:divide-x sm:divide-y-0 lg:grid-cols-3"
+        >
+          <div className="p-5 sm:border-r sm:border-ink-100">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-ink-500">Registered accounts</p>
+            <p className="mt-2 text-3xl font-semibold tracking-tight text-ink-900 tabular-nums">{registered}</p>
+            <p className="mt-1 text-xs text-ink-500">People who signed up on the website or app</p>
+          </div>
+          <div className="p-5 sm:border-r sm:border-ink-100 lg:border-r-0">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-ink-500">Website visitors · 30 days</p>
+            <p className="mt-2 text-3xl font-semibold tracking-tight text-emerald-800 tabular-nums">
+              {stats.siteVisitorsUnique30d}
+            </p>
+            <p className="mt-1 text-xs text-ink-500">Unique browsers — includes guests who never register</p>
+            <p className="mt-2 text-[11px] text-ink-400">
+              Today {stats.siteVisitorsUniqueToday} · All-time {stats.siteVisitorsUniqueAllTime}
             </p>
           </div>
+          <div className="p-5">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-ink-500">Page views · 30 days</p>
+            <p className="mt-2 text-3xl font-semibold tracking-tight text-ink-900 tabular-nums">{stats.sitePageViews30d}</p>
+            <p className="mt-1 text-xs text-ink-500">
+              Each browser once per 20 min — different visitors always count; same person counts again after 20 min
+            </p>
+            <p className="mt-2 text-[11px] text-ink-400">{stats.sitePageViewsToday} views today</p>
+          </div>
+        </div>
+      </div>
+
+      <div
+        className="overflow-hidden rounded-2xl border border-ink-100 bg-white shadow-sm"
+      >
+        <div
+          className="grid divide-y divide-ink-100 sm:grid-cols-2 sm:divide-x sm:divide-y-0 lg:grid-cols-4"
+        >
           <Link
             href="/dashboard/subscriptions"
-            className="text-xs font-medium text-azure-600 hover:text-azure-700"
+            className="group p-5 transition-colors hover:bg-ink-50/60 sm:border-r sm:border-ink-100 lg:border-r-0"
           >
-            Subscriptions →
+            <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-ink-500">Active plans</p>
+            <p className="mt-2 text-3xl font-semibold tracking-tight text-ink-900 tabular-nums">{stats.activeTotal}</p>
+            <p className="mt-1 text-xs text-ink-500">
+              {stats.activeLong} long · {stats.activeShort} short
+            </p>
+            <p className="mt-2 text-[11px] text-ink-400">
+              Seats in use: {data.seatSnapshot.longTermDistinctSeats} long · {data.seatSnapshot.shortTermDistinctSeats} short
+            </p>
+            <p className="mt-2 text-[11px] text-ink-400">
+              Roster {stats.totalMembers}
+              {stats.newMemberships30d > 0 ? (
+                <>
+                  {" "}
+                  · <span className="text-emerald-700">+{stats.newMemberships30d}</span> new (30d)
+                </>
+              ) : null}
+            </p>
+          </Link>
+
+          <Link
+            href="/dashboard/payments"
+            className="group p-5 transition-colors hover:bg-ink-50/60 sm:border-r sm:border-ink-100 lg:border-r-0"
+          >
+            <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-ink-500">Income · 30 days</p>
+            <p className="mt-2 text-3xl font-semibold tracking-tight text-azure-800 tabular-nums">{formatInr(stats.revenue30dInr)}</p>
+            <p className="mt-1 text-xs text-ink-500">{stats.paidCount30d} paid charges</p>
+            <p className="mt-3 text-[11px] text-ink-400">All-time paid {formatInr(stats.totalPaidRevenueInr)}</p>
+          </Link>
+
+          <Link href="/dashboard/payments" className="group p-5 transition-colors hover:bg-ink-50/60 lg:border-r lg:border-ink-100">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-ink-500">Income · today</p>
+            <p className="mt-2 text-3xl font-semibold tracking-tight text-ink-900 tabular-nums">{formatInr(stats.revenueTodayInr)}</p>
+            <p className="mt-1 text-xs text-ink-500">{stats.paidCountToday} payments</p>
+          </Link>
+
+          <Link
+            href="/dashboard/payments"
+            className={`group p-5 transition-colors hover:bg-ink-50/60 ${pendingTone ? "bg-amber-50/40" : ""}`}
+          >
+            <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-ink-500">Pending</p>
+            <p
+              className={`mt-2 text-3xl font-semibold tracking-tight tabular-nums ${pendingTone ? "text-amber-800" : "text-ink-900"}`}
+            >
+              {stats.pendingPayments}
+            </p>
+            <p className="mt-1 text-xs text-ink-500">Awaiting verify or capture</p>
           </Link>
         </div>
-        <div className="mt-4 grid gap-3 sm:grid-cols-2">
-          <div className="rounded-xl border border-ink-100 bg-surface-muted/50 px-4 py-3">
-            <p className="text-xs text-ink-500">Long-term seats</p>
-            <p className="mt-1 text-2xl font-semibold text-ink-900">{data.seatSnapshot.longTermDistinctSeats}</p>
+      </div>
+
+      <div className="rounded-2xl border border-ink-100 bg-white p-5 shadow-sm md:p-6">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-ink-500">Trend</p>
+            <p className="mt-1 text-sm text-ink-600">Pick a metric. Bars scale to the busiest day in this window.</p>
           </div>
-          <div className="rounded-xl border border-ink-100 bg-surface-muted/50 px-4 py-3">
-            <p className="text-xs text-ink-500">Short-term seats</p>
-            <p className="mt-1 text-2xl font-semibold text-ink-900">{data.seatSnapshot.shortTermDistinctSeats}</p>
+          <div className="inline-flex rounded-full border border-ink-200 bg-ink-50/80 p-0.5">
+            <button
+              type="button"
+              onClick={() => setTrendMode("revenue")}
+              className={`rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${
+                trendMode === "revenue" ? "bg-white text-azure-800 shadow-sm" : "text-ink-500 hover:text-ink-700"
+              }`}
+            >
+              Revenue
+            </button>
+            <button
+              type="button"
+              onClick={() => setTrendMode("memberships")}
+              className={`rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${
+                trendMode === "memberships" ? "bg-white text-emerald-800 shadow-sm" : "text-ink-500 hover:text-ink-700"
+              }`}
+            >
+              New memberships
+            </button>
           </div>
+        </div>
+        <div className="mt-6">
+          <TrendChart
+            mode={trendMode}
+            revenueDays={slicedChart.revenue}
+            membershipDays={slicedChart.memberships}
+            maxRevenue={slicedChart.maxRevenueInr}
+            maxMemberships={slicedChart.maxMembershipsCreated}
+          />
         </div>
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-2">
-        <section className="rounded-2xl border border-ink-100 bg-white p-5 shadow-card">
-          <div className="flex items-start justify-between gap-2">
-            <p className="font-mono text-[10px] uppercase tracking-widest text-ink-500">Recent payments</p>
-            <Link href="/dashboard/payments" className="text-xs font-medium text-azure-600 hover:text-azure-700">
-              All payments →
-            </Link>
-          </div>
-          <div className="mt-3 overflow-x-auto">
-            <table className="min-w-full text-left text-sm">
-              <thead className="border-b border-ink-100 font-mono text-[10px] uppercase tracking-widest text-ink-500">
-                <tr>
-                  <th className="py-2 pr-2">When</th>
-                  <th className="py-2 pr-2">Member</th>
-                  <th className="py-2 pr-2">Library no.</th>
-                  <th className="py-2 pr-2">Amount</th>
-                  <th className="py-2">Status</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-ink-100 text-ink-800">
-                {data.recentPayments.length === 0 ? (
-                  <tr>
-                    <td colSpan={5} className="py-4 text-xs text-ink-500">
-                      No payment rows yet.
-                    </td>
-                  </tr>
-                ) : (
-                  data.recentPayments.map((p) => (
-                    <tr key={p.id}>
-                      <td className="py-2 pr-2 font-mono text-xs whitespace-nowrap">
-                        {new Date(p.created_at).toLocaleString("en-IN", { dateStyle: "short", timeStyle: "short" })}
-                      </td>
-                      <td className="py-2 pr-2 max-w-[10rem] truncate text-xs">{p.member_label}</td>
-                      <td className="py-2 pr-2 font-mono text-xs">
-                        {p.device_user_id != null ? String(p.device_user_id).padStart(4, "0") : "—"}
-                      </td>
-                      <td className="py-2 pr-2 font-mono text-xs">₹{Number(p.amount_rupees).toLocaleString("en-IN")}</td>
-                      <td className="py-2 text-xs capitalize">{p.status}</td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-        </section>
-
-        <section className="rounded-2xl border border-ink-100 bg-white p-5 shadow-card">
-          <div className="flex items-start justify-between gap-2">
-            <p className="font-mono text-[10px] uppercase tracking-widest text-ink-500">Recent memberships</p>
-            <Link
-              href="/dashboard/subscriptions"
-              className="text-xs font-medium text-azure-600 hover:text-azure-700"
-            >
-              Subscriptions →
-            </Link>
-          </div>
-          <div className="mt-3 overflow-x-auto">
-            <table className="min-w-full text-left text-sm">
-              <thead className="border-b border-ink-100 font-mono text-[10px] uppercase tracking-widest text-ink-500">
-                <tr>
-                  <th className="py-2 pr-2">Created</th>
-                  <th className="py-2 pr-2">Member</th>
-                  <th className="py-2 pr-2">Library no.</th>
-                  <th className="py-2 pr-2">Plan</th>
-                  <th className="py-2">Seat</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-ink-100 text-ink-800">
-                {data.recentMemberships.length === 0 ? (
-                  <tr>
-                    <td colSpan={5} className="py-4 text-xs text-ink-500">
-                      No membership rows yet.
-                    </td>
-                  </tr>
-                ) : (
-                  data.recentMemberships.map((m) => (
-                    <tr key={m.id}>
-                      <td className="py-2 pr-2 font-mono text-xs whitespace-nowrap">
-                        {new Date(m.created_at).toLocaleString("en-IN", { dateStyle: "short", timeStyle: "short" })}
-                      </td>
-                      <td className="py-2 pr-2 max-w-[9rem] truncate text-xs">{m.member_label}</td>
-                      <td className="py-2 pr-2 font-mono text-xs">
-                        {m.device_user_id != null ? String(m.device_user_id).padStart(4, "0") : "—"}
-                      </td>
-                      <td className="py-2 pr-2 text-xs capitalize">{m.plan_kind.replace(/_/g, " ")}</td>
-                      <td className="py-2 font-mono text-xs">
-                        {resolveMemberSeatDisplayLabel({
-                          plan_kind: m.plan_kind,
-                          seat_number: m.seat_number,
-                        })}
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-        </section>
-      </div>
-
-      <section className="rounded-2xl border-2 border-amber-400 bg-amber-50/35 p-5 shadow-card">
+      <section className="rounded-2xl border border-ink-100 bg-white p-5 shadow-sm">
         <div className="flex flex-wrap items-start justify-between gap-2">
           <div>
-            <p className="font-mono text-[10px] uppercase tracking-widest text-amber-700">Expiring soon</p>
-            <p className="mt-1 text-xs text-ink-600">
-              Long-term: <span className="font-mono">valid_until</span> within 14 days. Short-term:{" "}
-              <span className="font-mono">ends_at</span> within 48 hours.
+            <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-ink-500">Needs attention</p>
+            <p className="mt-1 text-sm text-ink-600">
+              {expiringSoon.length === 0
+                ? "No memberships in the expiring window."
+                : `${expiringSoon.length} membership${expiringSoon.length === 1 ? "" : "s"} ending soon.`}
             </p>
           </div>
-          <Link
-            href="/dashboard/subscriptions?focus=expiring"
-            className="text-xs font-medium text-azure-600 hover:text-azure-700"
-          >
-            Filter expiring →
+          <Link href="/dashboard/subscriptions?focus=expiring" className="text-xs font-medium text-azure-600 hover:text-azure-700">
+            View all →
           </Link>
         </div>
-        <div className="mt-3 overflow-x-auto">
-          <table className="min-w-full text-left text-sm">
-            <thead className="border-b border-ink-100 font-mono text-[10px] uppercase tracking-widest text-ink-500">
-              <tr>
-                <th className="py-2 pr-2">Member</th>
-                <th className="py-2 pr-2">Plan</th>
-                <th className="py-2 pr-2">Library no.</th>
-                <th className="py-2 pr-2">Seat</th>
-                <th className="py-2">Ends</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-ink-100 text-ink-800">
-              {data.expiringSoon.length === 0 ? (
+
+        {expiringSoon.length > 0 ? (
+          <div className="mt-4 overflow-x-auto rounded-lg border border-ink-100">
+            <table className="min-w-full text-left text-sm">
+              <thead className="border-b border-ink-100 bg-ink-50/60 font-mono text-[10px] uppercase tracking-widest text-ink-500">
                 <tr>
-                  <td colSpan={5} className="py-4 text-xs text-ink-500">
-                    No memberships in the expiring window.
-                  </td>
+                  <th className="px-3 py-2">Member</th>
+                  <th className="px-3 py-2">Plan</th>
+                  <th className="px-3 py-2">Library no.</th>
+                  <th className="px-3 py-2">Seat</th>
+                  <th className="px-3 py-2">Ends</th>
                 </tr>
-              ) : (
-                data.expiringSoon.map((m) => (
-                  <tr key={m.id}>
-                    <td className="py-2 pr-2 max-w-[11rem] truncate text-xs">{m.member_label}</td>
-                    <td className="py-2 pr-2 text-xs capitalize">{m.plan_kind.replace(/_/g, " ")}</td>
-                    <td className="py-2 pr-2 font-mono text-xs">
+              </thead>
+              <tbody className="divide-y divide-ink-100 text-ink-800">
+                {expiringSoon.slice(0, 5).map((m) => (
+                  <tr key={m.id} className="bg-white">
+                    <td className="max-w-[11rem] truncate px-3 py-2 text-xs">{m.member_label}</td>
+                    <td className="px-3 py-2 text-xs capitalize">{m.plan_kind.replace(/_/g, " ")}</td>
+                    <td className="px-3 py-2 font-mono text-xs">
                       {m.device_user_id != null ? String(m.device_user_id).padStart(4, "0") : "—"}
                     </td>
-                    <td className="py-2 pr-2 font-mono text-xs">
-                      {resolveMemberSeatDisplayLabel({
-                        plan_kind: m.plan_kind,
-                        seat_number: m.seat_number,
-                      })}
+                    <td className="px-3 py-2 font-mono text-xs">
+                      {resolveMemberSeatDisplayLabel({ plan_kind: m.plan_kind, seat_number: m.seat_number })}
                     </td>
-                    <td className="py-2 font-mono text-xs">{m.end_label}</td>
+                    <td className="px-3 py-2 font-mono text-xs">{m.end_label}</td>
                   </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
+                ))}
+              </tbody>
+            </table>
+            {expiringSoon.length > 5 ? (
+              <p className="border-t border-ink-100 bg-ink-50/40 px-3 py-2 text-center text-[11px] text-ink-500">
+                +{expiringSoon.length - 5} more in Subscriptions
+              </p>
+            ) : null}
+          </div>
+        ) : null}
       </section>
     </div>
   );

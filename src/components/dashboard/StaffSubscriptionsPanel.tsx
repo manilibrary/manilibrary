@@ -1,8 +1,12 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 
 import { MembershipSeatTableCell } from "@/components/membership/MembershipSeatTableCell";
+import { TableBodySkeleton } from "@/components/ui/ContentSkeletons";
+import { useStaleWhileRevalidate } from "@/hooks/useStaleWhileRevalidate";
+import { fetchAdminMembersList } from "@/lib/client/fetch-admin-members-list";
+import { ddcKey } from "@/lib/client-data-cache";
 import { formatDateDdMmYyyy, formatDateTimeDdMmYyyy } from "@/lib/date-format";
 
 type MembershipWindowState = "current" | "starts_future" | "ended_past" | "unknown" | "inactive";
@@ -129,39 +133,22 @@ export default function StaffSubscriptionsPanel({
 }: {
   initialGroup?: "all" | Group;
 }) {
-  const [rows, setRows] = useState<MembershipRow[]>([]);
-  const [profiles, setProfiles] = useState<Record<string, ProfileMini>>({});
-  const [err, setErr] = useState<string | null>(null);
   const [statusMode, setStatusMode] = useState<StatusMode>(() => (initialGroup === "all" ? "eligible" : initialGroup));
   const [eligibleSlice, setEligibleSlice] = useState<EligibleSlice>("all");
   const [planFilter, setPlanFilter] = useState<PlanFilter>("all");
 
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const res = await fetch("/api/admin/members/list", { cache: "no-store" });
-        const j = (await res.json()) as {
-          ok?: boolean;
-          error?: string;
-          rows?: MembershipRow[];
-          profiles?: Record<string, ProfileMini>;
-        };
-        if (cancelled) return;
-        if (!res.ok || !j.ok) {
-          setErr(j.error ?? "Could not load subscriptions.");
-          return;
-        }
-        setRows(j.rows ?? []);
-        setProfiles(j.profiles ?? {});
-      } catch (e) {
-        if (!cancelled) setErr(e instanceof Error ? e.message : "Network error.");
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+  const {
+    data: membersBundle,
+    loading,
+    revalidating,
+    error,
+  } = useStaleWhileRevalidate({
+    cacheKey: ddcKey.adminMembersList(),
+    fetcher: fetchAdminMembersList,
+  });
+
+  const rows = (membersBundle?.rows ?? []) as MembershipRow[];
+  const profiles = (membersBundle?.profiles ?? {}) as Record<string, ProfileMini>;
 
   const today = new Date().toISOString().slice(0, 10);
   const nowIso = new Date().toISOString();
@@ -216,9 +203,35 @@ export default function StaffSubscriptionsPanel({
     return parts.join(" · ");
   }, [statusMode, eligibleSlice, planFilter]);
 
-  if (err) {
+  if (error && !membersBundle) {
     return (
-      <p className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{err}</p>
+      <p className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{error}</p>
+    );
+  }
+
+  if (loading && rows.length === 0) {
+    return (
+      <div
+        className="overflow-x-auto rounded-2xl border border-ink-100 bg-white shadow-sm"
+        aria-busy="true"
+        aria-label="Loading subscriptions"
+      >
+        <table className="min-w-full text-left text-sm">
+          <thead className="border-b border-ink-100 bg-surface-muted/80 font-mono text-[10px] uppercase tracking-widest text-ink-500">
+            <tr>
+              <th className="px-4 py-3">Member</th>
+              <th className="px-4 py-3">Plan</th>
+              <th className="px-4 py-3">Library no.</th>
+              <th className="px-4 py-3">Seat</th>
+              <th className="px-4 py-3">Window</th>
+              <th className="px-4 py-3">Status</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-ink-100">
+            <TableBodySkeleton rows={8} cols={6} tdClass="px-4 py-3" />
+          </tbody>
+        </table>
+      </div>
     );
   }
 
@@ -296,6 +309,7 @@ export default function StaffSubscriptionsPanel({
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-xs text-ink-500">
           {visible.length} row{visible.length === 1 ? "" : "s"} · {filterSummary}
+          {revalidating ? " · updating…" : ""}
         </p>
         {statusMode !== "eligible" || planFilter !== "all" || eligibleSlice !== "all" ? (
           <button

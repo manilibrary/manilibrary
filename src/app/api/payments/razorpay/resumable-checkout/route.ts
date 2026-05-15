@@ -8,7 +8,8 @@ import {
   rupeesToRazorpayPaise,
   type MembershipPlanKind,
 } from "@/lib/payments/pricing";
-import { createSupabaseRouteHandlerClient } from "@/lib/supabase/route-handler";
+import { getAuthUserForApiRequest } from "@/lib/supabase/api-route-auth";
+import { createSupabaseServiceRoleClient } from "@/lib/supabase/service-role";
 
 export const runtime = "nodejs";
 
@@ -70,15 +71,22 @@ export async function GET(request: Request) {
     return apiError("Invalid planKind (use short_term, long_term, or omit).", 400);
   }
 
-  const supabase = await createSupabaseRouteHandlerClient();
   const {
     data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) {
+    error: authErr,
+  } = await getAuthUserForApiRequest(request);
+  if (authErr || !user) {
     return apiError("Sign in required.", 401);
   }
 
-  const { data: rows, error } = await supabase
+  let admin;
+  try {
+    admin = createSupabaseServiceRoleClient();
+  } catch (e) {
+    return apiErrorSafe(e, 503, "Could not create Supabase admin client.");
+  }
+
+  const { data: rows, error } = await admin
     .from("payments")
     .select(
       `

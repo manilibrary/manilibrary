@@ -1,7 +1,7 @@
 import { apiError, apiSuccess, apiErrorSafe } from "@/lib/api/json-response";
 import { cancelPendingPaymentMembership } from "@/lib/payments/cancel-pending-checkout-membership";
 import { sanitizeCheckoutFailurePayload } from "@/lib/payments/sanitize-checkout-failure";
-import { createSupabaseRouteHandlerClient } from "@/lib/supabase/route-handler";
+import { getAuthUserForApiRequest } from "@/lib/supabase/api-route-auth";
 import { createSupabaseServiceRoleClient } from "@/lib/supabase/service-role";
 
 export const runtime = "nodejs";
@@ -28,11 +28,11 @@ export async function POST(request: Request) {
     return apiError("Expected JSON body.", 400);
   }
 
-  const supabase = await createSupabaseRouteHandlerClient();
   const {
     data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) {
+    error: authErr,
+  } = await getAuthUserForApiRequest(request);
+  if (authErr || !user) {
     return apiError("Sign in required.", 401);
   }
 

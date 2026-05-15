@@ -1,4 +1,5 @@
 import { apiError, apiSuccess } from "@/lib/api/json-response";
+import { displayPersonName } from "@/lib/format-person-name";
 
 import { ymdToDmy } from "@/lib/etime/attendance-anchor";
 import { cachedFetch } from "@/lib/etime/cache";
@@ -96,7 +97,7 @@ async function fetchRecentPunches(
 }
 
 export async function GET(request: Request) {
-  const gate = await requireLibraryAdmin();
+  const gate = await requireLibraryAdmin(request);
   if (!gate.ok) {
     return apiError(gate.message, gate.status);
   }
@@ -205,7 +206,7 @@ export async function GET(request: Request) {
       {
         empcode: r.empcode,
         device_user_id: deviceUserId,
-        full_name: profile.full_name ?? r.name ?? null,
+        full_name: displayPersonName(profile.full_name ?? r.name ?? "", "—") || null,
         punch_date: r.punchDate,
         flag: r.flag,
         table: r.table,
