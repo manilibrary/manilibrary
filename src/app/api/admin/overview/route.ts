@@ -2,7 +2,6 @@ import { apiError, apiSuccess } from "@/lib/api/json-response";
 import { displayPersonName } from "@/lib/format-person-name";
 import { formatProfileMemberLabel } from "@/lib/membership/profile-label";
 import { parseNumericSeatFromStoredSeat } from "@/lib/membership/seat-label";
-import { loadSiteVisitOverviewStats } from "@/lib/site-visits/site-visit-stats";
 import { requireLibraryAdminOrSuperAdmin } from "@/lib/supabase/require-library-admin";
 import { createSupabaseServiceRoleClient } from "@/lib/supabase/service-role";
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -116,6 +115,8 @@ export async function GET(request: Request) {
     seatsLong,
     seatsShort,
     paidAllTimeAgg,
+    activeLongUsers,
+    activeShortUsers,
   ] = await Promise.all([
     admin.from("profiles").select("user_id", { count: "exact", head: true }).is("deleted_at", null),
     admin
@@ -196,7 +197,34 @@ export async function GET(request: Request) {
     distinctActiveSeatCount(admin, "long_term", today, nowIso),
     distinctActiveSeatCount(admin, "short_term", today, nowIso),
     admin.from("payments").select("amount_rupees.sum()").eq("status", "paid").maybeSingle(),
+    admin
+      .from("memberships")
+      .select("user_id")
+      .eq("status", "active")
+      .eq("plan_kind", "long_term")
+      .lte("valid_from", today)
+      .gte("valid_until", today)
+      .limit(5000),
+    admin
+      .from("memberships")
+      .select("user_id")
+      .eq("status", "active")
+      .eq("plan_kind", "short_term")
+      .lte("starts_at", nowIso)
+      .gte("ends_at", nowIso)
+      .limit(5000),
   ]);
+
+  const activeMemberUserIds = new Set<string>();
+  for (const row of activeLongUsers.data ?? []) {
+    const uid = (row as { user_id?: string }).user_id;
+    if (uid) activeMemberUserIds.add(uid);
+  }
+  for (const row of activeShortUsers.data ?? []) {
+    const uid = (row as { user_id?: string }).user_id;
+    if (uid) activeMemberUserIds.add(uid);
+  }
+  const activeMembersDistinct = activeMemberUserIds.size;
 
   const totalRevenueToday = (paidToday.data ?? []).reduce(
     (sum, r) => sum + Number((r as { amount_rupees: number }).amount_rupees ?? 0),
@@ -368,18 +396,13 @@ export async function GET(request: Request) {
   const maxRev = Math.max(1, ...chartRevenue.map((x) => x.amountInr));
   const maxMem = Math.max(1, ...chartMemberships.map((x) => x.count));
 
-  const siteVisits = await loadSiteVisitOverviewStats(admin);
   const registeredAccounts = profilesCount.count ?? 0;
 
   return apiSuccess("Admin overview statistics loaded.", {
     stats: {
       totalMembers: registeredAccounts,
       registeredAccounts,
-      siteVisitorsUniqueAllTime: siteVisits.uniqueAllTime,
-      siteVisitorsUniqueToday: siteVisits.uniqueToday,
-      siteVisitorsUnique30d: siteVisits.unique30d,
-      sitePageViewsToday: siteVisits.pageViewsToday,
-      sitePageViews30d: siteVisits.pageViews30d,
+      activeMembersDistinct,
       activeLong: activeLong.count ?? 0,
       activeShort: activeShort.count ?? 0,
       activeTotal: (activeLong.count ?? 0) + (activeShort.count ?? 0),

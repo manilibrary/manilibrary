@@ -151,7 +151,7 @@ export default function MemberProfileSection({
             <dd className="mt-1 font-medium text-ink-900">{displayName}</dd>
           </div>
           <div>
-            <dt className="font-mono text-[10px] uppercase tracking-widest text-ink-500">Library number</dt>
+            <dt className="font-mono text-[10px] uppercase tracking-widest text-ink-500">Device user id</dt>
             <dd className="mt-1 font-mono text-lg font-semibold text-azure-600">
               {String(deviceUserId).padStart(4, "0")}
             </dd>

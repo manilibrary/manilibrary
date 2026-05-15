@@ -221,7 +221,7 @@ export default function StaffSubscriptionsPanel({
             <tr>
               <th className="px-4 py-3">Member</th>
               <th className="px-4 py-3">Plan</th>
-              <th className="px-4 py-3">Library no.</th>
+              <th className="px-4 py-3">Device user id</th>
               <th className="px-4 py-3">Seat</th>
               <th className="px-4 py-3">Window</th>
               <th className="px-4 py-3">Status</th>
@@ -332,7 +332,7 @@ export default function StaffSubscriptionsPanel({
             <tr>
               <th className="px-4 py-3">Member</th>
               <th className="px-4 py-3">Plan</th>
-              <th className="px-4 py-3">Library no.</th>
+              <th className="px-4 py-3">Device user id</th>
               <th
                 className="px-4 py-3"
                 title="Only active memberships reserve a seat; pending payment shows checkout choice only."

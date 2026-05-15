@@ -12,6 +12,7 @@ import { extrasToDisplayFields } from "@/lib/profiles/profile-extras";
 import { requireLibraryAdmin } from "@/lib/supabase/require-library-admin";
 import { createSupabaseServiceRoleClient } from "@/lib/supabase/service-role";
 import { deriveUiVerificationStatus, mapLatestVerificationWithDocsByUserId } from "@/lib/verification/verification-repo";
+import { ADMIN_MEMBERS_LIST_LIMIT } from "@/lib/admin/list-limits";
 
 export const runtime = "nodejs";
 
@@ -101,7 +102,7 @@ export async function GET(request: Request) {
       "id, user_id, plan_kind, status, seat_number, starts_at, ends_at, valid_from, valid_until, created_at",
     )
     .order("created_at", { ascending: false })
-    .limit(80);
+    .limit(ADMIN_MEMBERS_LIST_LIMIT);
 
   if (me) {
     return apiErrorSafe(me, 500);

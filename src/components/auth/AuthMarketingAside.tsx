@@ -43,7 +43,7 @@ export default function AuthMarketingAside() {
             {[
               "Secure sign-in with email",
               "Reset your password anytime",
-              "Member home for your library number and details",
+              "Member home for your device user id and details",
               "More library tools will appear here step by step",
             ].map((line) => (
               <li key={line} className="flex items-start gap-3">

@@ -351,7 +351,7 @@ export async function buildLibraryExportWorkbook(
   const dirHeaders = [
     "Member no.",
     "Full name",
-    "Library no.",
+    "Device user id",
     "Email",
     "Phone",
     "Verification",
@@ -403,7 +403,7 @@ export async function buildLibraryExportWorkbook(
   const memHeaders = [
     "Full name",
     "Plan",
-    "Library no.",
+    "Device user id",
     "Status",
     "Seat",
     "Window",
@@ -458,7 +458,7 @@ export async function buildLibraryExportWorkbook(
   const payHeaders = [
     "Date",
     "Name",
-    "Library no.",
+    "Device user id",
     "Amount (₹)",
     "Currency",
     "Status",
@@ -501,7 +501,7 @@ export async function buildLibraryExportWorkbook(
     "Library date",
     "Device date",
     "On reader",
-    "Library no.",
+    "Device user id",
     "Name",
     "Seat",
     "In",
@@ -553,7 +553,7 @@ export async function buildLibraryExportWorkbook(
   const sumHeaders = [
     "On reader",
     "Name",
-    "Library no.",
+    "Device user id",
     "Rows in period",
     "Distinct days",
     "Days present",

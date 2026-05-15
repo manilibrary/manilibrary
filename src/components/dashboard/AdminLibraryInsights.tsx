@@ -2,6 +2,16 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
+import {
+  Bar,
+  BarChart,
+  CartesianGrid,
+  LabelList,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
 
 import { useStaleWhileRevalidate } from "@/hooks/useStaleWhileRevalidate";
 import { fetchAdminOverview, type AdminOverviewPayload } from "@/lib/client/fetch-admin-overview";
@@ -11,14 +21,10 @@ import { resolveMemberSeatDisplayLabel } from "@/lib/membership/seat-label";
 type Stats = {
   totalMembers: number;
   registeredAccounts: number;
-  siteVisitorsUniqueAllTime: number;
-  siteVisitorsUniqueToday: number;
-  siteVisitorsUnique30d: number;
-  sitePageViewsToday: number;
-  sitePageViews30d: number;
   activeLong: number;
   activeShort: number;
   activeTotal: number;
+  activeMembersDistinct: number;
   paidCountToday: number;
   revenueTodayInr: number;
   revenue30dInr: number;
@@ -78,73 +84,137 @@ function shortDayLabel(isoDay: string) {
   return d.toLocaleDateString("en-IN", { day: "numeric", month: "short" });
 }
 
+function trimFromFirstActivity<T>(rows: T[], valueOf: (row: T) => number): T[] {
+  const firstActive = rows.findIndex((row) => valueOf(row) > 0);
+  if (firstActive < 0) return [];
+  return rows.slice(firstActive);
+}
+
+function chartPeriodLabel(days: { day: string }[]) {
+  if (days.length === 0) return `Last ${TREND_DAYS} days`;
+  if (days.length === 1) return shortDayLabel(days[0].day);
+  return `${shortDayLabel(days[0].day)} – ${shortDayLabel(days[days.length - 1].day)}`;
+}
+
+function formatAxisInr(n: number) {
+  if (n >= 100_000) return `₹${(n / 100_000).toFixed(1)}L`;
+  if (n >= 1_000) return `₹${Math.round(n / 1_000)}k`;
+  return `₹${n}`;
+}
+
+function formatBarValue(mode: "revenue" | "memberships", value: number) {
+  if (mode === "revenue") return formatInr(value);
+  return String(value);
+}
+
+type TrendPoint = { day: string; label: string; value: number };
+
 function TrendChart({
   mode,
   revenueDays,
   membershipDays,
-  maxRevenue,
-  maxMemberships,
 }: {
   mode: "revenue" | "memberships";
   revenueDays: ChartDay[];
   membershipDays: ChartMem[];
-  maxRevenue: number;
-  maxMemberships: number;
 }) {
-  const safeMaxRev = Math.max(maxRevenue, 1);
-  const safeMaxMem = Math.max(maxMemberships, 1);
+  const source = mode === "revenue" ? revenueDays : membershipDays;
+  const chartData: TrendPoint[] = source.map((row) => ({
+    day: row.day,
+    label: shortDayLabel(row.day),
+    value: mode === "revenue" ? (row as ChartDay).amountInr : (row as ChartMem).count,
+  }));
 
-  const series =
-    mode === "revenue"
-      ? revenueDays.map((x) => ({ label: x.day, value: x.amountInr, max: safeMaxRev }))
-      : membershipDays.map((x) => ({ label: x.day, value: x.count, max: safeMaxMem }));
-
-  const peak = mode === "revenue" ? safeMaxRev : safeMaxMem;
+  const peak = Math.max(0, ...chartData.map((d) => d.value));
   const peakLabel =
-    mode === "revenue" ? `${formatInr(Math.round(peak))} max / day` : `${Math.round(peak)} max / day`;
+    mode === "revenue"
+      ? peak > 0
+        ? `${formatInr(Math.round(peak))} peak`
+        : "No paid revenue yet"
+      : peak > 0
+        ? `${Math.round(peak)} peak`
+        : "No new memberships yet";
+
+  const barColor = mode === "revenue" ? "#2563eb" : "#059669";
+  const yPadding = peak > 0 ? Math.ceil(peak * 0.15) : 1;
+
+  if (chartData.length === 0) {
+    return (
+      <div>
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-ink-500">Last {TREND_DAYS} days</p>
+          <p className="font-mono text-[10px] text-ink-400">{peakLabel}</p>
+        </div>
+        <div className="flex h-48 items-center justify-center rounded-xl border border-dashed border-ink-200 bg-ink-50/50">
+          <p className="text-sm text-ink-500">
+            {mode === "revenue" ? "No paid revenue in this window." : "No new memberships in this window."}
+          </p>
+        </div>
+        <p className="mt-2 text-[10px] text-ink-400">Daily totals in UTC. Open Payments or Subscriptions for full history.</p>
+      </div>
+    );
+  }
 
   return (
     <div>
       <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
-        <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-ink-500">Last {TREND_DAYS} days</p>
+        <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-ink-500">{chartPeriodLabel(source)}</p>
         <p className="font-mono text-[10px] text-ink-400">{peakLabel}</p>
       </div>
-      <div className="relative rounded-xl border border-ink-100 bg-gradient-to-b from-white to-ink-50/80 px-2 pb-2 pt-4 sm:px-3">
-        <div
-          className="pointer-events-none absolute inset-x-3 top-4 bottom-10 rounded-md bg-[length:100%_25%] bg-[linear-gradient(to_bottom,transparent_0,transparent_calc(100%-1px),rgb(241_245_249/0.9)_calc(100%-1px))] opacity-70"
-          aria-hidden
-        />
-        <div className="relative flex h-36 items-stretch justify-between gap-1 sm:gap-1.5">
-          {series.map((pt) => {
-            const h = Math.round((pt.value / pt.max) * 100);
-            const barH = pt.value > 0 ? Math.max(8, h) : 4;
-            return (
-              <div
-                key={pt.label}
-                className="flex h-full min-w-0 flex-1 flex-col justify-end"
-                title={`${pt.label}: ${pt.value}`}
-              >
-                <div
-                  className={
-                    mode === "revenue"
-                      ? "mx-auto w-full max-w-[18px] rounded-t-md bg-azure-600/90 shadow-sm transition-[height] duration-300"
-                      : "mx-auto w-full max-w-[18px] rounded-t-md bg-emerald-600/88 shadow-sm transition-[height] duration-300"
-                  }
-                  style={{ height: `${barH}%` }}
-                />
-              </div>
-            );
-          })}
-        </div>
-        <div className="mt-2 flex justify-between px-0.5 font-mono text-[9px] text-ink-400 sm:text-[10px]">
-          <span className="truncate">{series[0] ? shortDayLabel(series[0].label) : "—"}</span>
-          <span className="hidden truncate sm:inline">
-            {series[Math.floor(series.length / 2)] ? shortDayLabel(series[Math.floor(series.length / 2)].label) : "—"}
-          </span>
-          <span className="truncate">{series[series.length - 1] ? shortDayLabel(series[series.length - 1].label) : "—"}</span>
-        </div>
+      <div className="h-56 w-full rounded-xl border border-ink-100 bg-gradient-to-b from-white to-ink-50/60 px-1 py-3 sm:px-2">
+        <ResponsiveContainer width="100%" height="100%">
+          <BarChart data={chartData} margin={{ top: 28, right: 8, left: 4, bottom: 4 }}>
+            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+            <XAxis
+              dataKey="label"
+              tick={{ fill: "#64748b", fontSize: 11 }}
+              tickLine={false}
+              axisLine={{ stroke: "#e2e8f0" }}
+              interval={chartData.length > 8 ? "preserveStartEnd" : 0}
+              angle={chartData.length > 6 ? -32 : 0}
+              textAnchor={chartData.length > 6 ? "end" : "middle"}
+              height={chartData.length > 6 ? 48 : 28}
+            />
+            <YAxis
+              tick={{ fill: "#64748b", fontSize: 10 }}
+              tickLine={false}
+              axisLine={false}
+              width={mode === "revenue" ? 52 : 36}
+              domain={[0, peak + yPadding]}
+              tickFormatter={(v) => (mode === "revenue" ? formatAxisInr(Number(v)) : String(v))}
+            />
+            <Tooltip
+              cursor={{ fill: "rgba(148, 163, 184, 0.12)" }}
+              contentStyle={{
+                borderRadius: 8,
+                border: "1px solid #e2e8f0",
+                fontSize: 12,
+                boxShadow: "0 4px 12px rgba(15, 23, 42, 0.08)",
+              }}
+              formatter={(value) => [
+                formatBarValue(mode, Number(value ?? 0)),
+                mode === "revenue" ? "Revenue" : "New memberships",
+              ]}
+              labelFormatter={(_, payload) => {
+                const day = payload?.[0]?.payload?.day as string | undefined;
+                return day ? shortDayLabel(day) : "";
+              }}
+            />
+            <Bar dataKey="value" fill={barColor} radius={[6, 6, 0, 0]} maxBarSize={56}>
+              <LabelList
+                dataKey="value"
+                position="top"
+                className="fill-ink-600 font-mono text-[10px] font-medium"
+                formatter={(value) => formatBarValue(mode, Number(value ?? 0))}
+              />
+            </Bar>
+          </BarChart>
+        </ResponsiveContainer>
       </div>
-      <p className="mt-2 text-[10px] text-ink-400">Daily totals in UTC. Open Payments or Subscriptions for full history.</p>
+      <p className="mt-2 text-[10px] text-ink-400">
+        Chart starts from the first day with activity in the last {TREND_DAYS} days (UTC). Open Payments or Subscriptions
+        for full history.
+      </p>
     </div>
   );
 }
@@ -162,15 +232,11 @@ export default function AdminLibraryInsights() {
       return {
         revenue: [] as ChartDay[],
         memberships: [] as ChartMem[],
-        maxRevenueInr: 1,
-        maxMembershipsCreated: 1,
       };
     }
-    const rev = data.chart.revenueByDay.slice(-TREND_DAYS);
-    const mem = data.chart.membershipsCreatedByDay.slice(-TREND_DAYS);
-    const maxRev = Math.max(1, ...rev.map((d) => d.amountInr), 1);
-    const maxMem = Math.max(1, ...mem.map((d) => d.count), 1);
-    return { revenue: rev, memberships: mem, maxRevenueInr: maxRev, maxMembershipsCreated: maxMem };
+    const rev = trimFromFirstActivity(data.chart.revenueByDay.slice(-TREND_DAYS), (d) => d.amountInr);
+    const mem = trimFromFirstActivity(data.chart.membershipsCreatedByDay.slice(-TREND_DAYS), (d) => d.count);
+    return { revenue: rev, memberships: mem };
   }, [data]);
 
   if (error && !data) {
@@ -179,9 +245,10 @@ export default function AdminLibraryInsights() {
 
   if (loading && !data) {
     return (
-      <div className="space-y-4">
-        <div className="h-36 animate-pulse rounded-2xl border border-ink-100 bg-white" />
-        <div className="h-52 animate-pulse rounded-2xl border border-ink-100 bg-white" />
+      <div className="grid grid-cols-2 gap-4 xl:grid-cols-5">
+        {Array.from({ length: 5 }, (_, i) => (
+          <div key={i} className="h-36 animate-pulse rounded-2xl border border-ink-100 bg-white" />
+        ))}
       </div>
     );
   }
@@ -189,55 +256,38 @@ export default function AdminLibraryInsights() {
   if (!data) return null;
 
   const { stats, expiringSoon } = data;
-  const pendingTone = stats.pendingPayments > 0;
   const registered = stats.registeredAccounts || stats.totalMembers;
+  const activeMembers = stats.activeMembersDistinct ?? stats.activeTotal;
 
   return (
     <div className="space-y-4">
       {revalidating ? (
         <p className="text-right text-[10px] font-medium uppercase tracking-wider text-ink-400">Updating…</p>
       ) : null}
-      <div className="overflow-hidden rounded-2xl border border-ink-100 bg-white shadow-sm">
-        <div
-          className="grid divide-y divide-ink-100 sm:grid-cols-2 sm:divide-x sm:divide-y-0 lg:grid-cols-3"
+      <div className="grid grid-cols-2 gap-4 xl:grid-cols-5">
+        <Link
+          href="/dashboard/members"
+          className="block rounded-2xl border border-ink-100 bg-white p-5 shadow-sm transition-colors hover:bg-ink-50/60"
         >
-          <div className="p-5 sm:border-r sm:border-ink-100">
-            <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-ink-500">Registered accounts</p>
-            <p className="mt-2 text-3xl font-semibold tracking-tight text-ink-900 tabular-nums">{registered}</p>
-            <p className="mt-1 text-xs text-ink-500">People who signed up on the website or app</p>
-          </div>
-          <div className="p-5 sm:border-r sm:border-ink-100 lg:border-r-0">
-            <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-ink-500">Website visitors · 30 days</p>
-            <p className="mt-2 text-3xl font-semibold tracking-tight text-emerald-800 tabular-nums">
-              {stats.siteVisitorsUnique30d}
-            </p>
-            <p className="mt-1 text-xs text-ink-500">Unique browsers — includes guests who never register</p>
-            <p className="mt-2 text-[11px] text-ink-400">
-              Today {stats.siteVisitorsUniqueToday} · All-time {stats.siteVisitorsUniqueAllTime}
-            </p>
-          </div>
-          <div className="p-5">
-            <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-ink-500">Page views · 30 days</p>
-            <p className="mt-2 text-3xl font-semibold tracking-tight text-ink-900 tabular-nums">{stats.sitePageViews30d}</p>
-            <p className="mt-1 text-xs text-ink-500">
-              Each browser once per 20 min — different visitors always count; same person counts again after 20 min
-            </p>
-            <p className="mt-2 text-[11px] text-ink-400">{stats.sitePageViewsToday} views today</p>
-          </div>
-        </div>
-      </div>
+          <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-ink-500">Registered users</p>
+          <p className="mt-2 text-3xl font-semibold tracking-tight text-ink-900 tabular-nums">{registered}</p>
+          <p className="mt-1 text-xs text-ink-500">Signed up on the website or app</p>
+        </Link>
 
-      <div
-        className="overflow-hidden rounded-2xl border border-ink-100 bg-white shadow-sm"
-      >
-        <div
-          className="grid divide-y divide-ink-100 sm:grid-cols-2 sm:divide-x sm:divide-y-0 lg:grid-cols-4"
+        <Link
+          href="/dashboard/subscriptions"
+          className="block rounded-2xl border border-ink-100 bg-white p-5 shadow-sm transition-colors hover:bg-ink-50/60"
         >
-          <Link
-            href="/dashboard/subscriptions"
-            className="group p-5 transition-colors hover:bg-ink-50/60 sm:border-r sm:border-ink-100 lg:border-r-0"
-          >
-            <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-ink-500">Active plans</p>
+          <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-ink-500">Active members</p>
+          <p className="mt-2 text-3xl font-semibold tracking-tight text-emerald-800 tabular-nums">{activeMembers}</p>
+          <p className="mt-1 text-xs text-ink-500">Bought a plan · membership active now</p>
+        </Link>
+
+        <Link
+          href="/dashboard/subscriptions"
+          className="block rounded-2xl border border-ink-100 bg-white p-5 shadow-sm transition-colors hover:bg-ink-50/60"
+        >
+          <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-ink-500">Active plans</p>
             <p className="mt-2 text-3xl font-semibold tracking-tight text-ink-900 tabular-nums">{stats.activeTotal}</p>
             <p className="mt-1 text-xs text-ink-500">
               {stats.activeLong} long · {stats.activeShort} short
@@ -256,42 +306,31 @@ export default function AdminLibraryInsights() {
             </p>
           </Link>
 
-          <Link
-            href="/dashboard/payments"
-            className="group p-5 transition-colors hover:bg-ink-50/60 sm:border-r sm:border-ink-100 lg:border-r-0"
-          >
-            <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-ink-500">Income · 30 days</p>
-            <p className="mt-2 text-3xl font-semibold tracking-tight text-azure-800 tabular-nums">{formatInr(stats.revenue30dInr)}</p>
-            <p className="mt-1 text-xs text-ink-500">{stats.paidCount30d} paid charges</p>
-            <p className="mt-3 text-[11px] text-ink-400">All-time paid {formatInr(stats.totalPaidRevenueInr)}</p>
-          </Link>
+        <Link
+          href="/dashboard/payments"
+          className="block rounded-2xl border border-ink-100 bg-white p-5 shadow-sm transition-colors hover:bg-ink-50/60"
+        >
+          <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-ink-500">Income · 30 days</p>
+          <p className="mt-2 text-3xl font-semibold tracking-tight text-azure-800 tabular-nums">{formatInr(stats.revenue30dInr)}</p>
+          <p className="mt-1 text-xs text-ink-500">{stats.paidCount30d} paid charges</p>
+          <p className="mt-3 text-[11px] text-ink-400">All-time paid {formatInr(stats.totalPaidRevenueInr)}</p>
+        </Link>
 
-          <Link href="/dashboard/payments" className="group p-5 transition-colors hover:bg-ink-50/60 lg:border-r lg:border-ink-100">
-            <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-ink-500">Income · today</p>
-            <p className="mt-2 text-3xl font-semibold tracking-tight text-ink-900 tabular-nums">{formatInr(stats.revenueTodayInr)}</p>
-            <p className="mt-1 text-xs text-ink-500">{stats.paidCountToday} payments</p>
-          </Link>
-
-          <Link
-            href="/dashboard/payments"
-            className={`group p-5 transition-colors hover:bg-ink-50/60 ${pendingTone ? "bg-amber-50/40" : ""}`}
-          >
-            <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-ink-500">Pending</p>
-            <p
-              className={`mt-2 text-3xl font-semibold tracking-tight tabular-nums ${pendingTone ? "text-amber-800" : "text-ink-900"}`}
-            >
-              {stats.pendingPayments}
-            </p>
-            <p className="mt-1 text-xs text-ink-500">Awaiting verify or capture</p>
-          </Link>
-        </div>
+        <Link
+          href="/dashboard/payments"
+          className="block rounded-2xl border border-ink-100 bg-white p-5 shadow-sm transition-colors hover:bg-ink-50/60 xl:col-span-1"
+        >
+          <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-ink-500">Income · today</p>
+          <p className="mt-2 text-3xl font-semibold tracking-tight text-ink-900 tabular-nums">{formatInr(stats.revenueTodayInr)}</p>
+          <p className="mt-1 text-xs text-ink-500">{stats.paidCountToday} payments</p>
+        </Link>
       </div>
 
       <div className="rounded-2xl border border-ink-100 bg-white p-5 shadow-sm md:p-6">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-ink-500">Trend</p>
-            <p className="mt-1 text-sm text-ink-600">Pick a metric. Bars scale to the busiest day in this window.</p>
+            <p className="mt-1 text-sm text-ink-600">Daily totals from the first active day in the last {TREND_DAYS} days.</p>
           </div>
           <div className="inline-flex rounded-full border border-ink-200 bg-ink-50/80 p-0.5">
             <button
@@ -319,8 +358,6 @@ export default function AdminLibraryInsights() {
             mode={trendMode}
             revenueDays={slicedChart.revenue}
             membershipDays={slicedChart.memberships}
-            maxRevenue={slicedChart.maxRevenueInr}
-            maxMemberships={slicedChart.maxMembershipsCreated}
           />
         </div>
       </div>
@@ -347,7 +384,7 @@ export default function AdminLibraryInsights() {
                 <tr>
                   <th className="px-3 py-2">Member</th>
                   <th className="px-3 py-2">Plan</th>
-                  <th className="px-3 py-2">Library no.</th>
+                  <th className="px-3 py-2">Device user id</th>
                   <th className="px-3 py-2">Seat</th>
                   <th className="px-3 py-2">Ends</th>
                 </tr>

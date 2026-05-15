@@ -3,6 +3,7 @@ import { displayPersonName } from "@/lib/format-person-name";
 import { formatPaymentAdminDetail } from "@/lib/payments/payment-admin-detail";
 import { requireLibraryAdmin } from "@/lib/supabase/require-library-admin";
 import { createSupabaseServiceRoleClient } from "@/lib/supabase/service-role";
+import { ADMIN_PAYMENTS_LIST_LIMIT } from "@/lib/admin/list-limits";
 
 export const runtime = "nodejs";
 
@@ -54,7 +55,7 @@ export async function GET(request: Request) {
     .from("payments")
     .select("id, user_id, amount_rupees, currency, provider, status, provider_payment_id, metadata, created_at")
     .order("created_at", { ascending: false })
-    .limit(80);
+    .limit(ADMIN_PAYMENTS_LIST_LIMIT);
 
   if (pe) {
     return apiErrorSafe(pe, 500);

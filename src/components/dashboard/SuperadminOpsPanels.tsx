@@ -538,7 +538,7 @@ export default function SuperadminOpsPanels() {
                   <tr>
                     <th className="py-2 pr-2">When</th>
                     <th className="py-2 pr-2">Member</th>
-                    <th className="py-2 pr-2">Library no.</th>
+                    <th className="py-2 pr-2">Device user id</th>
                     <th className="py-2 pr-2">₹</th>
                     <th className="py-2 pr-2">Status</th>
                     <th className="py-2 pr-2">Payment ref.</th>

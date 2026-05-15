@@ -6,6 +6,7 @@ import LongTermSeatMap from "@/components/membership/LongTermSeatMap";
 import MembershipLegend from "@/components/membership/MembershipLegend";
 import ShortTermSeatMap from "@/components/membership/ShortTermSeatMap";
 import { formatDateDdMmYyyy } from "@/lib/date-format";
+import { DEVICE_USER_ID_SEARCH_PLACEHOLDER, deviceUserIdInlineLabel } from "@/lib/device-user-id-label";
 import { membershipDisplayStatusLabel } from "@/lib/membership/display-status";
 import {
   buildRosterMembers,
@@ -227,7 +228,7 @@ export default function StaffRenewMemberPanel({ rows, profiles, onClose, onSaved
           <p className="font-mono text-[10px] uppercase tracking-widest text-azure-900">Renew membership</p>
           <p className="mt-1 text-xs leading-relaxed text-ink-700">
             {step === "search"
-              ? "Find the member by library number, name, email, or phone — then set the new period and seat."
+              ? "Find the member by device user id, name, email, or phone — then set the new period and seat."
               : "Confirm details, then choose plan, start date (after current expiry), and a free seat."}
           </p>
         </div>
@@ -268,12 +269,12 @@ export default function StaffRenewMemberPanel({ rows, profiles, onClose, onSaved
               className="rounded-lg border border-ink-200 bg-white px-3 py-2 text-sm"
               value={searchQ}
               onChange={(e) => setSearchQ(e.target.value)}
-              placeholder="Library no., name, email, or phone"
+              placeholder={DEVICE_USER_ID_SEARCH_PLACEHOLDER}
               autoComplete="off"
             />
           </label>
           {searchQ.trim() && searchResults.length === 0 ? (
-            <p className="text-sm text-ink-500">No matches. Try library number or email.</p>
+            <p className="text-sm text-ink-500">No matches. Try device user id or email.</p>
           ) : null}
           <ul className="space-y-2">
             {searchResults.map((m) => (
@@ -286,7 +287,7 @@ export default function StaffRenewMemberPanel({ rows, profiles, onClose, onSaved
                   <div>
                     <p className="font-semibold text-ink-900">{m.name}</p>
                     <p className="text-xs text-ink-600">
-                      Lib. {m.libraryNumber.padStart(4, "0")}
+                      {deviceUserIdInlineLabel(m.libraryNumber)}
                       {m.planKind ? ` · Seat ${m.seatNo}` : ""}
                       {m.expiryYmd ? ` · ends ${formatDateDdMmYyyy(m.expiryYmd)}` : ""}
                     </p>
@@ -317,7 +318,7 @@ export default function StaffRenewMemberPanel({ rows, profiles, onClose, onSaved
           <div className="rounded-xl border border-azure-100 bg-azure-50/50 px-4 py-3 text-sm">
             <p className="font-semibold text-ink-900">{selected.name}</p>
             <p className="text-ink-600">
-              Library #{selected.libraryNumber.padStart(4, "0")} · {selected.email || "—"}
+              {deviceUserIdInlineLabel(selected.libraryNumber)} · {selected.email || "—"}
             </p>
             <p className="text-ink-600">
               {selected.planKind === "long_term" ? "Main hall" : "Row hall"} · Seat {selected.seatNo} ·{" "}
@@ -490,7 +491,7 @@ export default function StaffRenewMemberPanel({ rows, profiles, onClose, onSaved
             >
               <p className="font-medium">Renewal saved</p>
               <p className="mt-1 font-mono text-xs">
-                Library no. {String(success.device_user_id).padStart(4, "0")} · membership{" "}
+                {deviceUserIdInlineLabel(success.device_user_id)} · membership{" "}
                 <span className="select-all">{success.membership_id}</span>
               </p>
             </div>

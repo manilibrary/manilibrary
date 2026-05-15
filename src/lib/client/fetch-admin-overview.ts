@@ -1,14 +1,10 @@
 export type AdminOverviewStats = {
   totalMembers: number;
   registeredAccounts: number;
-  siteVisitorsUniqueAllTime: number;
-  siteVisitorsUniqueToday: number;
-  siteVisitorsUnique30d: number;
-  sitePageViewsToday: number;
-  sitePageViews30d: number;
   activeLong: number;
   activeShort: number;
   activeTotal: number;
+  activeMembersDistinct: number;
   paidCountToday: number;
   revenueTodayInr: number;
   revenue30dInr: number;
@@ -69,14 +65,10 @@ export async function fetchAdminOverview(): Promise<AdminOverviewPayload> {
     stats: {
       totalMembers: j.stats.totalMembers ?? 0,
       registeredAccounts: j.stats.registeredAccounts ?? j.stats.totalMembers ?? 0,
-      siteVisitorsUniqueAllTime: j.stats.siteVisitorsUniqueAllTime ?? 0,
-      siteVisitorsUniqueToday: j.stats.siteVisitorsUniqueToday ?? 0,
-      siteVisitorsUnique30d: j.stats.siteVisitorsUnique30d ?? 0,
-      sitePageViewsToday: j.stats.sitePageViewsToday ?? 0,
-      sitePageViews30d: j.stats.sitePageViews30d ?? 0,
       activeLong: j.stats.activeLong ?? 0,
       activeShort: j.stats.activeShort ?? 0,
       activeTotal: j.stats.activeTotal ?? 0,
+      activeMembersDistinct: j.stats.activeMembersDistinct ?? j.stats.activeTotal ?? 0,
       paidCountToday: j.stats.paidCountToday ?? 0,
       revenueTodayInr: j.stats.revenueTodayInr ?? 0,
       revenue30dInr: j.stats.revenue30dInr ?? 0,
