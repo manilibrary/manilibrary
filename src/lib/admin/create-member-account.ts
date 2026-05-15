@@ -1,5 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
+import { formatPersonName } from "@/lib/format-person-name";
+
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export function normalizeMemberEmail(s: string): string {
@@ -32,7 +34,7 @@ export async function createMemberAccount(
   admin: SupabaseClient,
   params: { full_name: string; email: string; phone?: string; password?: string },
 ): Promise<CreateMemberAccountResult> {
-  const fullName = params.full_name.trim();
+  const fullName = formatPersonName(params.full_name).slice(0, 200);
   const email = normalizeMemberEmail(params.email);
   const phone = params.phone?.trim().slice(0, 40) ?? "";
   const passwordRaw = params.password ?? "";

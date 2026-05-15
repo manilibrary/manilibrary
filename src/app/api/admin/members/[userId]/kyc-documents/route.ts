@@ -8,7 +8,7 @@ export const runtime = "nodejs";
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export async function GET(_request: Request, ctx: { params: Promise<{ userId: string }> }) {
-  const gate = await requireLibraryAdminOrSuperAdmin();
+  const gate = await requireLibraryAdminOrSuperAdmin(_request);
   if (!gate.ok) {
     return apiError(gate.message, gate.status);
   }

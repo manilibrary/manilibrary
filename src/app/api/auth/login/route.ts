@@ -1,5 +1,8 @@
 import { apiError, apiSuccess, apiErrorSafe } from "@/lib/api/json-response";
+import { displayPersonName } from "@/lib/format-person-name";
 import { createSupabaseRouteHandlerClient } from "@/lib/supabase/route-handler";
+import { guardAuthEmail, guardPublicAuthPost } from "@/lib/security/request-guards";
+import { validateLoginFields } from "@/lib/security/validate-fields";
 
 export const runtime = "nodejs";
 
@@ -28,25 +31,23 @@ function passwordFromBody(body: Record<string, unknown>) {
  *   for `Authorization: Bearer` on other `/api` routes.
  */
 export async function POST(request: Request) {
-  let body: Record<string, unknown>;
-  try {
-    body = (await request.json()) as Record<string, unknown>;
-  } catch {
-    return apiError("Expected JSON body.", 400);
+  const pre = await guardPublicAuthPost(request);
+  if (!pre.ok) return pre.response;
+
+  const body = pre.body;
+  const validated = validateLoginFields({
+    email: loginEmailFromBody(body),
+    password: passwordFromBody(body),
+  });
+  if (!validated.ok) {
+    return apiError(validated.error, 400);
   }
 
-  const emailRaw = loginEmailFromBody(body);
-  const password = passwordFromBody(body);
-  if (!emailRaw || !password) {
-    return apiError("email and password are required (or emailOrPhone + passwordOrOtp for mobile).", 400);
-  }
-  if (!emailRaw.includes("@")) {
-    return apiError("Sign in with the email address on your account.", 400);
-  }
+  const emailLimited = guardAuthEmail(validated.email);
+  if (emailLimited) return emailLimited;
 
-  const email = emailRaw.toLowerCase();
+  const { email, password } = validated;
   const mobile = wantsMobileSession(request, body);
-  const requestedRole = body.role === "admin" ? "admin" : "student";
 
   try {
     const supabase = await createSupabaseRouteHandlerClient();
@@ -60,6 +61,12 @@ export async function POST(request: Request) {
         "No session returned. If email confirmation is required in Supabase, confirm the email first or disable confirmation for testing.",
         401,
       );
+    }
+
+    const authedEmail = (data.user.email ?? "").trim().toLowerCase();
+    if (authedEmail !== email) {
+      await supabase.auth.signOut();
+      return apiError("Sign-in email did not match the authenticated account. Please try again.", 401);
     }
 
     const { data: profile, error: profErr } = await supabase
@@ -82,16 +89,11 @@ export async function POST(request: Request) {
     }
 
     const isStaff = profile.is_admin === true || profile.is_superadmin === true;
-    if (requestedRole === "admin" && !isStaff) {
-      await supabase.auth.signOut();
-      return apiError("This account is not a staff admin. Use student sign-in.", 403);
-    }
-
     const role = isStaff ? "admin" : "student";
     const userPayload = {
       id: data.user.id,
       role,
-      name: (profile.full_name as string) ?? "Member",
+      name: displayPersonName(profile.full_name as string, "Member"),
       email: (profile.email as string | null) ?? data.user.email ?? email,
       phone: (profile.phone as string | null) ?? undefined,
     };

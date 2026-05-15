@@ -1,6 +1,6 @@
 import { apiError, apiSuccess, apiErrorSafe } from "@/lib/api/json-response";
 import { mergeProfileExtras } from "@/lib/profiles/profile-extras";
-import { createSupabaseRouteHandlerClient } from "@/lib/supabase/route-handler";
+import { getAuthUserForApiRequest } from "@/lib/supabase/api-route-auth";
 import { createSupabaseServiceRoleClient } from "@/lib/supabase/service-role";
 
 export const runtime = "nodejs";
@@ -21,12 +21,20 @@ function normLastFour(v: unknown): string | null {
   return s;
 }
 
+const ROLL_MAX_DIGITS = 8;
+
+function normRollDigits(v: unknown): string | null {
+  if (v == null || v === "") return null;
+  const s = String(v).replace(/\D/g, "").slice(0, ROLL_MAX_DIGITS);
+  return s || null;
+}
+
 export async function PATCH(request: Request) {
-  const supabase = await createSupabaseRouteHandlerClient();
   const {
     data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) {
+    error: authErr,
+  } = await getAuthUserForApiRequest(request);
+  if (authErr || !user) {
     return apiError("Sign in required.", 401);
   }
 
@@ -47,8 +55,7 @@ export async function PATCH(request: Request) {
     extrasPatch.aadhaar_last_four = n;
   }
   if ("student_roll_number" in body) {
-    const s = body.student_roll_number == null ? null : String(body.student_roll_number).trim().slice(0, 120);
-    extrasPatch.student_roll_number = s || null;
+    extrasPatch.student_roll_number = normRollDigits(body.student_roll_number);
   }
   if ("institution_type" in body) {
     const t = body.institution_type == null || body.institution_type === "" ? null : String(body.institution_type);

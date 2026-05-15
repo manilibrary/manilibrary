@@ -1,4 +1,5 @@
 import { apiError, apiSuccess, apiErrorSafe } from "@/lib/api/json-response";
+import { displayPersonName } from "@/lib/format-person-name";
 import { formatPaymentAdminDetail } from "@/lib/payments/payment-admin-detail";
 import { requireLibraryAdmin } from "@/lib/supabase/require-library-admin";
 import { createSupabaseServiceRoleClient } from "@/lib/supabase/service-role";
@@ -41,8 +42,8 @@ type ProfileMini = {
   device_user_id: number;
 };
 
-export async function GET() {
-  const gate = await requireLibraryAdmin();
+export async function GET(request: Request) {
+  const gate = await requireLibraryAdmin(request);
   if (!gate.ok) {
     return apiError(gate.message, gate.status);
   }
@@ -97,8 +98,12 @@ export async function GET() {
     if (prErr) {
       return apiErrorSafe(prErr, 500);
     }
-    for (const p of (profs ?? []) as ProfileMini[]) {
-      profiles[p.user_id] = p;
+    for (const raw of profs ?? []) {
+      const p = raw as ProfileMini;
+      profiles[p.user_id] = {
+        ...p,
+        full_name: displayPersonName(p.full_name, "Member"),
+      };
     }
   }
 

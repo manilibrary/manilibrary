@@ -1,7 +1,8 @@
 import { apiError, apiSuccess, apiErrorSafe } from "@/lib/api/json-response";
 import { resolveMemberSeatDisplayLabel } from "@/lib/membership/seat-label";
 import { toYmdBoundary } from "@/lib/membership/windows";
-import { createSupabaseRouteHandlerClient } from "@/lib/supabase/route-handler";
+import { getAuthUserForApiRequest } from "@/lib/supabase/api-route-auth";
+import { createSupabaseServiceRoleClient } from "@/lib/supabase/service-role";
 
 export const runtime = "nodejs";
 
@@ -56,16 +57,22 @@ function planTitle(planKind: string): string {
   return planKind.replace(/_/g, " ");
 }
 
-export async function GET() {
-  const supabase = await createSupabaseRouteHandlerClient();
+export async function GET(request: Request) {
   const {
     data: { user },
-  } = await supabase.auth.getUser();
+  } = await getAuthUserForApiRequest(request);
   if (!user) {
     return apiError("Sign in required.", 401);
   }
 
-  const { data: rows, error } = await supabase
+  let admin;
+  try {
+    admin = createSupabaseServiceRoleClient();
+  } catch (e) {
+    return apiErrorSafe(e, 503, "Could not load payments.");
+  }
+
+  const { data: rows, error } = await admin
     .from("payments")
     .select(
       `

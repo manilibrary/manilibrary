@@ -7,31 +7,11 @@ import { createSupabaseRouteHandlerClient } from "@/lib/supabase/route-handler";
 import { createSupabaseServiceRoleClient } from "@/lib/supabase/service-role";
 
 const quickLinks = [
-  {
-    href: "/dashboard/members",
-    title: "Members",
-    hint: "Roster + active memberships",
-  },
-  {
-    href: "/dashboard/payments",
-    title: "Payments",
-    hint: "Razorpay charges and pending rows",
-  },
-  {
-    href: "/dashboard/subscriptions",
-    title: "Subscriptions",
-    hint: "Active / expired / pending plans",
-  },
-  {
-    href: "/dashboard/attendance",
-    title: "Attendance",
-    hint: "Biometric punches today + history",
-  },
-  {
-    href: "/dashboard/settings",
-    title: "Settings",
-    hint: "Account and workspace preferences",
-  },
+  { href: "/dashboard/members", title: "Members", hint: "Roster and profiles" },
+  { href: "/dashboard/payments", title: "Payments", hint: "Charges and reconciliation" },
+  { href: "/dashboard/subscriptions", title: "Subscriptions", hint: "Plans and renewals" },
+  { href: "/dashboard/attendance", title: "Attendance", hint: "Today and history" },
+  { href: "/dashboard/settings", title: "Settings", hint: "Workspace preferences" },
 ] as const;
 
 export const metadata = { title: "Overview" };
@@ -67,21 +47,21 @@ export default async function DashboardOverview() {
           {
             href: "/dashboard/superadmin",
             title: "Superadmin",
-            hint: "Search, payments, profile flags, membership editor",
+            hint: "Advanced tools",
           },
         ] as const)
       : []),
   ];
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
       <PageHeader
         eyebrow="dashboard"
         title="Staff home"
         description={
           isAdmin
-            ? "Live snapshot of members, payments, attendance, and expiring plans."
-            : "Sign in as an admin to see members / payments stats."
+            ? "Registrations, website visitors, revenue, and attendance. Open a section below for full lists."
+            : "Sign in as an admin to see the staff overview."
         }
       />
 

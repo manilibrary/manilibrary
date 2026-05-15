@@ -2,13 +2,14 @@
 
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   MemberActiveMembershipCards,
   type MemberActivePlanRow,
   memberMembershipEndMs,
   memberMembershipValidityEndedByDate,
 } from "@/components/dashboard/MemberActiveMembershipCards";
+import { useMemberMeBootstrap } from "@/components/dashboard/MemberMeBootstrapProvider";
 import { MemberMembershipCardsSkeleton } from "@/components/ui/ContentSkeletons";
 import { CLIENT_DATA_CACHE_TTL_MS, ddcKey, getClientCache, setClientCache } from "@/lib/client-data-cache";
 import { createClient } from "@/lib/supabase/client";
@@ -71,6 +72,12 @@ export default function MemberMyMembershipPage() {
   const searchParams = useSearchParams();
   const paid = searchParams.get("paid") === "1";
 
+  const boot = useMemberMeBootstrap();
+  const bootRef = useRef(boot);
+  useEffect(() => {
+    bootRef.current = boot;
+  }, [boot]);
+
   const [rows, setRows] = useState<MemberActivePlanRow[]>([]);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [bootstrap, setBootstrap] = useState(true);
@@ -91,6 +98,13 @@ export default function MemberMyMembershipPage() {
           data: { user },
         } = await supabase.auth.getUser();
         if (!user || cancelled) return;
+
+        const b = bootRef.current;
+        if (useCache && b.ready && !b.skipped && b.memberUserId === user.id && b.membershipRows != null) {
+          setRows(b.membershipRows);
+          setLoadError(b.membershipError);
+          setBootstrap(false);
+        }
 
         const kMem = ddcKey.memberships(user.id);
         if (useCache) {

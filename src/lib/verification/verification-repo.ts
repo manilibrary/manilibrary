@@ -254,14 +254,16 @@ export function deriveUiVerificationStatus(
   row: Pick<VerificationRow, "status"> | null,
   docs: VerificationDocItem[] = [],
 ): string {
-  if (isVerified) return "approved";
-  if (!row) return "none";
+  if (!row) {
+    return isVerified ? "approved" : "none";
+  }
   if (row.status === "resubmit") return "resubmit";
   if (row.status === "rejected") return "rejected";
   if (row.status === "pending") {
     if (!hasSubmittedKycDocs(docs)) return "none";
     return "pending";
   }
+  if (isVerified) return "approved";
   return "none";
 }
 

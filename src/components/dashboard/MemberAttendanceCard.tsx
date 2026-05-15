@@ -2,9 +2,10 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import { useMemberMeBootstrap } from "@/components/dashboard/MemberMeBootstrapProvider";
+import { AttendanceTodaySkeleton } from "@/components/ui/ContentSkeletons";
 import { attendanceAnchorYmd, ymdToDmy } from "@/lib/etime/attendance-anchor";
 import { DEFAULT_LIBRARY_TZ } from "@/lib/membership/windows";
-import { AttendanceTodaySkeleton } from "@/components/ui/ContentSkeletons";
 
 type DailyRow = {
   in_time: string;
@@ -126,6 +127,11 @@ function DailyRowCells({ row }: { row: DailyRow }) {
 }
 
 export default function MemberAttendanceCard() {
+  const boot = useMemberMeBootstrap();
+  const bootRef = useRef(boot);
+  useEffect(() => {
+    bootRef.current = boot;
+  }, [boot]);
   const [data, setData] = useState<Response | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -151,6 +157,21 @@ export default function MemberAttendanceCard() {
           setServedFromCache(true);
           setBusy(false);
           clearPoll();
+          return;
+        }
+
+        if (bootRef.current.ready && !bootRef.current.skipped && bootRef.current.attendance?.ok) {
+          const j = bootRef.current.attendance as Response;
+          setData(j);
+          setErr(null);
+          setServedFromCache(false);
+          setBusy(false);
+          if (isPunchedOut(j)) {
+            writeCache(j);
+            clearPoll();
+          } else {
+            clearCache();
+          }
           return;
         }
       }

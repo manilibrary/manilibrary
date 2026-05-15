@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useLayoutEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import {
   ADMIN_ATTENDANCE_SESSION_TTL_MS,
@@ -121,36 +121,39 @@ export default function AdminAttendancePanel() {
   const [skippedDaily, setSkippedDaily] = useState(0);
   const [skippedPunches, setSkippedPunches] = useState(0);
 
-  useLayoutEffect(() => {
+  useEffect(() => {
     const dKey = adminAttendancePanelDailyKey(fromIso, toIso, empcode);
     const pKey = adminAttendancePanelPunchesKey(fromIso, toIso);
-    const cachedDaily = readAdminAttendanceSessionCache<{
-      items: DailyItem[];
-      skippedDaily: number;
-      info: string | null;
-    }>(dKey, ADMIN_ATTENDANCE_SESSION_TTL_MS);
-    if (cachedDaily) {
-      setItems(cachedDaily.items);
-      setSkippedDaily(cachedDaily.skippedDaily);
-      setInfo(cachedDaily.info);
-    } else {
-      setItems([]);
-      setSkippedDaily(0);
-      setInfo(null);
-    }
-    const cachedPunches = readAdminAttendanceSessionCache<{
-      items: PunchItem[];
-      skippedPunches: number;
-    }>(pKey, ADMIN_ATTENDANCE_SESSION_TTL_MS);
-    if (cachedPunches) {
-      setLivePunches(cachedPunches.items);
-      setSkippedPunches(cachedPunches.skippedPunches);
-    } else {
-      setLivePunches([]);
-      setSkippedPunches(0);
-    }
-    setErr(null);
-    setLiveErr(null);
+    const id = window.requestAnimationFrame(() => {
+      const cachedDaily = readAdminAttendanceSessionCache<{
+        items: DailyItem[];
+        skippedDaily: number;
+        info: string | null;
+      }>(dKey, ADMIN_ATTENDANCE_SESSION_TTL_MS);
+      if (cachedDaily) {
+        setItems(cachedDaily.items);
+        setSkippedDaily(cachedDaily.skippedDaily);
+        setInfo(cachedDaily.info);
+      } else {
+        setItems([]);
+        setSkippedDaily(0);
+        setInfo(null);
+      }
+      const cachedPunches = readAdminAttendanceSessionCache<{
+        items: PunchItem[];
+        skippedPunches: number;
+      }>(pKey, ADMIN_ATTENDANCE_SESSION_TTL_MS);
+      if (cachedPunches) {
+        setLivePunches(cachedPunches.items);
+        setSkippedPunches(cachedPunches.skippedPunches);
+      } else {
+        setLivePunches([]);
+        setSkippedPunches(0);
+      }
+      setErr(null);
+      setLiveErr(null);
+    });
+    return () => window.cancelAnimationFrame(id);
   }, [fromIso, toIso, empcode]);
 
   const loadDaily = useCallback(async () => {

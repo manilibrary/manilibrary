@@ -6,18 +6,23 @@ import { useState } from "react";
 import AuthMarketingAside from "@/components/auth/AuthMarketingAside";
 import Logo from "@/components/Logo";
 import libraryInfo from "@/data/libraryInfo.json";
-import { createClient } from "@/lib/supabase/client";
+import TurnstileWidget from "@/components/security/TurnstileWidget";
 import { MEMBER_LANDING_PATH, sanitizeInternalNext } from "@/lib/auth-landing";
+import { formatPersonName } from "@/lib/format-person-name";
+import { FIELD_LIMITS } from "@/lib/security/field-limits";
+import { turnstileRequiredOnClient } from "@/lib/security/turnstile-client";
 
 export default function RegisterForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const captchaRequired = turnstileRequiredOnClient();
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
   const [showPwd, setShowPwd] = useState(false);
+  const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -29,43 +34,55 @@ export default function RegisterForm() {
       setError("Passwords do not match.");
       return;
     }
-    if (password.length < 6) {
-      setError("Password must be at least 6 characters.");
+    if (password.length < FIELD_LIMITS.passwordMin) {
+      setError(`Password must be at least ${FIELD_LIMITS.passwordMin} characters.`);
       return;
     }
+    if (captchaRequired && !turnstileToken) {
+      setError("Complete the security check below.");
+      return;
+    }
+
+    const formattedName = formatPersonName(fullName);
+    setFullName(formattedName);
 
     setSubmitting(true);
-    const supabase = createClient();
-    const { data, error: signUpError } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        data: {
-          full_name: fullName.trim(),
-          phone: phone.trim() || undefined,
-        },
-      },
-    });
+    try {
+      const res = await fetch("/api/auth/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          name: formattedName,
+          email: email.trim().toLowerCase(),
+          phone: phone.trim(),
+          password,
+          ...(turnstileToken ? { turnstileToken } : {}),
+        }),
+      });
+      const json = (await res.json()) as { ok?: boolean; error?: string; needsEmailConfirmation?: boolean };
+      if (!res.ok || json.ok === false) {
+        setError(json.error ?? "Could not create account.");
+        setSubmitting(false);
+        return;
+      }
 
-    if (signUpError) {
-      setError(signUpError.message);
-      setSubmitting(false);
-      return;
-    }
+      if (!json.needsEmailConfirmation) {
+        const next = sanitizeInternalNext(searchParams.get("next"));
+        router.replace(next ?? MEMBER_LANDING_PATH);
+        router.refresh();
+        return;
+      }
 
-    if (data.session) {
+      const q = new URLSearchParams({ registered: "1", confirm: "1" });
       const next = sanitizeInternalNext(searchParams.get("next"));
-      router.replace(next ?? MEMBER_LANDING_PATH);
+      if (next) q.set("next", next);
+      router.push(`/login?${q.toString()}`);
       router.refresh();
-      return;
+    } catch {
+      setError("Network error. Try again.");
+      setSubmitting(false);
     }
-
-    const q = new URLSearchParams({ registered: "1" });
-    if (!data.session) q.set("confirm", "1");
-    const next = sanitizeInternalNext(searchParams.get("next"));
-    if (next) q.set("next", next);
-    router.push(`/login?${q.toString()}`);
-    router.refresh();
   };
 
   return (
@@ -121,7 +138,10 @@ export default function RegisterForm() {
                 autoComplete="name"
                 value={fullName}
                 onChange={(e) => setFullName(e.target.value)}
+                onBlur={(e) => setFullName(formatPersonName(e.target.value))}
                 required
+                minLength={FIELD_LIMITS.nameMin}
+                maxLength={FIELD_LIMITS.nameMax}
                 className="w-full rounded-xl border border-ink-200 bg-white px-4 py-3 text-sm text-ink-900 outline-none transition focus:border-azure-500 focus:ring-4 focus:ring-azure-500/15"
               />
             </div>
@@ -140,6 +160,7 @@ export default function RegisterForm() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
+                maxLength={FIELD_LIMITS.emailMax}
                 className="w-full rounded-xl border border-ink-200 bg-white px-4 py-3 text-sm text-ink-900 outline-none transition focus:border-azure-500 focus:ring-4 focus:ring-azure-500/15"
               />
             </div>
@@ -158,6 +179,7 @@ export default function RegisterForm() {
                 value={phone}
                 onChange={(e) => setPhone(e.target.value)}
                 placeholder="+919876543210"
+                maxLength={FIELD_LIMITS.phoneMax}
                 className="w-full rounded-xl border border-ink-200 bg-white px-4 py-3 text-sm text-ink-900 outline-none transition placeholder:text-ink-400 focus:border-azure-500 focus:ring-4 focus:ring-azure-500/15"
               />
             </div>
@@ -185,7 +207,8 @@ export default function RegisterForm() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
-                minLength={6}
+                minLength={FIELD_LIMITS.passwordMin}
+                maxLength={FIELD_LIMITS.passwordMax}
                 className="w-full rounded-xl border border-ink-200 bg-white px-4 py-3 text-sm text-ink-900 outline-none transition focus:border-azure-500 focus:ring-4 focus:ring-azure-500/15"
               />
             </div>
@@ -204,9 +227,12 @@ export default function RegisterForm() {
                 value={confirm}
                 onChange={(e) => setConfirm(e.target.value)}
                 required
+                maxLength={FIELD_LIMITS.passwordMax}
                 className="w-full rounded-xl border border-ink-200 bg-white px-4 py-3 text-sm text-ink-900 outline-none transition focus:border-azure-500 focus:ring-4 focus:ring-azure-500/15"
               />
             </div>
+
+            <TurnstileWidget onToken={setTurnstileToken} className="mt-2" />
 
             {error && (
               <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">

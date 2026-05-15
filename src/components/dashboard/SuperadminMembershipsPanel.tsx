@@ -1,11 +1,13 @@
 "use client";
 
-import { startTransition, useCallback, useEffect, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 
 import { formatDateDdMmYyyy } from "@/lib/date-format";
 import { MembershipSeatTableCell } from "@/components/membership/MembershipSeatTableCell";
 import { resolveMemberSeatDisplayLabel } from "@/lib/membership/seat-label";
 import { TableBodySkeleton } from "@/components/ui/ContentSkeletons";
+import { useStaleWhileRevalidate } from "@/hooks/useStaleWhileRevalidate";
+import { ddcKey } from "@/lib/client-data-cache";
 
 function shortUuid(id: string): string {
   if (id.length <= 12) return id;
@@ -65,9 +67,7 @@ function dateOnlyForInput(v: string | null): string {
 
 export default function SuperadminMembershipsPanel() {
   const [q, setQ] = useState("");
-  const [items, setItems] = useState<Row[]>([]);
-  const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState<string | null>(null);
+  const [refreshKey, setRefreshKey] = useState(0);
   const [edit, setEdit] = useState<Row | null>(null);
   const [saveMsg, setSaveMsg] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Row | null>(null);
@@ -75,32 +75,34 @@ export default function SuperadminMembershipsPanel() {
   const [deleteBusy, setDeleteBusy] = useState(false);
   const [deleteErr, setDeleteErr] = useState<string | null>(null);
 
-  const load = useCallback(async () => {
-    setBusy(true);
-    setErr(null);
-    try {
-      const params = new URLSearchParams();
-      if (q.trim()) params.set("q", q.trim());
-      const res = await fetch(`/api/superadmin/memberships?${params.toString()}`, { cache: "no-store" });
-      const j = (await res.json()) as { ok?: boolean; error?: string; items?: Row[] };
-      if (!res.ok || !j.ok) {
-        setErr(j.error ?? "Could not load.");
-        setItems([]);
-        return;
-      }
-      setItems(j.items ?? []);
-    } catch (e) {
-      setErr(e instanceof Error ? e.message : "Network error.");
-    } finally {
-      setBusy(false);
-    }
-  }, [q]);
+  const searchKey = useMemo(() => q.trim(), [q]);
+  const cacheKey = ddcKey.superadminMemberships(searchKey);
 
-  useEffect(() => {
-    startTransition(() => {
-      void load();
-    });
-  }, [load]);
+  const fetchItems = useCallback(async (): Promise<Row[]> => {
+    const params = new URLSearchParams();
+    if (searchKey) params.set("q", searchKey);
+    const res = await fetch(`/api/superadmin/memberships?${params.toString()}`, { cache: "no-store" });
+    const j = (await res.json()) as { ok?: boolean; error?: string; items?: Row[] };
+    if (!res.ok || !j.ok) {
+      throw new Error(j.error ?? "Could not load.");
+    }
+    return j.items ?? [];
+  }, [searchKey]);
+
+  const {
+    data: items,
+    loading,
+    revalidating,
+    error: swrErr,
+  } = useStaleWhileRevalidate<Row[]>({
+    cacheKey,
+    fetcher: fetchItems,
+    refreshKey,
+  });
+
+  const rows = items ?? [];
+  const busy = loading && rows.length === 0;
+  const err = swrErr;
 
   function openDelete(r: Row) {
     setDeleteErr(null);
@@ -128,15 +130,15 @@ export default function SuperadminMembershipsPanel() {
         </label>
         <button
           type="button"
-          disabled={busy}
-          onClick={() => void load()}
+          disabled={revalidating}
+          onClick={() => setRefreshKey((k) => k + 1)}
           className="rounded-full bg-azure-500 px-4 py-2 text-sm font-semibold text-white hover:bg-azure-600 disabled:opacity-50"
         >
-          {busy ? "Loading…" : "Refresh"}
+          {revalidating ? "Updating…" : "Refresh"}
         </button>
       </div>
 
-      {err ? (
+      {err && rows.length === 0 ? (
         <p className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800" role="alert">
           {err}
         </p>
@@ -167,11 +169,11 @@ export default function SuperadminMembershipsPanel() {
             </tr>
           </thead>
           <tbody className="divide-y divide-ink-100">
-            {busy && items.length === 0 ? (
+            {busy ? (
               <TableBodySkeleton rows={8} cols={8} tdClass="px-3 py-3" />
             ) : (
               <>
-                {items.map((r) => (
+                {rows.map((r) => (
                   <tr key={r.id} className="text-ink-800">
                     <td className="px-3 py-2 font-mono text-xs">{r.plan_kind}</td>
                     <td className="px-3 py-2">{r.status}</td>
@@ -217,7 +219,7 @@ export default function SuperadminMembershipsPanel() {
                     </td>
                   </tr>
                 ))}
-                {items.length === 0 && !busy ? (
+                {rows.length === 0 && !busy ? (
                   <tr>
                     <td colSpan={8} className="px-3 py-8 text-center text-ink-500">
                       No rows.
@@ -401,7 +403,7 @@ export default function SuperadminMembershipsPanel() {
                     }
                     setEdit(null);
                     setSaveMsg("Saved.");
-                    void load();
+                    setRefreshKey((k) => k + 1);
                   })();
                 }}
               >
@@ -496,7 +498,7 @@ export default function SuperadminMembershipsPanel() {
                       }
                       setSaveMsg("Membership and linked payments deleted.");
                       closeDelete();
-                      void load();
+                      setRefreshKey((k) => k + 1);
                     } catch (e) {
                       setDeleteErr(e instanceof Error ? e.message : "Delete failed.");
                     } finally {

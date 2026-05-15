@@ -13,7 +13,7 @@ type Body = {
 };
 
 export async function POST(request: Request) {
-  const gate = await requireLibraryAdminOrSuperAdmin();
+  const gate = await requireLibraryAdminOrSuperAdmin(request);
   if (!gate.ok) {
     return apiError(gate.message, gate.status);
   }

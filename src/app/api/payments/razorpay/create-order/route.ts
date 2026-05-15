@@ -25,7 +25,8 @@ import {
   formatMemberSeatToken,
   resolveMemberSeatDisplayLabel,
 } from "@/lib/membership/seat-label";
-import { createSupabaseRouteHandlerClient } from "@/lib/supabase/route-handler";
+import { getAuthUserForApiRequest } from "@/lib/supabase/api-route-auth";
+import { createSupabaseServiceRoleClient } from "@/lib/supabase/service-role";
 
 export const runtime = "nodejs";
 
@@ -88,12 +89,19 @@ export async function POST(request: Request) {
     return apiError(`Start date cannot be more than ${MAX_ADVANCE_BOOKING_DAYS} days ahead.`, 400);
   }
 
-  const supabase = await createSupabaseRouteHandlerClient();
   const {
     data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) {
+    error: authErr,
+  } = await getAuthUserForApiRequest(request);
+  if (authErr || !user) {
     return apiError("Sign in required.", 401);
+  }
+
+  let admin;
+  try {
+    admin = createSupabaseServiceRoleClient();
+  } catch (e) {
+    return apiErrorSafe(e, 503, "Could not create Supabase admin client.");
   }
 
   const amountRupees = computeOrderAmountRupees(body.planKind, body.durationKey);
@@ -103,9 +111,8 @@ export async function POST(request: Request) {
   const amountPaise = rupeesToRazorpayPaise(amountRupees);
   const now = new Date();
 
-  // Block double-booking: one active membership per user.
   const todayIso = now.toISOString().slice(0, 10);
-  const { data: existingActive, error: existingErr } = await supabase
+  const { data: existingActive, error: existingErr } = await admin
     .from("memberships")
     .select("id, plan_kind, seat_number, valid_until, ends_at")
     .eq("user_id", user.id)
@@ -148,7 +155,7 @@ export async function POST(request: Request) {
     }
     const startsIso = membershipDayStartIso(body.membershipStartDate, tz);
     const endsIso = addWallClockHours(startsIso, dur.durationHours);
-    const res = await supabase
+    const res = await admin
       .from("memberships")
       .insert({
         user_id: user.id,
@@ -173,7 +180,7 @@ export async function POST(request: Request) {
     }
     const validFrom = body.membershipStartDate;
     const validUntil = longTermInclusiveUntil(validFrom, dur.calendarMonths);
-    const res = await supabase
+    const res = await admin
       .from("memberships")
       .insert({
         user_id: user.id,
@@ -205,7 +212,7 @@ export async function POST(request: Request) {
     );
   }
 
-  const { data: payment, error: payErr } = await supabase
+  const { data: payment, error: payErr } = await admin
     .from("payments")
     .insert({
       user_id: user.id,
@@ -242,7 +249,7 @@ export async function POST(request: Request) {
     return apiErrorSafe(e, 502, "Payment provider could not create the order. Try again in a moment.");
   }
 
-  const { error: metaErr } = await supabase
+  const { error: metaErr } = await admin
     .from("payments")
     .update({
       metadata: {
@@ -260,7 +267,7 @@ export async function POST(request: Request) {
     });
   }
 
-  await supabase.from("memberships").update({ payment_id: payment.id }).eq("id", membership.id);
+  await admin.from("memberships").update({ payment_id: payment.id }).eq("id", membership.id);
 
   const publicKey = process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID ?? keyId;
 

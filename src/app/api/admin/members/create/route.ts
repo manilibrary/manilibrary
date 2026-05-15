@@ -1,30 +1,37 @@
 import { apiError, apiErrorSafe, apiSuccess } from "@/lib/api/json-response";
 import { createMemberAccount, isValidMemberEmail, normalizeMemberEmail } from "@/lib/admin/create-member-account";
+import { formatPersonName } from "@/lib/format-person-name";
+import { FIELD_LIMITS } from "@/lib/security/field-limits";
+import { readJsonBody } from "@/lib/security/request-guards";
 import { requireLibraryAdmin } from "@/lib/supabase/require-library-admin";
 import { createSupabaseServiceRoleClient } from "@/lib/supabase/service-role";
 
 export const runtime = "nodejs";
 
 export async function POST(request: Request) {
-  const gate = await requireLibraryAdmin();
+  const gate = await requireLibraryAdmin(request);
   if (!gate.ok) {
     return apiError(gate.message, gate.status);
   }
 
-  let body: { full_name?: unknown; email?: unknown; phone?: unknown; password?: unknown };
-  try {
-    body = (await request.json()) as typeof body;
-  } catch {
-    return apiError("Expected JSON body.", 400);
-  }
+  const parsed = await readJsonBody(request);
+  if (!parsed.ok) return parsed.response;
+  const body = parsed.body;
 
-  const fullName = typeof body.full_name === "string" ? body.full_name.trim() : "";
+  const fullName =
+    typeof body.full_name === "string"
+      ? formatPersonName(body.full_name).slice(0, FIELD_LIMITS.nameMax)
+      : "";
   const email = typeof body.email === "string" ? normalizeMemberEmail(body.email) : "";
-  const phone = typeof body.phone === "string" ? body.phone.trim().slice(0, 40) : "";
+  const phone =
+    typeof body.phone === "string" ? body.phone.trim().slice(0, FIELD_LIMITS.phoneMax) : "";
   const passwordRaw = typeof body.password === "string" ? body.password : "";
 
-  if (!fullName || fullName.length > 200) {
-    return apiError("full_name is required (max 200 characters).", 400);
+  if (fullName.length < FIELD_LIMITS.nameMin) {
+    return apiError(`full_name is required (${FIELD_LIMITS.nameMin}–${FIELD_LIMITS.nameMax} characters).`, 400);
+  }
+  if (passwordRaw.length > FIELD_LIMITS.passwordMax) {
+    return apiError("Password is too long.", 400);
   }
   if (!email || !isValidMemberEmail(email)) {
     return apiError("A valid email is required.", 400);

@@ -15,8 +15,8 @@ import { deriveDailyFromPunches } from "@/lib/etime/synth";
 import type { EtimeInOutResponse, EtimePunchMcidResponse, EtimePunchMcidRow } from "@/lib/etime/types";
 import { buildDownloadInOutPunchDataUrl, buildDownloadPunchDataMcidUrl } from "@/lib/etime/urls";
 import { addDaysYmd, DEFAULT_LIBRARY_TZ } from "@/lib/membership/windows";
-import { createSupabaseRouteHandlerClient } from "@/lib/supabase/route-handler";
 import { createSupabaseServiceRoleClient } from "@/lib/supabase/service-role";
+import { getAuthUserForApiRequest } from "@/lib/supabase/api-route-auth";
 
 export const runtime = "nodejs";
 
@@ -162,11 +162,10 @@ async function punchesForAnchorDmy(deviceUserId: number, anchorDMY: string): Pro
   return all.filter((r) => empcodeMatches(r.Empcode, deviceUserId));
 }
 
-export async function GET() {
-  const supabase = await createSupabaseRouteHandlerClient();
+export async function GET(request: Request) {
   const {
     data: { user },
-  } = await supabase.auth.getUser();
+  } = await getAuthUserForApiRequest(request);
   if (!user) {
     return apiError("Sign in required.", 401);
   }

@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import { useCallback, useRef, useState } from "react";
+import { displayPersonName } from "@/lib/format-person-name";
 
 type Props = {
   fullName: string;
@@ -27,6 +28,7 @@ export default function MemberProfileSection({
   avatarUrl,
   onAvatarChanged,
 }: Props) {
+  const displayName = displayPersonName(fullName, "Member");
   const inputRef = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
@@ -103,7 +105,7 @@ export default function MemberProfileSection({
               />
             ) : (
               <span className="flex h-full w-full items-center justify-center text-2xl font-semibold text-ink-400">
-                {initials(fullName)}
+                {initials(displayName)}
               </span>
             )}
           </div>
@@ -146,7 +148,7 @@ export default function MemberProfileSection({
         <dl className="min-w-0 flex-1 grid gap-4 text-sm sm:grid-cols-2">
           <div className="sm:col-span-2">
             <dt className="font-mono text-[10px] uppercase tracking-widest text-ink-500">Name</dt>
-            <dd className="mt-1 font-medium text-ink-900">{fullName}</dd>
+            <dd className="mt-1 font-medium text-ink-900">{displayName}</dd>
           </div>
           <div>
             <dt className="font-mono text-[10px] uppercase tracking-widest text-ink-500">Library number</dt>

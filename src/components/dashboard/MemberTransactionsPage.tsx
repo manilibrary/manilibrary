@@ -3,29 +3,10 @@
 import { useEffect, useState } from "react";
 
 import { TransactionsTableSkeleton } from "@/components/ui/ContentSkeletons";
-import { CLIENT_DATA_CACHE_TTL_MS, ddcKey, getClientCache, setClientCache } from "@/lib/client-data-cache";
+import { useStaleWhileRevalidate } from "@/hooks/useStaleWhileRevalidate";
+import { fetchMemberTransactions, type MemberTxRow } from "@/lib/client/fetch-member-transactions";
+import { ddcKey } from "@/lib/client-data-cache";
 import { createClient } from "@/lib/supabase/client";
-
-type TxMembership = {
-  id: string;
-  planKind: string;
-  planTitle: string;
-  status: string;
-  seatLabel: string;
-  windowLabel: string;
-};
-
-type TxRow = {
-  id: string;
-  amountRupees: number;
-  currency: string;
-  status: string;
-  razorpayPaymentId: string | null;
-  razorpayOrderId: string | null;
-  createdAt: string;
-  updatedAt: string;
-  membership: TxMembership | null;
-};
 
 function statusBadgeClass(status: string): string {
   if (status === "paid") return "bg-emerald-100 text-emerald-900 ring-emerald-200";
@@ -36,54 +17,44 @@ function statusBadgeClass(status: string): string {
 }
 
 export default function MemberTransactionsPage() {
-  const [rows, setRows] = useState<TxRow[]>([]);
-  const [err, setErr] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [userId, setUserId] = useState<string | null>(null);
+  const [authErr, setAuthErr] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
     void (async () => {
-      setLoading(true);
-      setErr(null);
-      try {
-        const supabase = createClient();
-        const {
-          data: { user },
-        } = await supabase.auth.getUser();
-        if (!user) {
-          if (!cancelled) {
-            setErr("Sign in to view your payment history.");
-            setRows([]);
-            setLoading(false);
-          }
-          return;
-        }
-
-        const cacheKey = ddcKey.memberPayments(user.id);
-        const cached = getClientCache<TxRow[]>(cacheKey);
-        if (cached !== null && !cancelled) setRows(cached);
-
-        const res = await fetch("/api/payments/me", { cache: "no-store", credentials: "same-origin" });
-        const j = (await res.json()) as { ok?: boolean; error?: string; transactions?: TxRow[] };
-        if (cancelled) return;
-        if (!res.ok || !j.ok) {
-          setErr(typeof j.error === "string" ? j.error : "Could not load transactions.");
-          setRows([]);
-          return;
-        }
-        const next = Array.isArray(j.transactions) ? j.transactions : [];
-        setRows(next);
-        setClientCache(cacheKey, next, CLIENT_DATA_CACHE_TTL_MS);
-      } catch {
-        if (!cancelled) setErr("Could not load transactions.");
-      } finally {
-        if (!cancelled) setLoading(false);
+      const supabase = createClient();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (cancelled) return;
+      if (!user) {
+        setAuthErr("Sign in to view your payment history.");
+        setUserId(null);
+        return;
       }
+      setAuthErr(null);
+      setUserId(user.id);
     })();
     return () => {
       cancelled = true;
     };
   }, []);
+
+  const {
+    data: rows,
+    loading,
+    revalidating,
+    error: loadErr,
+  } = useStaleWhileRevalidate<MemberTxRow[]>({
+    cacheKey: userId ? ddcKey.memberPayments(userId) : "",
+    fetcher: fetchMemberTransactions,
+    enabled: userId != null,
+  });
+
+  const list = rows ?? [];
+  const err = authErr ?? loadErr;
+  const showSkeleton = (userId == null && !authErr) || (loading && list.length === 0);
 
   const th =
     "border-b border-r border-ink-200 bg-ink-50/95 px-3 py-3 text-left text-[11px] font-semibold uppercase tracking-wide text-ink-500 last:border-r-0 sm:px-4";
@@ -101,21 +72,22 @@ export default function MemberTransactionsPage() {
         </p>
       </header>
 
-      {loading ? <TransactionsTableSkeleton /> : null}
-      {err ? (
+      {showSkeleton ? <TransactionsTableSkeleton /> : null}
+      {err && list.length === 0 ? (
         <p className="text-sm text-red-700" role="alert">
           {err}
         </p>
       ) : null}
 
-      {!loading && !err && rows.length === 0 ? (
+      {!showSkeleton && !err && list.length === 0 ? (
         <p className="rounded-2xl border border-ink-100 bg-white px-4 py-6 text-sm text-ink-600 shadow-sm">
           No Razorpay payments yet. When you complete a membership checkout, it will appear here.
         </p>
       ) : null}
 
-      {!loading && rows.length > 0 ? (
+      {list.length > 0 ? (
         <div className="space-y-2">
+          {revalidating ? <p className="text-xs text-ink-500">Updating payment history…</p> : null}
           <p className="text-xs text-ink-500 lg:hidden">Swipe horizontally to see every column.</p>
           <div className="overflow-x-auto rounded-2xl border border-ink-200 bg-white shadow-sm ring-1 ring-black/[0.02]">
             <table className="w-full min-w-[920px] table-fixed border-collapse text-left text-sm">
@@ -146,7 +118,7 @@ export default function MemberTransactionsPage() {
                 </tr>
               </thead>
               <tbody>
-                {rows.map((r, index) => (
+                {list.map((r, index) => (
                   <tr
                     key={r.id}
                     className={

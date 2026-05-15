@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { getUxPreferenceCookie, setUxPreferenceCookie } from "@/lib/ux-cookies";
 import DashboardMobileTabBar from "./DashboardMobileTabBar";
 import MemberDashboardRedirect from "./MemberDashboardRedirect";
+import { MemberMeBootstrapProvider } from "./MemberMeBootstrapProvider";
 import Sidebar from "./Sidebar";
 import Topbar from "./Topbar";
 
@@ -45,7 +46,7 @@ export default function DashboardShell({
       <div className="flex min-h-0 min-w-0 flex-1 flex-col lg:min-h-screen">
         <Topbar onMenu={() => setDashboardSidebarOpen(true)} />
         <main className="min-w-0 flex-1 px-4 py-5 sm:px-5 sm:py-6 md:px-8 md:py-8 lg:px-8 lg:py-8 pb-[calc(5.25rem+env(safe-area-inset-bottom,0px))] lg:pb-8">
-          {children}
+          <MemberMeBootstrapProvider>{children}</MemberMeBootstrapProvider>
         </main>
       </div>
       <DashboardMobileTabBar />
