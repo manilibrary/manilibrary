@@ -6,7 +6,8 @@
 -- What this removes
 --   • v2 staging & sync: member_manual_import, device_api_sync_state
 --   • v2 tables the app never queries (only superadmin purge touched some):
---       site_visits, device_api_records, etime_empcode_map
+--       device_api_records, etime_empcode_map
+--   • site_visits + site_visit_overview_stats() — use drop-site-visits.sql
 --   • Legacy objects IF they still exist from older SQL bundles:
 --       attendance_day_snapshots, attendance_history_entries,
 --       etime_punch_raw, etime_attendance_daily,
@@ -44,7 +45,6 @@ drop table if exists public.kyc_checkout_pending_documents cascade;
 drop table if exists public.device_api_records cascade;
 drop table if exists public.etime_empcode_map cascade;
 
-drop table if exists public.site_visits cascade;
 drop table if exists public.member_manual_import cascade;
 drop table if exists public.device_api_sync_state cascade;
 

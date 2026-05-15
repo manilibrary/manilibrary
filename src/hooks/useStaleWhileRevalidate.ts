@@ -33,7 +33,10 @@ export function useStaleWhileRevalidate<T>({
   enabled?: boolean;
 }) {
   const fetcherRef = useRef(fetcher);
-  fetcherRef.current = fetcher;
+
+  useEffect(() => {
+    fetcherRef.current = fetcher;
+  }, [fetcher]);
 
   // Always start empty so SSR and the first client render match (avoids hydration mismatch
   // when session cache exists). Cache is applied in useEffect after mount.
@@ -59,31 +62,35 @@ export function useStaleWhileRevalidate<T>({
     let cancelled = false;
     const cached = readCache();
 
-    if (cached != null) {
-      setData(cached);
-      setLoading(false);
-    } else {
-      setLoading(true);
-    }
+    queueMicrotask(() => {
+      if (cancelled) return;
 
-    setRevalidating(cached != null);
-
-    void (async () => {
-      try {
-        const fresh = await fetcherRef.current();
-        if (cancelled) return;
-        persist(fresh);
-      } catch (e) {
-        if (cancelled) return;
-        const message = e instanceof Error ? e.message : "Could not load data.";
-        if (cached == null) setError(message);
-      } finally {
-        if (!cancelled) {
-          setLoading(false);
-          setRevalidating(false);
-        }
+      if (cached != null) {
+        setData(cached);
+        setLoading(false);
+        setRevalidating(true);
+      } else {
+        setLoading(true);
+        setRevalidating(false);
       }
-    })();
+
+      void (async () => {
+        try {
+          const fresh = await fetcherRef.current();
+          if (cancelled) return;
+          persist(fresh);
+        } catch (e) {
+          if (cancelled) return;
+          const message = e instanceof Error ? e.message : "Could not load data.";
+          if (cached == null) setError(message);
+        } finally {
+          if (!cancelled) {
+            setLoading(false);
+            setRevalidating(false);
+          }
+        }
+      })();
+    });
 
     return () => {
       cancelled = true;

@@ -3,6 +3,7 @@
 import { Fragment, useCallback, useMemo, useState } from "react";
 
 import { formatDateTimeDdMmYyyy } from "@/lib/date-format";
+import { deviceUserIdInlineLabel } from "@/lib/device-user-id-label";
 import { TableBodySkeleton } from "@/components/ui/ContentSkeletons";
 import { useStaleWhileRevalidate } from "@/hooks/useStaleWhileRevalidate";
 import { fetchAdminPaymentsList } from "@/lib/client/fetch-admin-payments-list";
@@ -264,7 +265,9 @@ export default function StaffPaymentsPanel() {
                       <td className="px-4 py-3">
                         <p className="font-medium text-ink-900">{p?.full_name ?? "Unknown member"}</p>
                         {libNo ? (
-                          <p className="mt-0.5 font-mono text-[11px] text-ink-500">Lib. {libNo}</p>
+                          <p className="mt-0.5 font-mono text-[11px] text-ink-500">
+                            {deviceUserIdInlineLabel(libNo)}
+                          </p>
                         ) : null}
                       </td>
                       <td className="whitespace-nowrap px-4 py-3 font-semibold tabular-nums text-ink-900">

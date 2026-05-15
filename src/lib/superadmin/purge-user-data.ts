@@ -4,8 +4,8 @@ import type { SupabaseClient } from "@supabase/supabase-js";
  * Hard-delete a member and their Auth user. Call only from superadmin API.
  * Runs explicit cleanup for tables without FK cascade to `auth.users` / `profiles`,
  * removes private KYC objects, then `auth.admin.deleteUser` (cascades the rest).
- * Optional tables `site_visits`, `device_api_records`, and `etime_empcode_map` are
- * not cleaned here (dropped by `supabase/drop-optional-unused-tables.sql` if unused).
+ * Optional tables `device_api_records` and `etime_empcode_map` are not cleaned here
+ * (dropped by `supabase/drop-optional-unused-tables.sql` if unused).
  */
 export async function purgeLibraryUserCompletely(
   admin: SupabaseClient,

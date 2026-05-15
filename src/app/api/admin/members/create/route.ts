@@ -68,7 +68,7 @@ export async function POST(request: Request) {
     return apiErrorSafe(pe ?? new Error("profile_missing"), 500, "Account was created but profile setup failed. Try again.");
   }
 
-  return apiSuccess("Member account created. Library number is assigned automatically.", {
+  return apiSuccess("Member account created. Device user id is assigned automatically.", {
     user_id: profile.user_id,
     device_user_id: profile.device_user_id,
     full_name: profile.full_name,

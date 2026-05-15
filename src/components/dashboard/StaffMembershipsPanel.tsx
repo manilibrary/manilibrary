@@ -469,7 +469,7 @@ export default function StaffMembershipsPanel() {
               <p className="font-mono text-[10px] uppercase tracking-widest text-ink-700">Member enrollment</p>
               <p className="mt-1 text-sm leading-relaxed text-ink-700">
                 Walk-in or when the app / Razorpay checkout is unavailable: add a <strong>new</strong> login and seat,
-                or <strong>renew</strong> an existing member by library number, name, email, or phone.
+                or <strong>renew</strong> an existing member by device user id, name, email, or phone.
               </p>
             </div>
             <div className="flex flex-wrap gap-2">
@@ -514,7 +514,7 @@ export default function StaffMembershipsPanel() {
                 <p className="font-mono text-[10px] uppercase tracking-widest text-violet-900">New member enrollment</p>
                 <p className="mt-1 text-xs leading-relaxed text-ink-700">
                   Payment is stored as <span className="font-mono">manual</span> with your method and reference for
-                  audit. On save, the system assigns a <strong>device user id</strong> (library number, starting 1111) —
+                  audit. On save, the system assigns a <strong>device user id</strong> (starting 1111) —
                   required for biometric punch sync. Program that same id on the terminal after enrollment.
                 </p>
               </div>
@@ -541,7 +541,7 @@ export default function StaffMembershipsPanel() {
               }}
             >
           <div className="rounded-xl border border-violet-100 bg-violet-50/60 px-4 py-3 text-xs leading-relaxed text-ink-700">
-            <p className="font-medium text-violet-950">Library number (device user id)</p>
+            <p className="font-medium text-violet-950">Device user id</p>
             <p className="mt-1">
               Not entered here — it is created automatically when you save (1111–9999). Punches on the biometric
               device use this id to match attendance on the website. After enrollment, copy the number from the success
@@ -613,7 +613,7 @@ export default function StaffMembershipsPanel() {
               </div>
               <p className="mt-2 text-[11px] leading-relaxed text-ink-500">
                 Email + password are for the <strong>mobile app</strong>. Phone is stored on the member profile.
-                Biometric entry uses the <strong>library number</strong> assigned on save — program that id on the
+                Biometric entry uses the <strong>device user id</strong> assigned on save — program that id on the
                 terminal separately.
               </p>
             </div>
@@ -815,7 +815,7 @@ export default function StaffMembershipsPanel() {
                   {String(manSuccess.device_user_id).padStart(4, "0")}
                 </p>
                 <p className="mt-2 text-xs leading-relaxed">
-                  Program this same library number on the biometric terminal so punches sync to the website.
+                  Program this same device user id on the biometric terminal so punches sync to the website.
                 </p>
               </div>
               <div className="rounded-lg border border-emerald-200 bg-emerald-50/80 px-3 py-3 text-sm text-emerald-950">
@@ -850,7 +850,7 @@ export default function StaffMembershipsPanel() {
             <thead className="border-b border-amber-100 bg-amber-50/50 font-mono text-[10px] uppercase tracking-widest text-ink-500">
               <tr>
                 <th className="px-4 py-2">Member</th>
-                <th className="px-4 py-2">Library no.</th>
+                <th className="px-4 py-2">Device user id</th>
                 <th className="px-4 py-2">KYC</th>
                 <th className="px-4 py-2">Profile created</th>
               </tr>
@@ -943,7 +943,7 @@ export default function StaffMembershipsPanel() {
       <div className="flex flex-wrap items-center gap-3">
         <input
           className="min-w-[260px] flex-1 rounded-lg border border-ink-200 px-3 py-2 text-sm"
-          placeholder="Search by name, number, seat, Aadhaar last-4, roll, status…"
+          placeholder="Search by name, device user id, seat, Aadhaar last-4, roll, status…"
           value={q}
           onChange={(e) => setQ(e.target.value)}
         />
@@ -964,7 +964,7 @@ export default function StaffMembershipsPanel() {
               <tr>
                 <th className="px-4 py-3">Member</th>
                 <th className="px-4 py-3">KYC</th>
-                <th className="px-4 py-3">Library no.</th>
+                <th className="px-4 py-3">Device user id</th>
                 <th className="px-4 py-3">Plan</th>
                 <th className="px-4 py-3">Seat</th>
                 <th className="px-4 py-3">Status</th>
@@ -991,7 +991,7 @@ export default function StaffMembershipsPanel() {
               <tr>
                 <th className="px-4 py-3">Member</th>
                 <th className="px-4 py-3">KYC</th>
-                <th className="px-4 py-3">Library no.</th>
+                <th className="px-4 py-3">Device user id</th>
                 <th className="px-4 py-3">Plan</th>
                 <th
                   className="px-4 py-3"

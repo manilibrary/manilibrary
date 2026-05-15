@@ -15,7 +15,7 @@
 --     using `encrypt_note` / `decrypt_note` (pgcrypto; passphrase via session or Vault).
 --   • RLS on every base table; service_role bypasses RLS for server jobs.
 --
--- TABLE COUNT (physical base tables): 13
+-- TABLE COUNT (physical base tables): 12
 --   1 profiles
 --   2 verification
 --   3 verification_documents
@@ -26,9 +26,8 @@
 --   8 library_export_audit
 --   9 device_api_records          ← replaces etime_punch_raw + etime_attendance_daily
 --  10 etime_empcode_map           ← empcode (0001) ↔ device_user_id
---  11 site_visits
---  12 member_manual_import        ← CSV / manual rows before Auth user exists
---  13 device_api_sync_state       ← LastRecord / incremental cursors per empcode
+--  11 member_manual_import        ← CSV / manual rows before Auth user exists
+--  12 device_api_sync_state       ← LastRecord / incremental cursors per empcode
 --
 -- VIEWS (not counted as tables): 5
 --   device_lookup, active_profiles, active_memberships, active_payments,
@@ -500,21 +499,7 @@ create table public.etime_empcode_map (
 );
 
 -- ---------------------------------------------------------------------------
--- 11 site_visits
--- ---------------------------------------------------------------------------
-create table public.site_visits (
-  id            bigserial primary key,
-  visited_at    timestamptz not null default now(),
-  visitor_key   text not null,
-  path          text,
-  referrer      text,
-  user_id       uuid references auth.users (id) on delete set null,
-  metadata      jsonb not null default '{}'::jsonb,
-  constraint site_visits_visitor_key_len check (char_length(visitor_key) >= 8)
-);
-
--- ---------------------------------------------------------------------------
--- 12 member_manual_import  (CSV staging — no Auth user until “apply” flow)
+-- 11 member_manual_import  (CSV staging — no Auth user until “apply” flow)
 -- ---------------------------------------------------------------------------
 create table public.member_manual_import (
   id               uuid primary key default gen_random_uuid(),
@@ -537,7 +522,7 @@ create table public.member_manual_import (
 create index member_manual_import_batch_idx on public.member_manual_import (import_batch_id);
 
 -- ---------------------------------------------------------------------------
--- 13 device_api_sync_state  (LastRecord / incremental)
+-- 12 device_api_sync_state  (LastRecord / incremental)
 -- ---------------------------------------------------------------------------
 create table public.device_api_sync_state (
   empcode        text primary key,
@@ -579,7 +564,6 @@ alter table public.attendance_days enable row level security;
 alter table public.library_export_audit enable row level security;
 alter table public.device_api_records enable row level security;
 alter table public.etime_empcode_map enable row level security;
-alter table public.site_visits enable row level security;
 alter table public.member_manual_import enable row level security;
 alter table public.device_api_sync_state enable row level security;
 
@@ -724,13 +708,6 @@ create policy etime_map_update on public.etime_empcode_map for update to authent
 drop policy if exists etime_map_delete_super on public.etime_empcode_map;
 create policy etime_map_delete_super on public.etime_empcode_map for delete to authenticated using (public.is_library_superadmin());
 
--- site_visits
-drop policy if exists site_visits_insert_public on public.site_visits;
-create policy site_visits_insert_public on public.site_visits for insert to anon, authenticated
-  with check (char_length(visitor_key) >= 8 and (user_id is null or user_id = auth.uid()));
-drop policy if exists site_visits_select_staff on public.site_visits;
-create policy site_visits_select_staff on public.site_visits for select using (public.is_library_admin() or public.is_library_superadmin());
-
 -- member_manual_import — staff only
 drop policy if exists mmi_select on public.member_manual_import;
 create policy mmi_select on public.member_manual_import for select using (public.is_library_admin() or public.is_library_superadmin());
@@ -773,8 +750,6 @@ grant select, insert, update, delete on public.attendance_days to authenticated;
 grant select on public.library_export_audit to authenticated;
 grant select, insert, update, delete on public.device_api_records to authenticated;
 grant select, insert, update, delete on public.etime_empcode_map to authenticated;
-grant insert on public.site_visits to anon, authenticated;
-grant select on public.site_visits to authenticated;
 grant select, insert, update, delete on public.member_manual_import to authenticated;
 grant select, insert, update, delete on public.device_api_sync_state to authenticated;
 

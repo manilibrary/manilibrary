@@ -360,7 +360,7 @@ export default function AdminAttendancePanel() {
               <tr>
                 <th className="whitespace-nowrap px-4 py-3">Date</th>
                 <th className="whitespace-nowrap px-4 py-3">Member</th>
-                <th className="whitespace-nowrap px-4 py-3">Library no.</th>
+                <th className="whitespace-nowrap px-4 py-3">Device user id</th>
                 <th className="whitespace-nowrap px-4 py-3">On reader</th>
                 <th className="whitespace-nowrap px-4 py-3">Seat</th>
                 <th className="whitespace-nowrap px-4 py-3">In</th>
@@ -478,7 +478,7 @@ export default function AdminAttendancePanel() {
               <tr>
                 <th className="whitespace-nowrap px-4 py-3">Time</th>
                 <th className="whitespace-nowrap px-4 py-3">Member</th>
-                <th className="whitespace-nowrap px-4 py-3">Library no.</th>
+                <th className="whitespace-nowrap px-4 py-3">Device user id</th>
                 <th className="whitespace-nowrap px-4 py-3">On reader</th>
                 <th className="whitespace-nowrap px-4 py-3">Flag</th>
                 <th className="whitespace-nowrap px-4 py-3">Card</th>

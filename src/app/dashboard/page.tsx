@@ -60,7 +60,7 @@ export default async function DashboardOverview() {
         title="Staff home"
         description={
           isAdmin
-            ? "Registrations, website visitors, revenue, and attendance. Open a section below for full lists."
+            ? "Registrations, revenue, and attendance. Open a section below for full lists."
             : "Sign in as an admin to see the staff overview."
         }
       />

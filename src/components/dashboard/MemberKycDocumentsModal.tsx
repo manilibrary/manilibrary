@@ -210,7 +210,7 @@ export default function MemberKycDocumentsModal({
                 <dd className="text-right font-medium text-ink-900">{verificationLabel(details.verification_status)}</dd>
               </div>
               <div className="flex justify-between gap-4">
-                <dt className="text-ink-500">Library number</dt>
+                <dt className="text-ink-500">Device user id</dt>
                 <dd className="font-mono text-right text-ink-900">
                   {details.device_user_id != null ? String(details.device_user_id).padStart(4, "0") : "—"}
                 </dd>
