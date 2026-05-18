@@ -196,6 +196,23 @@ export default function MembershipCheckoutButton({
                     vj = { ok: true, alreadyPaid: j2.alreadyPaid };
                   }
                 }
+                if (!v.ok && !vj.ok) {
+                  const sync = await fetch("/api/payments/razorpay/sync-pending", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    credentials: "same-origin",
+                    body: JSON.stringify({ payment_id: paymentId }),
+                  });
+                  const sj = (await sync.json()) as {
+                    error?: string;
+                    ok?: boolean;
+                    outcome?: string;
+                    alreadyPaid?: boolean;
+                  };
+                  if (sync.ok && sj.ok && sj.outcome === "paid") {
+                    vj = { ok: true, alreadyPaid: sj.alreadyPaid };
+                  }
+                }
                 if (!v.ok && !vj.ok) throw new Error(vj.error ?? "Verification failed.");
                 await flushMembershipIntakeDraftAfterPayment();
                 setMsg(
