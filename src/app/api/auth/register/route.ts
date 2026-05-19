@@ -36,12 +36,18 @@ export async function POST(request: Request) {
 
   const mobile = wantsMobileSession(request, body);
 
+  const origin =
+    typeof body.origin === "string" && body.origin.startsWith("http")
+      ? body.origin.replace(/\/$/, "")
+      : process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, "") ?? "";
+
   try {
     const supabase = await createSupabaseRouteHandlerClient();
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
       options: {
+        emailRedirectTo: origin ? `${origin}/auth/callback?next=${encodeURIComponent("/login")}` : undefined,
         data: {
           full_name: name,
           ...(phone ? { phone } : {}),
@@ -50,6 +56,13 @@ export async function POST(request: Request) {
     });
 
     if (error) {
+      const msg = error.message?.toLowerCase() ?? "";
+      if (msg.includes("confirmation email") || msg.includes("error sending")) {
+        return apiError(
+          "Could not send the verification email. In Supabase: Authentication → SMTP — use a Gmail App Password (not your normal password), then save and try again.",
+          400,
+        );
+      }
       return apiErrorSafe(error, 400, "Could not create account.");
     }
     if (!data.user) {

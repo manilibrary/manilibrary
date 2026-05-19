@@ -19,6 +19,7 @@ import {
   SHORT_TERM_DURATION_OPTIONS,
   type MembershipPlanKind,
 } from "@/lib/payments/pricing";
+import { membershipHostedCheckoutUrl } from "@/lib/payments/hosted-checkout-url";
 import {
   PAYMENT_METADATA_PLANNED_SEAT_KEY,
   PENDING_MEMBERSHIP_SEAT_PLACEHOLDER,
@@ -278,5 +279,6 @@ export async function POST(request: Request) {
     currency: order.currency,
     paymentId: payment.id,
     membershipId: membership.id,
+    hostedCheckoutUrl: membershipHostedCheckoutUrl(payment.id, request),
   });
 }

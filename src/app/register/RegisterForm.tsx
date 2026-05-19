@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import AuthMarketingAside from "@/components/auth/AuthMarketingAside";
 import Logo from "@/components/Logo";
 import libraryInfo from "@/data/libraryInfo.json";
@@ -11,6 +11,24 @@ import { MEMBER_LANDING_PATH, sanitizeInternalNext } from "@/lib/auth-landing";
 import { formatPersonName } from "@/lib/format-person-name";
 import { FIELD_LIMITS } from "@/lib/security/field-limits";
 import { turnstileRequiredOnClient } from "@/lib/security/turnstile-client";
+
+const SIGNUP_EMAIL_COOLDOWN_SEC = 30;
+const SIGNUP_EMAIL_COOLDOWN_KEY = "manilibrary:signup_verification_cooldown_until";
+
+function readSignupEmailCooldownLeftSec(): number {
+  if (typeof window === "undefined") return 0;
+  const raw = sessionStorage.getItem(SIGNUP_EMAIL_COOLDOWN_KEY);
+  const until = raw ? Number(raw) : 0;
+  if (!Number.isFinite(until)) return 0;
+  return Math.max(0, Math.ceil((until - Date.now()) / 1000));
+}
+
+function startSignupEmailCooldown() {
+  sessionStorage.setItem(
+    SIGNUP_EMAIL_COOLDOWN_KEY,
+    String(Date.now() + SIGNUP_EMAIL_COOLDOWN_SEC * 1000),
+  );
+}
 
 export default function RegisterForm() {
   const router = useRouter();
@@ -25,10 +43,34 @@ export default function RegisterForm() {
   const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [verificationSent, setVerificationSent] = useState(false);
+  const [cooldownLeft, setCooldownLeft] = useState(0);
+  const loginAfterVerifyHref = useMemo(() => {
+    const q = new URLSearchParams({ registered: "1", confirm: "1" });
+    const next = sanitizeInternalNext(searchParams.get("next"));
+    if (next) q.set("next", next);
+    return `/login?${q.toString()}`;
+  }, [searchParams]);
+
+  useEffect(() => {
+    const sync = () => {
+      const left = readSignupEmailCooldownLeftSec();
+      setCooldownLeft(left);
+      if (left > 0) setVerificationSent(true);
+    };
+    sync();
+    const id = window.setInterval(sync, 1000);
+    return () => window.clearInterval(id);
+  }, []);
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+
+    if (cooldownLeft > 0) {
+      setError(`Please wait ${cooldownLeft}s before requesting another verification email.`);
+      return;
+    }
 
     if (password !== confirm) {
       setError("Passwords do not match.");
@@ -57,6 +99,7 @@ export default function RegisterForm() {
           email: email.trim().toLowerCase(),
           phone: phone.trim(),
           password,
+          origin: typeof window !== "undefined" ? window.location.origin : "",
           ...(turnstileToken ? { turnstileToken } : {}),
         }),
       });
@@ -74,11 +117,10 @@ export default function RegisterForm() {
         return;
       }
 
-      const q = new URLSearchParams({ registered: "1", confirm: "1" });
-      const next = sanitizeInternalNext(searchParams.get("next"));
-      if (next) q.set("next", next);
-      router.push(`/login?${q.toString()}`);
-      router.refresh();
+      startSignupEmailCooldown();
+      setCooldownLeft(SIGNUP_EMAIL_COOLDOWN_SEC);
+      setVerificationSent(true);
+      setSubmitting(false);
     } catch {
       setError("Network error. Try again.");
       setSubmitting(false);
@@ -124,7 +166,15 @@ export default function RegisterForm() {
             and renewals.
           </p>
 
-          <form onSubmit={onSubmit} className="mt-6 space-y-4">
+          {verificationSent ? (
+            <VerificationSentPanel
+              email={email.trim().toLowerCase()}
+              cooldownLeft={cooldownLeft}
+              loginHref={loginAfterVerifyHref}
+            />
+          ) : null}
+
+          <form onSubmit={onSubmit} className={`mt-6 space-y-4 ${verificationSent ? "hidden" : ""}`}>
             <div>
               <label
                 htmlFor="fullName"
@@ -242,13 +292,15 @@ export default function RegisterForm() {
 
             <button
               type="submit"
-              disabled={submitting}
+              disabled={submitting || cooldownLeft > 0}
               className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-azure-500 px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-azure-600 disabled:cursor-not-allowed disabled:opacity-60"
             >
               {submitting ? (
                 <>
                   <Spinner /> Creating account…
                 </>
+              ) : cooldownLeft > 0 ? (
+                <>Wait {cooldownLeft}s</>
               ) : (
                 <>Create member account</>
               )}
@@ -334,6 +386,37 @@ export default function RegisterForm() {
       </section>
 
       <AuthMarketingAside />
+    </div>
+  );
+}
+
+function VerificationSentPanel({
+  email,
+  cooldownLeft,
+  loginHref,
+}: {
+  email: string;
+  cooldownLeft: number;
+  loginHref: string;
+}) {
+  return (
+    <div className="mt-6 rounded-xl border border-emerald-200 bg-emerald-50/80 p-4 text-sm text-emerald-900">
+      <p className="font-medium">Check your email</p>
+      <p className="mt-2 text-emerald-800">
+        We sent a verification link to <span className="font-mono">{email}</span>. Open it to
+        confirm your account, then sign in.
+      </p>
+      {cooldownLeft > 0 ? (
+        <p className="mt-3 text-xs text-emerald-800">
+          You can register again in <span className="font-semibold tabular-nums">{cooldownLeft}s</span>.
+        </p>
+      ) : null}
+      <Link
+        href={loginHref}
+        className="mt-4 inline-block text-sm font-medium text-azure-600 hover:text-azure-700"
+      >
+        Go to sign in →
+      </Link>
     </div>
   );
 }

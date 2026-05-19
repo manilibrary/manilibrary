@@ -188,7 +188,26 @@ export default function MembershipPaymentComplete() {
       return;
     }
 
-    // 3) Nothing usable in URL (typical after “Success” without a proper redirect query).
+    if (paymentId) {
+      const sync = await fetch("/api/payments/razorpay/sync-pending", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "same-origin",
+        body: JSON.stringify({ payment_id: paymentId }),
+      });
+      const sj = (await sync.json()) as { error?: string; ok?: boolean; outcome?: string; alreadyPaid?: boolean };
+      if (sync.ok && sj.ok && sj.outcome === "paid") {
+        setStatus("ok");
+        setMessage(
+          sj.alreadyPaid
+            ? "Payment was already recorded. Redirecting to your account…"
+            : "Payment confirmed. Redirecting to your account…",
+        );
+        router.replace(`${MEMBER_MEMBERSHIP_PATH}?paid=1`);
+        return;
+      }
+    }
+
     setStatus("err");
     setMessage(
       "This page did not receive Razorpay’s return parameters (often happens after Success in test mode). " +

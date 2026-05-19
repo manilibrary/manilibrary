@@ -1,6 +1,5 @@
 import { apiError, apiSuccess, apiErrorSafe } from "@/lib/api/json-response";
-import { cancelPendingPaymentMembership } from "@/lib/payments/cancel-pending-checkout-membership";
-import { sanitizeCheckoutFailurePayload } from "@/lib/payments/sanitize-checkout-failure";
+import { failRazorpayPaymentRow } from "@/lib/payments/razorpay-pending-payment";
 import { getAuthUserForApiRequest } from "@/lib/supabase/api-route-auth";
 import { createSupabaseServiceRoleClient } from "@/lib/supabase/service-role";
 
@@ -59,27 +58,19 @@ export async function POST(request: Request) {
     return apiSuccess("Payment was already finalized; nothing to record.", { skipped: true });
   }
 
-  const prev = (pay.metadata ?? {}) as Record<string, unknown>;
-  const safe = sanitizeCheckoutFailurePayload(body.error);
-  const nextMeta = {
-    ...prev,
-    checkout_failure: {
-      ...safe,
-      recorded_at: new Date().toISOString(),
-    },
-  };
+  const failed = await failRazorpayPaymentRow(admin, {
+    paymentId: pay.id,
+    membershipId: pay.membership_id as string | null | undefined,
+    failure: body.error,
+    source: "client",
+  });
 
-  const { error: upErr } = await admin
-    .from("payments")
-    .update({ status: "failed", metadata: nextMeta })
-    .eq("id", pay.id)
-    .eq("status", "pending");
-
-  if (upErr) {
-    return apiErrorSafe(upErr, 500);
+  if (!failed.ok) {
+    return apiErrorSafe(failed.error, 500);
   }
 
-  await cancelPendingPaymentMembership(admin, pay.membership_id as string | null | undefined);
-
-  return apiSuccess("Checkout failure recorded on this payment row.", { paymentId: pay.id });
+  return apiSuccess("Checkout failure recorded on this payment row.", {
+    paymentId: pay.id,
+    skipped: failed.skipped === true,
+  });
 }
