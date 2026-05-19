@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import { useCallback, useRef, useState } from "react";
+import { compressImageUnder } from "@/lib/compress-image";
 import { displayPersonName } from "@/lib/format-person-name";
 
 type Props = {
@@ -51,8 +52,9 @@ export default function MemberProfileSection({
       setMsg(null);
       setBusy(true);
       try {
+        const compressed = await compressImageUnder(file);
         const fd = new FormData();
-        fd.set("file", file);
+        fd.set("file", compressed);
         const res = await fetch("/api/me/avatar", { method: "POST", body: fd });
         const j = (await res.json()) as { error?: string; hint?: string; ok?: boolean };
         if (!res.ok || !j.ok) {
