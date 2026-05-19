@@ -9,7 +9,7 @@ const STALE_MS = 5 * 60 * 1000;
 const BATCH_LIMIT = 40;
 
 /**
- * Vercel Cron / external scheduler: reconcile pending Razorpay checkouts older than 5 minutes.
+ * Vercel Cron (daily on Hobby) / external scheduler: reconcile pending Razorpay checkouts older than 5 minutes.
  * Authorization: `Authorization: Bearer ${CRON_SECRET}`.
  */
 export async function GET(request: Request) {

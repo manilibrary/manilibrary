@@ -99,6 +99,7 @@ export default function RegisterForm() {
           email: email.trim().toLowerCase(),
           phone: phone.trim(),
           password,
+          origin: typeof window !== "undefined" ? window.location.origin : "",
           ...(turnstileToken ? { turnstileToken } : {}),
         }),
       });
