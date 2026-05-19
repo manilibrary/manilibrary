@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import UploadBlockingOverlay from "@/components/UploadBlockingOverlay";
 import { compressImageUnder } from "@/lib/compress-image";
 import { createClient } from "@/lib/supabase/client";
 import {
@@ -83,6 +84,7 @@ export default function ProfileIntakeCard({
   const [err, setErr] = useState<string | null>(null);
 
   const [upBusy, setUpBusy] = useState<string | null>(null);
+  const upBusyRef = useRef(false);
   const [upErr, setUpErr] = useState<string | null>(null);
   const [docDisplayNames, setDocDisplayNames] = useState<Record<string, string>>({});
   const [nameHydrateTick, setNameHydrateTick] = useState(0);
@@ -262,6 +264,8 @@ export default function ProfileIntakeCard({
   const upload = useCallback(
     async (docType: "aadhaar_front" | "aadhaar_back" | "student_id", file: File | null) => {
       if (!file) return;
+      if (upBusyRef.current) return;
+      upBusyRef.current = true;
       setUpErr(null);
       setUpBusy(docType);
       try {
@@ -285,9 +289,11 @@ export default function ProfileIntakeCard({
         }
         setMsg("Document saved. Upload any remaining files below, then wait for staff review.");
         onSaved?.();
+        await new Promise((r) => setTimeout(r, 5000));
       } catch (e) {
         setUpErr(e instanceof Error ? e.message : "Upload failed.");
       } finally {
+        upBusyRef.current = false;
         setUpBusy(null);
       }
     },
@@ -297,6 +303,8 @@ export default function ProfileIntakeCard({
   const uploadCheckoutPending = useCallback(
     async (docType: "aadhaar_front" | "aadhaar_back" | "student_id", file: File | null) => {
       if (!file) return;
+      if (upBusyRef.current) return;
+      upBusyRef.current = true;
       setUpErr(null);
       setUpBusy(docType);
       try {
@@ -320,9 +328,11 @@ export default function ProfileIntakeCard({
         }
         setMsg("Uploaded. Change file anytime before you pay.");
         onStagedDocChange?.();
+        await new Promise((r) => setTimeout(r, 5000));
       } catch (e) {
         setUpErr(e instanceof Error ? e.message : "Upload failed.");
       } finally {
+        upBusyRef.current = false;
         setUpBusy(null);
       }
     },
@@ -344,6 +354,7 @@ export default function ProfileIntakeCard({
 
   return (
     <div className="w-full space-y-6 rounded-2xl border border-ink-100 bg-white p-6 shadow-sm">
+      <UploadBlockingOverlay active={upBusy !== null} label="Uploading document…" />
       <div
         className={`relative flex flex-wrap items-start justify-between gap-3 ${verifiedOnDashboard ? "pr-10 sm:pr-12" : ""}`}
       >
