@@ -20,14 +20,18 @@ function guardApiRequest(request: NextRequest): NextResponse | null {
   const method = request.method.toUpperCase();
 
   if (method === "POST" || method === "PATCH" || method === "PUT") {
-    const contentLength = request.headers.get("content-length");
-    if (contentLength) {
-      const n = Number.parseInt(contentLength, 10);
-      if (Number.isFinite(n) && n > JSON_BODY_MAX_BYTES) {
-        return NextResponse.json(
-          { ok: false, error: "Request body too large.", message: "Request body too large." },
-          { status: 413 },
-        );
+    const contentType = request.headers.get("content-type") ?? "";
+    const isJson = contentType.includes("application/json");
+    if (isJson) {
+      const contentLength = request.headers.get("content-length");
+      if (contentLength) {
+        const n = Number.parseInt(contentLength, 10);
+        if (Number.isFinite(n) && n > JSON_BODY_MAX_BYTES) {
+          return NextResponse.json(
+            { ok: false, error: "Request body too large.", message: "Request body too large." },
+            { status: 413 },
+          );
+        }
       }
     }
   }

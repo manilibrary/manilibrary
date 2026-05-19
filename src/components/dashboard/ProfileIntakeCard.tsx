@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import { compressImageUnder } from "@/lib/compress-image";
 import { createClient } from "@/lib/supabase/client";
 import {
   readMembershipIntakeDraft,
@@ -264,8 +265,9 @@ export default function ProfileIntakeCard({
       setUpErr(null);
       setUpBusy(docType);
       try {
+        const compressed = await compressImageUnder(file);
         const fd = new FormData();
-        fd.set("file", file);
+        fd.set("file", compressed);
         fd.set("docType", docType);
         const res = await fetch("/api/me/verification/document", { method: "POST", body: fd });
         const j = (await res.json()) as { error?: string; hint?: string; ok?: boolean };
@@ -298,8 +300,9 @@ export default function ProfileIntakeCard({
       setUpErr(null);
       setUpBusy(docType);
       try {
+        const compressed = await compressImageUnder(file);
         const fd = new FormData();
-        fd.set("file", file);
+        fd.set("file", compressed);
         fd.set("docType", docType);
         const res = await fetch("/api/me/verification/document-checkout-pending", { method: "POST", body: fd });
         const j = (await res.json()) as { error?: string; hint?: string; ok?: boolean };
