@@ -1,7 +1,8 @@
 "use client";
 
 import Image from "next/image";
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import UploadBlockingOverlay from "@/components/UploadBlockingOverlay";
 import { compressImageUnder } from "@/lib/compress-image";
 import { displayPersonName } from "@/lib/format-person-name";
 
@@ -31,9 +32,17 @@ export default function MemberProfileSection({
 }: Props) {
   const displayName = displayPersonName(fullName, "Member");
   const inputRef = useRef<HTMLInputElement>(null);
+  const busyRef = useRef(false);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  const [localAvatarUrl, setLocalAvatarUrl] = useState<string | null>(avatarUrl);
+
+  useEffect(() => {
+    setLocalAvatarUrl(avatarUrl);
+  }, [avatarUrl]);
+
+  const shownAvatarUrl = localAvatarUrl;
 
   const verificationLabel =
     verificationStatus === "approved"
@@ -48,6 +57,8 @@ export default function MemberProfileSection({
 
   const upload = useCallback(
     async (file: File) => {
+      if (busyRef.current) return;
+      busyRef.current = true;
       setErr(null);
       setMsg(null);
       setBusy(true);
@@ -56,16 +67,22 @@ export default function MemberProfileSection({
         const fd = new FormData();
         fd.set("file", compressed);
         const res = await fetch("/api/me/avatar", { method: "POST", body: fd });
-        const j = (await res.json()) as { error?: string; hint?: string; ok?: boolean };
+        const j = (await res.json()) as { error?: string; hint?: string; ok?: boolean; avatarUrl?: string };
         if (!res.ok || !j.ok) {
           const parts = [j.error, j.hint].filter(Boolean);
           throw new Error(parts.length ? parts.join(" ") : "Upload failed.");
         }
+        if (j.avatarUrl) setLocalAvatarUrl(j.avatarUrl);
+        window.dispatchEvent(
+          new CustomEvent("manilibrary:avatar-changed", { detail: { avatarUrl: j.avatarUrl ?? null } }),
+        );
         setMsg("Photo updated.");
         onAvatarChanged();
+        await new Promise((r) => setTimeout(r, 5000));
       } catch (e) {
         setErr(e instanceof Error ? e.message : "Upload failed.");
       } finally {
+        busyRef.current = false;
         setBusy(false);
       }
     },
@@ -73,6 +90,8 @@ export default function MemberProfileSection({
   );
 
   const removePhoto = useCallback(async () => {
+    if (busyRef.current) return;
+    busyRef.current = true;
     setErr(null);
     setMsg(null);
     setBusy(true);
@@ -82,23 +101,29 @@ export default function MemberProfileSection({
       if (!res.ok || !j.ok) {
         throw new Error(j.error ?? "Could not remove photo.");
       }
+      setLocalAvatarUrl(null);
+      window.dispatchEvent(
+        new CustomEvent("manilibrary:avatar-changed", { detail: { avatarUrl: null } }),
+      );
       setMsg("Photo removed.");
       onAvatarChanged();
     } catch (e) {
       setErr(e instanceof Error ? e.message : "Could not remove photo.");
     } finally {
+      busyRef.current = false;
       setBusy(false);
     }
   }, [onAvatarChanged]);
 
   return (
     <div className="rounded-2xl border border-ink-100 bg-white p-6 shadow-sm">
+      <UploadBlockingOverlay active={busy} label="Uploading photo…" />
       <div className="flex flex-col gap-6 sm:flex-row sm:items-start">
         <div className="flex shrink-0 flex-col items-center gap-3 sm:items-start">
           <div className="relative h-28 w-28 overflow-hidden rounded-2xl border border-ink-100 bg-ink-50 shadow-inner">
-            {avatarUrl ? (
+            {shownAvatarUrl ? (
               <Image
-                src={avatarUrl}
+                src={shownAvatarUrl}
                 alt=""
                 width={112}
                 height={112}
@@ -129,9 +154,9 @@ export default function MemberProfileSection({
               onClick={() => inputRef.current?.click()}
               className="rounded-full bg-azure-500 px-4 py-2 text-xs font-semibold text-white hover:bg-azure-600 disabled:opacity-50"
             >
-              {busy ? "Working…" : avatarUrl ? "Change photo" : "Upload photo"}
+              {busy ? "Working…" : shownAvatarUrl ? "Change photo" : "Upload photo"}
             </button>
-            {avatarUrl ? (
+            {shownAvatarUrl ? (
               <button
                 type="button"
                 disabled={busy}
