@@ -1,5 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Inter, JetBrains_Mono } from "next/font/google";
+import { Toaster } from "react-hot-toast";
+import AuthToastListener from "@/components/AuthToastListener";
 import libraryInfo from "@/data/libraryInfo.json";
 import "./globals.css";
 
@@ -67,6 +69,8 @@ export default function RootLayout({
     >
       <body className="min-h-full bg-white text-ink-900 font-sans">
         {children}
+        <Toaster position="top-center" />
+        <AuthToastListener />
       </body>
     </html>
   );

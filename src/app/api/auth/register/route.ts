@@ -47,7 +47,7 @@ export async function POST(request: Request) {
       email,
       password,
       options: {
-        emailRedirectTo: origin ? `${origin}/auth/callback?next=${encodeURIComponent("/login")}` : undefined,
+        emailRedirectTo: origin ? `${origin}/auth/callback?flow=signup&next=${encodeURIComponent("/login")}` : undefined,
         data: {
           full_name: name,
           ...(phone ? { phone } : {}),

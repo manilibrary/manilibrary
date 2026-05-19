@@ -36,7 +36,19 @@ export async function GET(request: NextRequest) {
   const code = url.searchParams.get("code");
   const token_hash = url.searchParams.get("token_hash");
   const type = url.searchParams.get("type") as EmailOtpType | null;
+  const flow = url.searchParams.get("flow");
   const nextParam = url.searchParams.get("next");
+  const isSignupFlow = flow === "signup" || type === "signup" || type === "email";
+
+  const setSignupToast = () => {
+    if (!isSignupFlow) return;
+    response.cookies.set("auth_toast", "email_verified", {
+      path: "/",
+      maxAge: 300,
+      sameSite: "lax",
+      httpOnly: false,
+    });
+  };
   const nextPath = safeInternalNextPath(
     nextParam,
     "/auth/update-password",
@@ -62,6 +74,7 @@ export async function GET(request: NextRequest) {
   if (code) {
     const { error } = await supabase.auth.exchangeCodeForSession(code);
     if (error) return fail(error.message);
+    setSignupToast();
     return response;
   }
 
@@ -71,6 +84,7 @@ export async function GET(request: NextRequest) {
       token_hash,
     });
     if (error) return fail(error.message);
+    setSignupToast();
     return response;
   }
 
