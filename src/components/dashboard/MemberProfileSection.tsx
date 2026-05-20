@@ -2,6 +2,9 @@
 
 import Image from "next/image";
 import { useCallback, useEffect, useRef, useState } from "react";
+
+import UploadBlockingOverlay from "@/components/UploadBlockingOverlay";
+
 import { compressImageUnder } from "@/lib/compress-image";
 import { displayPersonName } from "@/lib/format-person-name";
 
@@ -58,10 +61,8 @@ export default function MemberProfileSection({
 
   const upload = useCallback(
     async (file: File) => {
-      if (file.size > AVATAR_MAX_BYTES) {
-        setErr("Image must be 2 MB or smaller.");
-        return;
-      }
+
+
       if (busyRef.current) return;
       busyRef.current = true;
       setErr(null);
@@ -122,33 +123,9 @@ export default function MemberProfileSection({
 
   return (
     <div className="rounded-2xl border border-ink-100 bg-white p-6 shadow-sm">
+      <UploadBlockingOverlay active={busy} label="Uploading photo…" />
       <div className="flex flex-col gap-6 sm:flex-row sm:items-start">
-        <div
-          className="relative flex shrink-0 flex-col items-center gap-3 sm:items-start"
-          aria-busy={busy || undefined}
-        >
-          {busy ? (
-            <div
-              className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-2 rounded-2xl bg-white/80 backdrop-blur-[2px]"
-              role="status"
-              aria-live="polite"
-            >
-              <svg
-                className="h-6 w-6 shrink-0 animate-spin text-azure-500"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2.5"
-                aria-hidden
-              >
-                <path d="M12 3a9 9 0 1 0 9 9" strokeLinecap="round" />
-              </svg>
-              <span className="max-w-[9rem] text-center text-[11px] font-medium text-ink-900">
-                Uploading photo…
-              </span>
-            </div>
-          ) : null}
-          <div className="group relative h-28 w-28 overflow-hidden rounded-2xl border border-ink-100 bg-ink-50 shadow-inner">
+
             {shownAvatarUrl ? (
               <Image
                 src={shownAvatarUrl}
@@ -197,6 +174,7 @@ export default function MemberProfileSection({
             >
               {busy ? "Working…" : shownAvatarUrl ? "Change photo" : "Upload photo"}
             </button>
+
           </div>
           <p className="max-w-[200px] text-center text-[11px] leading-snug text-ink-500 sm:text-left">
             JPG, PNG or WebP · up to 2&nbsp;MB. Shown on your member profile only.
