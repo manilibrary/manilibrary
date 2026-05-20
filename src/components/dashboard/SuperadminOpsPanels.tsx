@@ -220,6 +220,7 @@ export default function SuperadminOpsPanels() {
   const [payRows, setPayRows] = useState<PayRow[]>([]);
   const [payBusy, setPayBusy] = useState(false);
   const [payErr, setPayErr] = useState<string | null>(null);
+  const [payDeletingId, setPayDeletingId] = useState<string | null>(null);
 
   const loadPayments = useCallback(async () => {
     setPayBusy(true);
@@ -430,9 +431,9 @@ export default function SuperadminOpsPanels() {
             <div className="mt-6 border-t border-red-100 pt-4">
               <p className="text-sm font-semibold text-red-800">Danger zone</p>
               <p className="mt-1 text-xs leading-relaxed text-red-800/90">
-                Permanently deletes this Auth account and linked library data: profile, KYC storage objects, memberships,
-                payments, verification rows, export audit rows for this member, membership event rows, and clears this
-                member from processed-by fields on archived attendance days. This cannot be undone.
+                Permanently deletes this Auth account, profile, KYC storage objects, all memberships and payments,
+                verification rows, export audit rows, device punch records, empcode mapping, membership event history,
+                and clears this member from processed-by fields on archived attendance days. This cannot be undone.
               </p>
               <label className="mt-3 flex items-start gap-2 text-xs text-red-900">
                 <input
@@ -505,7 +506,10 @@ export default function SuperadminOpsPanels() {
           <div className="flex flex-wrap items-end justify-between gap-3">
             <div>
               <p className="font-mono text-[10px] uppercase tracking-widest text-ink-500">Payments browser</p>
-              <p className="mt-1 text-xs text-ink-500">Latest rows across all members.</p>
+              <p className="mt-1 text-xs text-ink-500">
+                Latest rows across all members. Deleting failed/pending checkout also removes draft membership and{" "}
+                <span className="font-mono">membership_events</span> when no other payments remain.
+              </p>
             </div>
             <div className="flex gap-2">
               <select
@@ -542,7 +546,8 @@ export default function SuperadminOpsPanels() {
                     <th className="py-2 pr-2">₹</th>
                     <th className="py-2 pr-2">Status</th>
                     <th className="py-2 pr-2">Payment ref.</th>
-                    <th className="py-2">Membership ref.</th>
+                    <th className="py-2 pr-2">Membership ref.</th>
+                    <th className="py-2"> </th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-ink-100 text-ink-800">
@@ -564,8 +569,41 @@ export default function SuperadminOpsPanels() {
                       <td className="py-2 pr-2 font-mono text-[10px] text-ink-600" title={r.id}>
                         {shortUuid(r.id)}
                       </td>
-                      <td className="py-2 font-mono text-[10px] text-ink-600" title={r.membership_id ?? ""}>
+                      <td className="py-2 pr-2 font-mono text-[10px] text-ink-600" title={r.membership_id ?? ""}>
                         {r.membership_id ? shortUuid(r.membership_id) : "—"}
+                      </td>
+                      <td className="py-2">
+                        {r.status === "failed" || r.status === "pending" ? (
+                          <button
+                            type="button"
+                            disabled={payBusy || payDeletingId === r.id}
+                            className="text-[11px] font-semibold text-red-700 underline hover:text-red-900 disabled:opacity-40"
+                            onClick={() => {
+                              if (!window.confirm("Delete this payment and linked draft membership/events?")) return;
+                              void (async () => {
+                                setPayDeletingId(r.id);
+                                setPayErr(null);
+                                try {
+                                  const res = await fetch(`/api/superadmin/payments/${r.id}`, { method: "DELETE" });
+                                  const j = (await res.json()) as { ok?: boolean; error?: string };
+                                  if (!res.ok || !j.ok) {
+                                    setPayErr(j.error ?? "Delete failed.");
+                                    return;
+                                  }
+                                  await loadPayments();
+                                } catch (e) {
+                                  setPayErr(e instanceof Error ? e.message : "Delete failed.");
+                                } finally {
+                                  setPayDeletingId(null);
+                                }
+                              })();
+                            }}
+                          >
+                            {payDeletingId === r.id ? "Deleting…" : "Delete"}
+                          </button>
+                        ) : (
+                          "—"
+                        )}
                       </td>
                     </tr>
                   ))}

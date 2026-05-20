@@ -160,7 +160,12 @@ export default function MemberAttendanceCard() {
           return;
         }
 
-        if (bootRef.current.ready && !bootRef.current.skipped && bootRef.current.attendance?.ok) {
+        if (
+          bootRef.current.ready &&
+          !bootRef.current.skipped &&
+          !bootRef.current.attendanceLoading &&
+          bootRef.current.attendance?.ok
+        ) {
           const j = bootRef.current.attendance as Response;
           setData(j);
           setErr(null);
@@ -230,9 +235,9 @@ export default function MemberAttendanceCard() {
       cancelled = true;
       clearPoll();
     };
-  }, [clearPoll, load]);
+  }, [clearPoll, load, boot.attendanceLoading, boot.ready, boot.attendance]);
 
-  if (!err && busy && !data) {
+  if (!err && (busy || boot.attendanceLoading) && !data) {
     return (
       <div className="space-y-6">
         <AttendanceTodaySkeleton />

@@ -30,6 +30,8 @@ export default function MembershipLongTermPage() {
   const searchParams = useSearchParams();
   const fromHub = searchParams.get("from") === "hub";
   const [step, setStep] = useState<Step>(1);
+  /** Keep intake form mounted after first visit so Back → Next does not reload it. */
+  const [intakeKeepAlive, setIntakeKeepAlive] = useState(false);
   const [selected, setSelected] = useState<number | null>(null);
   const [occupied, setOccupied] = useState<number[]>([]);
   const [activeMembership, setActiveMembership] = useState<ActiveMembership | null>(null);
@@ -46,6 +48,10 @@ export default function MembershipLongTermPage() {
     () => computeOrderAmountRupees("long_term", durationKey) ?? 0,
     [durationKey],
   );
+
+  useEffect(() => {
+    if (step >= 2) setIntakeKeepAlive(true);
+  }, [step]);
 
   useEffect(() => {
     queueMicrotask(() => {
@@ -249,7 +255,7 @@ export default function MembershipLongTermPage() {
             </div>
           ) : null}
 
-          {(step === 2 || step === 3) && (
+          {intakeKeepAlive ? (
             <>
               <div className={step === 2 ? "mt-5 space-y-5" : "hidden"} aria-hidden={step !== 2}>
                 <div>
@@ -333,7 +339,7 @@ export default function MembershipLongTermPage() {
             </div>
               ) : null}
             </>
-          )}
+          ) : null}
         </>
       ) : (
         <div className="mt-6 space-y-4">

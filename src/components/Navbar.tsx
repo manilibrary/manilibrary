@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { startTransition, useCallback, useEffect, useState } from "react";
 import Logo from "./Logo";
 import { createClient } from "@/lib/supabase/client";
@@ -9,12 +10,50 @@ import { clearAllUxPreferenceCookies, getUxPreferenceCookie, setUxPreferenceCook
 import { MEMBER_ACCOUNT_PATH } from "@/lib/auth-landing";
 
 const links = [
-  { href: "#facilities", label: "Facilities" },
-  { href: "#about", label: "About" },
-  { href: "#plans", label: "Plans" },
-  { href: "/membership", label: "Membership" },
-  { href: "#contact", label: "Contact" },
-];
+  { href: "/#facilities", label: "Facilities", lockDuringCheckout: true },
+  { href: "/#about", label: "About", lockDuringCheckout: true },
+  { href: "/#plans", label: "Plans", lockDuringCheckout: true },
+  { href: "/membership", label: "Membership", lockDuringCheckout: false },
+  { href: "/#contact", label: "Contact", lockDuringCheckout: true },
+] as const;
+
+const CHECKOUT_NAV_HINT = "Finish membership checkout first";
+
+function isMembershipCheckoutPath(pathname: string | null): boolean {
+  if (!pathname) return false;
+  return (
+    pathname === "/membership/long-term" ||
+    pathname === "/membership/short-term" ||
+    pathname === "/membership/resume-payment"
+  );
+}
+
+function NavLinkItem({
+  href,
+  label,
+  locked,
+  className,
+  onNavigate,
+}: {
+  href: string;
+  label: string;
+  locked: boolean;
+  className: string;
+  onNavigate?: () => void;
+}) {
+  if (locked) {
+    return (
+      <span className={className} title={CHECKOUT_NAV_HINT} aria-disabled="true">
+        {label}
+      </span>
+    );
+  }
+  return (
+    <Link href={href} className={className} onClick={onNavigate}>
+      {label}
+    </Link>
+  );
+}
 
 type AuthBar = {
   ready: boolean;
@@ -47,6 +86,8 @@ function initialsFrom(displayName: string, email: string): string {
 }
 
 export default function Navbar() {
+  const pathname = usePathname();
+  const checkoutNavLocked = isMembershipCheckoutPath(pathname);
   const [open, setOpen] = useState(() => getUxPreferenceCookie("site_nav_drawer") === "open");
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [auth, setAuth] = useState<AuthBar>(initialAuth);
@@ -128,17 +169,21 @@ export default function Navbar() {
   return (
     <header className="sticky top-0 z-50 border-b border-ink-100 bg-white/85 backdrop-blur supports-[backdrop-filter]:bg-white/70">
       <div className="mx-auto flex h-16 max-w-7xl items-center justify-between gap-3 px-5 md:px-8">
-        <Logo priority height={36} />
+        <Logo priority height={36} href={checkoutNavLocked ? "/membership" : "/"} />
 
-        <nav className="hidden flex-1 items-center justify-center gap-8 md:flex">
+        <nav className="hidden flex-1 items-center justify-center gap-8 md:flex" aria-label="Main">
           {links.map((l) => (
-            <a
+            <NavLinkItem
               key={l.href}
               href={l.href}
-              className="text-sm font-medium text-ink-600 transition-colors hover:text-azure-500"
-            >
-              {l.label}
-            </a>
+              label={l.label}
+              locked={checkoutNavLocked && l.lockDuringCheckout}
+              className={
+                checkoutNavLocked && l.lockDuringCheckout
+                  ? "cursor-not-allowed text-sm font-medium text-ink-400"
+                  : "text-sm font-medium text-ink-600 transition-colors hover:text-azure-500"
+              }
+            />
           ))}
         </nav>
 
@@ -343,14 +388,18 @@ export default function Navbar() {
         <div className="border-t border-ink-100 bg-white md:hidden">
           <nav className="mx-auto flex max-w-7xl flex-col gap-1 px-5 py-4">
             {links.map((l) => (
-              <a
+              <NavLinkItem
                 key={l.href}
                 href={l.href}
-                onClick={() => setSiteNavDrawerOpen(false)}
-                className="rounded-lg px-3 py-2 text-sm font-medium text-ink-700 hover:bg-ink-50"
-              >
-                {l.label}
-              </a>
+                label={l.label}
+                locked={checkoutNavLocked && l.lockDuringCheckout}
+                className={
+                  checkoutNavLocked && l.lockDuringCheckout
+                    ? "cursor-not-allowed rounded-lg px-3 py-2 text-sm font-medium text-ink-400"
+                    : "rounded-lg px-3 py-2 text-sm font-medium text-ink-700 hover:bg-ink-50"
+                }
+                onNavigate={() => setSiteNavDrawerOpen(false)}
+              />
             ))}
             <div className="mt-2 border-t border-ink-100 pt-3">
               {auth.ready && !auth.signedIn ? (

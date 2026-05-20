@@ -10,6 +10,8 @@
 --   • Frontend maxLength is UX only, not security.
 --
 -- Naming mirrors manilibrary/src/lib/security/field-limits.ts where applicable.
+-- Applied to production schema via migrations/20260520190000_core-field-length-limits.sql
+-- and library-schema-v2-organized.sql.
 -- =============================================================================
 
 begin;
@@ -147,6 +149,8 @@ create table public.verification_documents (
   content_type      varchar(128) not null
     constraint verification_documents_content_type_len_check
       check (char_length(content_type) <= 128),
+
+  original_filename varchar(256),
 
   byte_size         bigint
     constraint verification_documents_byte_size_check

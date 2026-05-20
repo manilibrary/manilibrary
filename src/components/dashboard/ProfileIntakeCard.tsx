@@ -2,11 +2,14 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import { parseFetchJson } from "@/lib/api/parse-fetch-json";
+import { compressImageUnder } from "@/lib/compress-image";
 import { createClient } from "@/lib/supabase/client";
 import {
   readMembershipIntakeDraft,
   writeMembershipIntakeDraft,
 } from "@/lib/membership/membership-intake-draft";
+import type { MemberKycSlotSummary } from "@/lib/verification/verification-repo";
 
 export type ProfileIntakeInitial = {
   aadhaar_last_four: string | null;
@@ -16,6 +19,8 @@ export type ProfileIntakeInitial = {
   verification_status: string;
 };
 
+const KYC_DOC_KEYS = ["aadhaar_front", "aadhaar_back", "student_id"] as const;
+
 type Props = {
   initial: ProfileIntakeInitial;
   /** Doc types that already have a submitted file on the open `verification` row (`verification_documents`). */
@@ -23,12 +28,14 @@ type Props = {
   /** During checkout: doc types staged in `verification_documents` with phase `checkout_pending`. */
   checkoutStagedDocs?: Record<string, boolean>;
   onSaved?: () => void;
-  /** After a checkout-staged upload succeeds; parent refetches staged list. */
-  onStagedDocChange?: () => void;
+  /** After a checkout-staged upload succeeds; parent updates that doc only (no full-panel reload). */
+  onStagedDocChange?: (docType: "aadhaar_front" | "aadhaar_back" | "student_id") => void;
   /** Checkout only: false when checkout staging API reports the schema is not ready. */
   checkoutKycStagingReady?: boolean;
   /** Membership checkout: keep profile PATCH off the server until payment succeeds (sessionStorage draft). */
   persistMode?: "immediate" | "defer_to_payment";
+  /** Per-slot file label + member-facing status (dashboard / API). */
+  memberKycSlots?: Record<(typeof KYC_DOC_KEYS)[number], MemberKycSlotSummary>;
 };
 
 const INSTITUTIONS = [
@@ -54,7 +61,22 @@ function statusBadge(s: string) {
   return { cls: "bg-ink-100 text-ink-700", label: "Not submitted" };
 }
 
-const KYC_DOC_KEYS = ["aadhaar_front", "aadhaar_back", "student_id"] as const;
+function slotMemberStatusLabel(memberStatus: MemberKycSlotSummary["memberStatus"]): string {
+  if (memberStatus === "verified") return "Verified";
+  if (memberStatus === "pending_review") return "Pending review";
+  if (memberStatus === "queued_checkout") return "Queued until payment";
+  return "Not uploaded";
+}
+
+function slotMemberStatusBadgeClass(memberStatus: MemberKycSlotSummary["memberStatus"]): string {
+  if (memberStatus === "verified") return "bg-emerald-100 text-emerald-800";
+  if (memberStatus === "pending_review") return "bg-amber-100 text-amber-900";
+  if (memberStatus === "queued_checkout") return "bg-sky-100 text-sky-900";
+  return "bg-ink-100 text-ink-600";
+}
+
+type ProfileIntakePatchJson = { error?: string; ok?: boolean };
+type KycUploadResponseJson = { error?: string; hint?: string; ok?: boolean };
 
 function checkoutStoredNameKey(userId: string, docType: string) {
   return `ml_kyc_nm_co:${userId}:${docType}`;
@@ -62,6 +84,12 @@ function checkoutStoredNameKey(userId: string, docType: string) {
 
 function dashStoredNameKey(userId: string, docType: string) {
   return `ml_kyc_nm_dash:${userId}:${docType}`;
+}
+
+function kycSlotRowLabel(key: (typeof KYC_DOC_KEYS)[number]): string {
+  if (key === "aadhaar_front") return "Aadhaar — front";
+  if (key === "aadhaar_back") return "Aadhaar — back";
+  return "Student ID";
 }
 
 export default function ProfileIntakeCard({
@@ -72,6 +100,7 @@ export default function ProfileIntakeCard({
   onStagedDocChange,
   checkoutKycStagingReady = true,
   persistMode = "immediate",
+  memberKycSlots,
 }: Props) {
   const [last4, setLast4] = useState(initial.aadhaar_last_four ?? "");
   const [roll, setRoll] = useState(initial.student_roll_number ?? "");
@@ -82,6 +111,7 @@ export default function ProfileIntakeCard({
   const [err, setErr] = useState<string | null>(null);
 
   const [upBusy, setUpBusy] = useState<string | null>(null);
+  const upBusyRef = useRef(false);
   const [upErr, setUpErr] = useState<string | null>(null);
   const [docDisplayNames, setDocDisplayNames] = useState<Record<string, string>>({});
   const [nameHydrateTick, setNameHydrateTick] = useState(0);
@@ -243,7 +273,7 @@ export default function ProfileIntakeCard({
           preparing_for: preparing.trim() || null,
         }),
       });
-      const j = (await res.json()) as { error?: string; ok?: boolean };
+      const j = (await parseFetchJson(res)) as ProfileIntakePatchJson;
       if (!res.ok || !j.ok) throw new Error(j.error ?? "Could not save.");
       setMsg("Saved.");
       if (verifiedOnDashboard) {
@@ -261,14 +291,18 @@ export default function ProfileIntakeCard({
   const upload = useCallback(
     async (docType: "aadhaar_front" | "aadhaar_back" | "student_id", file: File | null) => {
       if (!file) return;
+      if (upBusyRef.current) return;
+      upBusyRef.current = true;
       setUpErr(null);
       setUpBusy(docType);
       try {
+        const compressed = await compressImageUnder(file);
         const fd = new FormData();
-        fd.set("file", file);
+        fd.set("file", compressed);
+        fd.set("fileName", compressed.name);
         fd.set("docType", docType);
         const res = await fetch("/api/me/verification/document", { method: "POST", body: fd });
-        const j = (await res.json()) as { error?: string; hint?: string; ok?: boolean };
+        const j = (await parseFetchJson(res)) as KycUploadResponseJson;
         if (!res.ok || !j.ok) {
           const parts = [j.error, j.hint].filter(Boolean);
           throw new Error(parts.length ? parts.join(" — ") : "Upload failed.");
@@ -286,6 +320,7 @@ export default function ProfileIntakeCard({
       } catch (e) {
         setUpErr(e instanceof Error ? e.message : "Upload failed.");
       } finally {
+        upBusyRef.current = false;
         setUpBusy(null);
       }
     },
@@ -295,14 +330,18 @@ export default function ProfileIntakeCard({
   const uploadCheckoutPending = useCallback(
     async (docType: "aadhaar_front" | "aadhaar_back" | "student_id", file: File | null) => {
       if (!file) return;
+      if (upBusyRef.current) return;
+      upBusyRef.current = true;
       setUpErr(null);
       setUpBusy(docType);
       try {
+        const compressed = await compressImageUnder(file);
         const fd = new FormData();
-        fd.set("file", file);
+        fd.set("file", compressed);
+        fd.set("fileName", compressed.name);
         fd.set("docType", docType);
         const res = await fetch("/api/me/verification/document-checkout-pending", { method: "POST", body: fd });
-        const j = (await res.json()) as { error?: string; hint?: string; ok?: boolean };
+        const j = (await parseFetchJson(res)) as KycUploadResponseJson;
         if (!res.ok || !j.ok) {
           const parts = [j.error, j.hint].filter(Boolean);
           throw new Error(parts.length ? parts.join(" — ") : "Upload failed.");
@@ -316,10 +355,11 @@ export default function ProfileIntakeCard({
           setNameHydrateTick((t) => t + 1);
         }
         setMsg("Uploaded. Change file anytime before you pay.");
-        onStagedDocChange?.();
+        onStagedDocChange?.(docType);
       } catch (e) {
         setUpErr(e instanceof Error ? e.message : "Upload failed.");
       } finally {
+        upBusyRef.current = false;
         setUpBusy(null);
       }
     },
@@ -684,6 +724,21 @@ export default function ProfileIntakeCard({
                         </span>
                       )}
                     </div>
+                    {memberKycSlots?.[key] ? (
+                      <div className="mt-2 flex flex-wrap items-center justify-between gap-2 border-t border-ink-100/80 pt-2">
+                        <span
+                          className="min-w-0 flex-1 truncate text-[11px] text-ink-600"
+                          title={memberKycSlots[key].fileName ?? undefined}
+                        >
+                          {memberKycSlots[key].fileName ? `On account: ${memberKycSlots[key].fileName}` : "\u00a0"}
+                        </span>
+                        <span
+                          className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold ${slotMemberStatusBadgeClass(memberKycSlots[key].memberStatus)}`}
+                        >
+                          {slotMemberStatusLabel(memberKycSlots[key].memberStatus)}
+                        </span>
+                      </div>
+                    ) : null}
                   </li>
                 );
               })}
@@ -692,15 +747,51 @@ export default function ProfileIntakeCard({
         ) : (
           <>
             <h3 className="text-xs font-semibold text-ink-800">Document uploads</h3>
-            <p className="mt-2 text-sm text-ink-700">
-              {verificationNorm === "pending" && allKycSlotsFilled
-                ? "All required files are on file and under review. You cannot add or replace uploads until the library requests new documents (they will set your account to “resubmit requested”)."
-                : verificationNorm === "rejected"
-                  ? "Uploads are closed. Please contact the library. When staff are ready, they can request a new upload from the admin dashboard."
-                  : verificationNorm === "approved"
-                    ? "No further uploads are needed while you remain verified."
-                    : "Uploads are not available in your current verification state."}
-            </p>
+            {memberKycSlots ? (
+              <>
+                <p className="mt-2 text-xs text-ink-600">
+                  {verificationNorm === "pending" && allKycSlotsFilled
+                    ? "These files are on your account. Replacements stay closed until the library requests new documents."
+                    : verificationNorm === "rejected"
+                      ? "Uploads are closed. Contact the library if you need help."
+                      : verificationNorm === "approved"
+                        ? "Verified documents on your account:"
+                        : "Documents on your account:"}
+                </p>
+                <ul className="mt-3 space-y-2.5 text-xs">
+                  {KYC_DOC_KEYS.map((key) => {
+                    const meta = memberKycSlots[key];
+                    return (
+                      <li key={key} className="rounded-lg border border-ink-100 bg-ink-50/50 px-3 py-2.5">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <span className="text-sm font-medium text-ink-800">{kycSlotRowLabel(key)}</span>
+                          <span
+                            className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold ${slotMemberStatusBadgeClass(meta.memberStatus)}`}
+                          >
+                            {slotMemberStatusLabel(meta.memberStatus)}
+                          </span>
+                        </div>
+                        {meta.fileName ? (
+                          <p className="mt-1 truncate text-[11px] text-ink-600" title={meta.fileName}>
+                            File: {meta.fileName}
+                          </p>
+                        ) : null}
+                      </li>
+                    );
+                  })}
+                </ul>
+              </>
+            ) : (
+              <p className="mt-2 text-sm text-ink-700">
+                {verificationNorm === "pending" && allKycSlotsFilled
+                  ? "All required files are on file and under review. You cannot add or replace uploads until the library requests new documents (they will set your account to “resubmit requested”)."
+                  : verificationNorm === "rejected"
+                    ? "Uploads are closed. Please contact the library. When staff are ready, they can request a new upload from the admin dashboard."
+                    : verificationNorm === "approved"
+                      ? "No further uploads are needed while you remain verified."
+                      : "Uploads are not available in your current verification state."}
+              </p>
+            )}
           </>
         )}
       </div>

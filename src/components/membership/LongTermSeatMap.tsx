@@ -3,10 +3,7 @@
 import { useLayoutEffect, useRef, useState } from "react";
 import { LEFT_SEAT_BLOCKS, RIGHT_SEAT_BLOCKS } from "@/data/seatLayoutLongTerm";
 import type { SeatBlockSpec } from "@/data/seatLayoutLongTerm";
-import {
-  LONG_TERM_BLOCKED,
-  LONG_TERM_HOME_HELD,
-} from "@/lib/membershipSeatMock";
+import { LONG_TERM_BLOCKED } from "@/lib/membershipSeatMock";
 import BenchRowWithMidline from "./BenchRowWithMidline";
 import DeskBayWeb from "./DeskBayWeb";
 import DoorStairsWeb from "./DoorStairsWeb";
@@ -15,7 +12,6 @@ import type { SeatVisual } from "./seatVisual";
 
 function visualForSeat(seat: number, selected: number | null, occupiedSeats: Set<number>): SeatVisual {
   if (LONG_TERM_BLOCKED.has(seat)) return "blocked";
-  if (LONG_TERM_HOME_HELD.has(seat)) return "occupiedLong";
   if (occupiedSeats.has(seat)) return "occupiedLong";
   if (selected === seat) return "selected";
   return "available";

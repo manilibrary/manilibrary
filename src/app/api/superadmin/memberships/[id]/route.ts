@@ -1,5 +1,6 @@
 import { apiError, apiSuccess, apiErrorSafe } from "@/lib/api/json-response";
 import { formatMemberSeatToken, PENDING_MEMBERSHIP_SEAT_PLACEHOLDER } from "@/lib/membership/seat-label";
+import { purgeMembershipCompletely } from "@/lib/superadmin/purge-user-data";
 import { requireLibrarySuperAdmin } from "@/lib/supabase/require-library-super-admin";
 import { createSupabaseServiceRoleClient } from "@/lib/supabase/service-role";
 
@@ -106,8 +107,8 @@ export async function PATCH(request: Request, ctx: { params: Promise<{ id: strin
 }
 
 /**
- * Permanently removes the membership and linked payment rows (payment_id + membership_id).
- * Superadmin only. Irreversible.
+ * Permanently removes the membership and all linked rows (payments, membership_events).
+ * Superadmin only. Does not delete the member profile or Auth account.
  */
 export async function DELETE(_request: Request, ctx: { params: Promise<{ id: string }> }) {
   const gate = await requireLibrarySuperAdmin();
@@ -127,42 +128,13 @@ export async function DELETE(_request: Request, ctx: { params: Promise<{ id: str
     return apiErrorSafe(e, 503, "Server configuration error.");
   }
 
-  const { data: row, error: fe } = await admin
-    .from("memberships")
-    .select("id, payment_id")
-    .eq("id", id)
-    .maybeSingle();
-
-  if (fe) {
-    return apiErrorSafe(fe, 500);
-  }
-  if (!row) {
-    return apiError("Membership not found.", 404);
-  }
-
-  const paymentId = row.payment_id as string | null;
-
-  const { error: clearPay } = await admin.from("memberships").update({ payment_id: null }).eq("id", id);
-  if (clearPay) {
-    return apiErrorSafe(clearPay, 400);
-  }
-
-  const { error: delByMembership } = await admin.from("payments").delete().eq("membership_id", id);
-  if (delByMembership) {
-    return apiErrorSafe(delByMembership, 400);
-  }
-
-  if (paymentId) {
-    const { error: delPay } = await admin.from("payments").delete().eq("id", paymentId);
-    if (delPay) {
-      return apiErrorSafe(delPay, 400);
+  const result = await purgeMembershipCompletely(admin, id);
+  if (!result.ok) {
+    if (result.message === "Membership not found.") {
+      return apiError(result.message, 404);
     }
+    return apiError(result.message, 400);
   }
 
-  const { error: delMem } = await admin.from("memberships").delete().eq("id", id);
-  if (delMem) {
-    return apiErrorSafe(delMem, 400);
-  }
-
-  return apiSuccess("Membership and related payment rows deleted.");
+  return apiSuccess("Membership and related data deleted. Profile and Auth account were kept.");
 }

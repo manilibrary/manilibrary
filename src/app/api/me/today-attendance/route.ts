@@ -13,6 +13,7 @@ import { cachedFetch } from "@/lib/etime/cache";
 import { etimeFetchJson } from "@/lib/etime/fetch-server";
 import { deriveDailyFromPunches } from "@/lib/etime/synth";
 import type { EtimeInOutResponse, EtimePunchMcidResponse, EtimePunchMcidRow } from "@/lib/etime/types";
+import { empcodeFromDeviceUserId } from "@/lib/etime/empcode";
 import { buildDownloadInOutPunchDataUrl, buildDownloadPunchDataMcidUrl } from "@/lib/etime/urls";
 import { addDaysYmd, DEFAULT_LIBRARY_TZ } from "@/lib/membership/windows";
 import { createSupabaseServiceRoleClient } from "@/lib/supabase/service-role";
@@ -66,12 +67,6 @@ function isSyntheticPadRow(row: DailyRow): boolean {
   return trivial;
 }
 
-function empcodeMatches(rowEmp: string, deviceUserId: number): boolean {
-  const cleaned = rowEmp.replace(/[^0-9]/g, "");
-  if (!cleaned) return false;
-  return parseInt(cleaned, 10) === deviceUserId;
-}
-
 function rowToDaily(r: {
   INTime: string;
   OUTTime: string;
@@ -120,18 +115,18 @@ function historyFloorYmd(anchorYmd: string, tz: string, membership: MembershipRo
   return cap30;
 }
 
-const SUMMARY_TTL_MS = 30_000;
-const PUNCHES_TTL_MS = 30_000;
+const SUMMARY_TTL_MS = 60_000;
+const PUNCHES_TTL_MS = 60_000;
 
 async function summaryForRange(
-  deviceUserId: number,
+  empcode: string,
   fromDMY: string,
   toDMY: string,
 ): Promise<DailyRow[]> {
-  const summaryKey = `me-summary:ALL:${fromDMY}:${toDMY}`;
+  const summaryKey = `me-summary:${empcode}:${fromDMY}:${toDMY}`;
   const all = await cachedFetch<EtimeInOutResponse | null>(summaryKey, SUMMARY_TTL_MS, async () => {
     try {
-      const url = buildDownloadInOutPunchDataUrl({ empcode: "ALL", fromDate: fromDMY, toDate: toDMY });
+      const url = buildDownloadInOutPunchDataUrl({ empcode, fromDate: fromDMY, toDate: toDMY });
       const json = await etimeFetchJson<EtimeInOutResponse>(url);
       if (json.Error) return null;
       return json;
@@ -140,17 +135,15 @@ async function summaryForRange(
     }
   });
   if (!all) return [];
-  return (all.InOutPunchData ?? [])
-    .filter((r) => empcodeMatches(r.Empcode, deviceUserId))
-    .map((r) => rowToDaily(r));
+  return (all.InOutPunchData ?? []).map((r) => rowToDaily(r));
 }
 
-async function punchesForAnchorDmy(deviceUserId: number, anchorDMY: string): Promise<EtimePunchMcidRow[]> {
+async function punchesForAnchorDmy(empcode: string, anchorDMY: string): Promise<EtimePunchMcidRow[]> {
   const bounds = punchBoundsFromDmy(anchorDMY);
-  const key = `me-punches:ALL:${bounds.from}:${bounds.to}`;
+  const key = `me-punches:${empcode}:${bounds.from}:${bounds.to}`;
   const all = await cachedFetch<EtimePunchMcidRow[] | null>(key, PUNCHES_TTL_MS, async () => {
     try {
-      const url = buildDownloadPunchDataMcidUrl({ empcode: "ALL", fromDate: bounds.from, toDate: bounds.to });
+      const url = buildDownloadPunchDataMcidUrl({ empcode, fromDate: bounds.from, toDate: bounds.to });
       const json = await etimeFetchJson<EtimePunchMcidResponse>(url);
       if (json.Error) return null;
       return json.PunchData ?? [];
@@ -158,8 +151,7 @@ async function punchesForAnchorDmy(deviceUserId: number, anchorDMY: string): Pro
       return null;
     }
   });
-  if (!all) return [];
-  return all.filter((r) => empcodeMatches(r.Empcode, deviceUserId));
+  return all ?? [];
 }
 
 export async function GET(request: Request) {
@@ -197,19 +189,20 @@ export async function GET(request: Request) {
     .maybeSingle();
 
   const deviceUserId = profile.device_user_id as number;
+  const empcode = empcodeFromDeviceUserId(deviceUserId);
   const tz = DEFAULT_LIBRARY_TZ;
   const anchorYmd = attendanceAnchorYmd(new Date(), tz);
   const anchorDMY = ymdToDmy(anchorYmd);
   const floorYmd = historyFloorYmd(anchorYmd, tz, membership as MembershipRow | null, profile.created_at ?? null);
   const fromDMY = ymdToDmy(floorYmd);
 
-  const rangeRows = await summaryForRange(deviceUserId, fromDMY, anchorDMY);
+  const rangeRows = await summaryForRange(empcode, fromDMY, anchorDMY);
   const anchorNorm = normDmy(anchorDMY);
 
   let daily: DailyRow | null =
     rangeRows.find((r) => normDmy(r.date) === anchorNorm) ?? null;
 
-  const anchorPunches = await punchesForAnchorDmy(deviceUserId, anchorDMY);
+  const anchorPunches = await punchesForAnchorDmy(empcode, anchorDMY);
   const summaryEmpty = !daily || (isDashTime(daily.in_time) && isDashTime(daily.out_time));
   if (summaryEmpty && anchorPunches.length > 0) {
     const derivedList = deriveDailyFromPunches(anchorPunches);

@@ -11,6 +11,7 @@ import {
   insertVerificationDocument,
   listDocTypesForPhase,
   replaceVerificationDocumentSlot,
+  sanitizeKycOriginalFilename,
   type VerificationDocItem,
 } from "@/lib/verification/verification-repo";
 
@@ -63,11 +64,12 @@ export async function POST(request: Request) {
   }
 
   const form = await request.formData();
-  const file = form.get("file");
-  const docTypeRaw = form.get("docType");
-  if (!(file instanceof File)) {
+  const fileRaw: unknown = form.get("file");
+  if (!(fileRaw instanceof File) && !(fileRaw instanceof Blob)) {
     return apiError("Missing file field.", 400);
   }
+  const file = fileRaw as File | Blob;
+  const docTypeRaw = form.get("docType");
   if (typeof docTypeRaw !== "string" || !DOC_TYPES.has(docTypeRaw)) {
     return apiError("docType must be aadhaar_front, aadhaar_back, or student_id.", 400);
   }
@@ -104,8 +106,6 @@ export async function POST(request: Request) {
   }
 
   const { data: pendRow } = await fetchOpenVerification(admin, user.id);
-  const priorDocs = pendRow?.id ? await fetchDocumentsForVerification(admin, pendRow.id) : [];
-  const prior = priorDocs.find((d) => d.doc_type === docType && d.phase === "checkout_pending");
 
   const ext =
     ct === "image/png"
@@ -116,6 +116,10 @@ export async function POST(request: Request) {
           ? "pdf"
           : "jpg";
   const path = `${user.id}/checkout-pending/${docType}_${randomUUID()}.${ext}`;
+
+  const original_filename =
+    sanitizeKycOriginalFilename(form.get("fileName")) ??
+    (file instanceof File ? sanitizeKycOriginalFilename(file.name) : null);
 
   const buf = Buffer.from(await file.arrayBuffer());
 
@@ -135,11 +139,12 @@ export async function POST(request: Request) {
     storage_path: path,
     content_type: ct,
     phase: "checkout_pending",
+    original_filename,
   };
 
   let verId = pendRow?.id;
   if (verId) {
-    const { error: rowErr } = await replaceVerificationDocumentSlot(admin, {
+    const { error: rowErr, replacedStorage } = await replaceVerificationDocumentSlot(admin, {
       verification_id: verId,
       user_id: user.id,
       item: newItem,
@@ -147,6 +152,10 @@ export async function POST(request: Request) {
     if (rowErr) {
       await admin.storage.from(bucket()).remove([path]);
       return apiErrorSafe(rowErr, 400);
+    }
+    if (replacedStorage && replacedStorage.path !== path) {
+      const pb = replacedStorage.bucket || bucket();
+      void admin.storage.from(pb).remove([replacedStorage.path]).catch(() => {});
     }
     const { error: tsErr } = await admin.from("verification").update({ updated_at: new Date().toISOString() }).eq("id", verId);
     if (tsErr) {
@@ -174,11 +183,6 @@ export async function POST(request: Request) {
       await admin.from("verification").delete().eq("id", verId);
       return apiErrorSafe(docErr, 400);
     }
-  }
-
-  if (prior?.storage_path && prior.storage_path !== path) {
-    const pb = prior.storage_bucket || bucket();
-    await admin.storage.from(pb).remove([prior.storage_path]);
   }
 
   return apiSuccess("Queued for your account after payment succeeds. You can replace this file before you pay.", {

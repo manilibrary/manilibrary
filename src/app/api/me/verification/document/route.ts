@@ -10,6 +10,7 @@ import {
   fetchLatestVerification,
   fetchOpenVerification,
   replaceVerificationDocumentSlot,
+  sanitizeKycOriginalFilename,
   type VerificationDocItem,
 } from "@/lib/verification/verification-repo";
 
@@ -78,16 +79,7 @@ export async function POST(request: Request) {
     });
   }
 
-  if (vStatus === "pending") {
-    const { data: pend } = await fetchOpenVerification(admin, user.id);
-    const pendDocs = pend?.id ? await fetchDocumentsForVerification(admin, pend.id) : [];
-    const hasSubmitted = pendDocs.some((d) => d.phase === "submitted" && d.doc_type === docType);
-    if (hasSubmitted) {
-      return apiError("This document is already on file for review.", 403, {
-        hint: "You cannot replace uploads until staff request a resubmit.",
-      });
-    }
-  } else if (vStatus !== "none" && vStatus !== "resubmit") {
+  if (vStatus !== "none" && vStatus !== "resubmit" && vStatus !== "pending") {
     return apiError("New uploads are not allowed right now.", 403, {
       hint: "Uploads are not available in your current state.",
     });
@@ -102,6 +94,10 @@ export async function POST(request: Request) {
           ? "pdf"
           : "jpg";
   const path = `${user.id}/${docType}_${randomUUID()}.${ext}`;
+
+  const original_filename =
+    sanitizeKycOriginalFilename(form.get("fileName")) ??
+    (file instanceof File ? sanitizeKycOriginalFilename(file.name) : null);
 
   const buf = Buffer.from(await file.arrayBuffer());
 
@@ -121,12 +117,13 @@ export async function POST(request: Request) {
     storage_path: path,
     content_type: ct,
     phase: "submitted",
+    original_filename,
   };
 
   const { data: open } = await fetchOpenVerification(admin, user.id);
   const verId = open?.id ?? (await ensurePendingVerification(admin, user.id)).id;
 
-  const { error: slotErr } = await replaceVerificationDocumentSlot(admin, {
+  const { error: slotErr, replacedStorage } = await replaceVerificationDocumentSlot(admin, {
     verification_id: verId,
     user_id: user.id,
     item: newItem,
@@ -134,6 +131,11 @@ export async function POST(request: Request) {
   if (slotErr) {
     await admin.storage.from(bucket()).remove([path]);
     return apiErrorSafe(slotErr, 400);
+  }
+
+  if (replacedStorage) {
+    const pb = replacedStorage.bucket.trim();
+    void admin.storage.from(pb).remove([replacedStorage.path]).catch(() => {});
   }
 
   const ts = new Date().toISOString();

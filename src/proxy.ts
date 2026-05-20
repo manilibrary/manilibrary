@@ -61,10 +61,21 @@ function guardApiRequest(request: NextRequest): NextResponse | null {
   return null;
 }
 
+function pathNeedsSessionRefresh(path: string): boolean {
+  return (
+    path.startsWith("/dashboard") || path === "/login" || path === "/register"
+  );
+}
+
 export async function proxy(request: NextRequest) {
   const blocked = guardApiRequest(request);
   if (blocked) {
     return applySecurityHeaders(blocked);
+  }
+
+  const path = request.nextUrl.pathname;
+  if (!pathNeedsSessionRefresh(path)) {
+    return applySecurityHeaders(NextResponse.next({ request }));
   }
 
   let supabaseResponse = NextResponse.next({ request });
@@ -117,8 +128,6 @@ export async function proxy(request: NextRequest) {
     isStaff = profile?.is_admin === true;
     isSuper = profile?.is_superadmin === true;
   }
-
-  const path = request.nextUrl.pathname;
 
   if (!user && path.startsWith("/dashboard")) {
     const url = request.nextUrl.clone();

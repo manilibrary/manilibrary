@@ -354,7 +354,8 @@ export default function SuperadminMembershipsPanel() {
             <div className="mt-6 border-t border-red-100 pt-4">
               <p className="text-xs font-medium text-red-900">Danger zone</p>
               <p className="mt-1 text-xs text-ink-600">
-                Permanently delete this membership and linked payment rows from the database.
+                Permanently delete this membership and linked payment / event rows. The member profile and Auth account
+                are kept.
               </p>
               <button
                 type="button"
@@ -432,11 +433,11 @@ export default function SuperadminMembershipsPanel() {
               Delete membership permanently?
             </h2>
             <p className="mt-3 text-sm leading-relaxed text-ink-700">
-              This will <strong className="font-medium">remove the membership row</strong> and{" "}
+              This will <strong className="font-medium">remove the membership row</strong>,{" "}
               <strong className="font-medium">delete linked payment records</strong> in{" "}
-              <span className="font-mono text-xs">payments</span> (rows with this{" "}
-              <span className="font-mono text-xs">membership_id</span> or the membership&apos;s{" "}
-              <span className="font-mono text-xs">payment_id</span>). This cannot be undone.
+              <span className="font-mono text-xs">payments</span>, and{" "}
+              <strong className="font-medium">membership event history</strong> for this seat. The member&apos;s{" "}
+              <strong className="font-medium">profile and Auth account are not deleted</strong>. This cannot be undone.
             </p>
             <ul className="mt-3 list-inside list-disc space-y-1 text-xs text-ink-600">
               <li>
@@ -496,7 +497,7 @@ export default function SuperadminMembershipsPanel() {
                         setDeleteErr(j.error ?? "Delete failed.");
                         return;
                       }
-                      setSaveMsg("Membership and linked payments deleted.");
+                      setSaveMsg("Membership and related data deleted.");
                       closeDelete();
                       setRefreshKey((k) => k + 1);
                     } catch (e) {

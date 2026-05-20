@@ -10,7 +10,38 @@ export type VerificationDocItem = {
   storage_path: string;
   content_type: string;
   phase: DocPhase;
+  /** Sanitized member-supplied name for UI; optional for legacy rows. */
+  original_filename?: string | null;
 };
+
+/** Max 200 chars; strip ASCII control characters. */
+export function sanitizeKycOriginalFilename(raw: unknown): string | null {
+  if (typeof raw !== "string") return null;
+  const t = raw.trim().replace(/[\u0000-\u001f\u007f]/g, "").slice(0, 200);
+  return t.length ? t : null;
+}
+
+/** Label for UI: stored name, else storage path basename. */
+export function kycDisplayFileName(d: Pick<VerificationDocItem, "original_filename" | "storage_path">): string {
+  const raw = typeof d.original_filename === "string" ? d.original_filename.trim() : "";
+  if (raw) return raw.slice(0, 200);
+  const seg = d.storage_path.split("/").pop();
+  return seg || "file";
+}
+
+export function kycOriginalNamesFromDocs(docs: VerificationDocItem[]) {
+  const pick = (dt: KycDocType): string | null => {
+    const d = docs.find(
+      (x) => x.doc_type === dt && (x.phase === "checkout_pending" || x.phase === "submitted"),
+    );
+    return d ? kycDisplayFileName(d) : null;
+  };
+  return {
+    aadhaarFront: pick("aadhaar_front"),
+    aadhaarBack: pick("aadhaar_back"),
+    studentId: pick("student_id"),
+  };
+}
 
 /** Parent KYC workflow row (`public.verification`). File rows live in `verification_documents`. */
 export type VerificationRow = {
@@ -43,12 +74,14 @@ export function parseVerificationDocs(json: unknown): VerificationDocItem[] {
       typeof o.storage_path === "string" &&
       typeof o.content_type === "string"
     ) {
+      const ofn = o.original_filename;
       out.push({
         doc_type: docType as KycDocType,
         storage_bucket: o.storage_bucket,
         storage_path: o.storage_path,
         content_type: o.content_type,
         phase,
+        original_filename: typeof ofn === "string" && ofn.trim() ? ofn.trim().slice(0, 200) : null,
       });
     }
   }
@@ -57,6 +90,57 @@ export function parseVerificationDocs(json: unknown): VerificationDocItem[] {
 
 export function hasSubmittedKycDocs(docs: VerificationDocItem[]): boolean {
   return docs.some((d) => d.phase === "submitted");
+}
+
+/** Union doc rows across workflow rows (open first, then latest) without duplicate (doc_type × phase). */
+export function mergeVerificationDocsForMember(
+  orderedVerificationIds: string[],
+  docMap: Map<string, VerificationDocItem[]>,
+): VerificationDocItem[] {
+  const out: VerificationDocItem[] = [];
+  const seen = new Set<string>();
+  for (const vid of orderedVerificationIds) {
+    for (const d of docMap.get(vid) ?? []) {
+      const k = `${d.doc_type}:${d.phase}`;
+      if (seen.has(k)) continue;
+      seen.add(k);
+      out.push(d);
+    }
+  }
+  return out;
+}
+
+export type MemberKycSlotStatus = "not_uploaded" | "pending_review" | "verified" | "queued_checkout";
+
+export type MemberKycSlotSummary = {
+  fileName: string | null;
+  memberStatus: MemberKycSlotStatus;
+};
+
+/** Per-slot labels for member dashboard / app (not staff review UI). */
+export function buildMemberKycSlotSummaries(
+  isVerifiedProfile: boolean,
+  verificationUiStatus: string,
+  mergedDocs: VerificationDocItem[],
+): Record<KycDocType, MemberKycSlotSummary> {
+  const v = (verificationUiStatus || "none").toLowerCase();
+  const approvedLike = isVerifiedProfile || v === "approved";
+  const out = {} as Record<KycDocType, MemberKycSlotSummary>;
+  for (const dt of KYC_DOC_TYPES) {
+    const sub = mergedDocs.find((d) => d.doc_type === dt && d.phase === "submitted");
+    const chk = mergedDocs.find((d) => d.doc_type === dt && d.phase === "checkout_pending");
+    const pick = sub ?? chk;
+    const fileName = pick ? kycDisplayFileName(pick) : null;
+    let memberStatus: MemberKycSlotStatus = "not_uploaded";
+    if (approvedLike) {
+      if (sub) memberStatus = "verified";
+      else if (chk) memberStatus = "queued_checkout";
+      else memberStatus = "verified";
+    } else if (sub) memberStatus = "pending_review";
+    else if (chk) memberStatus = "queued_checkout";
+    out[dt] = { fileName, memberStatus };
+  }
+  return out;
 }
 
 export function listDocTypesForPhase(docs: VerificationDocItem[], phase: DocPhase): KycDocType[] {
@@ -82,11 +166,25 @@ export async function fetchDocumentsForVerification(
   admin: SupabaseClient,
   verificationId: string,
 ): Promise<VerificationDocItem[]> {
-  const { data, error } = await admin
+  const full =
+    "doc_type, phase, storage_bucket, storage_path, content_type, original_filename";
+  const min = "doc_type, phase, storage_bucket, storage_path, content_type";
+  const r1 = await admin
     .from("verification_documents")
-    .select("doc_type, phase, storage_bucket, storage_path, content_type")
+    .select(full)
     .eq("verification_id", verificationId)
     .is("deleted_at", null);
+  let data = r1.data as Record<string, unknown>[] | null;
+  let error = r1.error;
+  if (error && /original_filename|does not exist/i.test(error.message)) {
+    const r2 = await admin
+      .from("verification_documents")
+      .select(min)
+      .eq("verification_id", verificationId)
+      .is("deleted_at", null);
+    data = r2.data as Record<string, unknown>[] | null;
+    error = r2.error;
+  }
   if (error) throw new Error(error.message);
   const out: VerificationDocItem[] = [];
   for (const r of data ?? []) {
@@ -101,12 +199,14 @@ export async function fetchDocumentsForVerification(
       typeof o.storage_path === "string" &&
       typeof o.content_type === "string"
     ) {
+      const ofn = o.original_filename;
       out.push({
         doc_type: docType as KycDocType,
         storage_bucket: o.storage_bucket,
         storage_path: o.storage_path,
         content_type: o.content_type,
         phase,
+        original_filename: typeof ofn === "string" && ofn.trim() ? ofn.trim().slice(0, 200) : null,
       });
     }
   }
@@ -121,11 +221,25 @@ export async function fetchDocumentsForVerificationIds(
   for (const id of verificationIds) map.set(id, []);
   const uniq = [...new Set(verificationIds.filter(Boolean))];
   if (uniq.length === 0) return map;
-  const { data, error } = await admin
+  const full =
+    "verification_id, doc_type, phase, storage_bucket, storage_path, content_type, original_filename";
+  const min = "verification_id, doc_type, phase, storage_bucket, storage_path, content_type";
+  const r1 = await admin
     .from("verification_documents")
-    .select("verification_id, doc_type, phase, storage_bucket, storage_path, content_type")
+    .select(full)
     .in("verification_id", uniq)
     .is("deleted_at", null);
+  let data = r1.data as Record<string, unknown>[] | null;
+  let error = r1.error;
+  if (error && /original_filename|does not exist/i.test(error.message)) {
+    const r2 = await admin
+      .from("verification_documents")
+      .select(min)
+      .in("verification_id", uniq)
+      .is("deleted_at", null);
+    data = r2.data as Record<string, unknown>[] | null;
+    error = r2.error;
+  }
   if (error) throw new Error(error.message);
   for (const r of data ?? []) {
     const o = r as Record<string, unknown>;
@@ -143,12 +257,14 @@ export async function fetchDocumentsForVerificationIds(
     ) {
       continue;
     }
+    const ofn = o.original_filename;
     const item: VerificationDocItem = {
       doc_type: docType as KycDocType,
       storage_bucket: o.storage_bucket,
       storage_path: o.storage_path,
       content_type: o.content_type,
       phase,
+      original_filename: typeof ofn === "string" && ofn.trim() ? ofn.trim().slice(0, 200) : null,
     };
     const arr = map.get(vid) ?? [];
     arr.push(item);
@@ -183,7 +299,7 @@ export async function insertVerificationDocument(
     item: VerificationDocItem;
   },
 ): Promise<{ error: Error | null }> {
-  const { error } = await admin.from("verification_documents").insert({
+  const insertPayload: Record<string, unknown> = {
     verification_id: o.verification_id,
     user_id: o.user_id,
     doc_type: o.item.doc_type,
@@ -191,11 +307,24 @@ export async function insertVerificationDocument(
     storage_bucket: o.item.storage_bucket,
     storage_path: o.item.storage_path,
     content_type: o.item.content_type,
-  });
+  };
+  const label = sanitizeKycOriginalFilename(o.item.original_filename);
+  if (label) insertPayload.original_filename = label;
+
+  let { error } = await admin.from("verification_documents").insert(insertPayload);
+  if (error && /original_filename|does not exist/i.test(error.message)) {
+    delete insertPayload.original_filename;
+    ({ error } = await admin.from("verification_documents").insert(insertPayload));
+  }
   return { error: error ? new Error(error.message) : null };
 }
 
-/** Replace one (doc_type × phase) slot: soft-delete existing active, then insert. */
+export type ReplacedVerificationStorage = { bucket: string; path: string };
+
+/**
+ * One active row per (verification_id, doc_type, phase) (partial unique index).
+ * Update in place when present so reuploads do not accumulate soft-deleted rows.
+ */
 export async function replaceVerificationDocumentSlot(
   admin: SupabaseClient,
   o: {
@@ -203,10 +332,51 @@ export async function replaceVerificationDocumentSlot(
     user_id: string;
     item: VerificationDocItem;
   },
-): Promise<{ error: Error | null }> {
-  const { error: d1 } = await softDeleteVerificationDocumentSlot(admin, o.verification_id, o.item.doc_type, o.item.phase);
-  if (d1) return { error: d1 };
-  return insertVerificationDocument(admin, o);
+): Promise<{ error: Error | null; replacedStorage: ReplacedVerificationStorage | null }> {
+  const { data: existing, error: selErr } = await admin
+    .from("verification_documents")
+    .select("id, storage_bucket, storage_path")
+    .eq("verification_id", o.verification_id)
+    .eq("doc_type", o.item.doc_type)
+    .eq("phase", o.item.phase)
+    .is("deleted_at", null)
+    .maybeSingle();
+  if (selErr) return { error: new Error(selErr.message), replacedStorage: null };
+
+  const label = sanitizeKycOriginalFilename(o.item.original_filename);
+  const now = new Date().toISOString();
+  const updatePayload: Record<string, unknown> = {
+    storage_bucket: o.item.storage_bucket,
+    storage_path: o.item.storage_path,
+    content_type: o.item.content_type,
+    updated_at: now,
+  };
+  if (label) updatePayload.original_filename = label;
+  else updatePayload.original_filename = null;
+
+  const ex = existing as { id?: string; storage_bucket?: string; storage_path?: string } | null;
+  if (ex?.id) {
+    let { error } = await admin.from("verification_documents").update(updatePayload).eq("id", ex.id);
+    if (error && /original_filename|does not exist/i.test(error.message)) {
+      delete updatePayload.original_filename;
+      ({ error } = await admin.from("verification_documents").update(updatePayload).eq("id", ex.id));
+    }
+    if (error) return { error: new Error(error.message), replacedStorage: null };
+    const prevB = typeof ex.storage_bucket === "string" ? ex.storage_bucket : "";
+    const prevP = typeof ex.storage_path === "string" ? ex.storage_path : "";
+    if (
+      prevB &&
+      prevP &&
+      (prevB !== o.item.storage_bucket || prevP !== o.item.storage_path)
+    ) {
+      return { error: null, replacedStorage: { bucket: prevB, path: prevP } };
+    }
+    return { error: null, replacedStorage: null };
+  }
+
+  const ins = await insertVerificationDocument(admin, o);
+  if (ins.error) return { error: ins.error, replacedStorage: null };
+  return { error: null, replacedStorage: null };
 }
 
 export async function fetchLatestVerification(admin: SupabaseClient, userId: string) {

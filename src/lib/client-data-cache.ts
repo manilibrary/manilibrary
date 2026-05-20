@@ -136,6 +136,9 @@ export const ddcKey = {
   profileMemberHome: (userId: string) => `ml_ddc:profile_memberhome:${userId}`,
   memberships: (userId: string) => `ml_ddc:memberships:${userId}`,
   verifDocs: (userId: string) => `ml_ddc:verif_docs:${userId}`,
+  /** `{ uploadedDocs, memberKycSlots }` — see `loadMemberKycForDashboard`. */
+  verifMemberKyc: (userId: string) => `ml_ddc:verif_member_kyc:${userId}`,
+  checkoutStagedDocs: (userId: string) => `ml_ddc:checkout_staged:${userId}`,
   meActive: (userId: string) => `ml_ddc:me_active:${userId}`,
   meActiveGuest: () => `ml_ddc:me_active:guest`,
   seatOccupancy: (planKind: string, startDate: string, durationKey: string) =>

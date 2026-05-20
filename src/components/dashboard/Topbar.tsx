@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
@@ -11,6 +12,7 @@ type BarUser = {
   email: string;
   roleLabel: "Superadmin" | "Admin" | "Member";
   initials: string;
+  avatarUrl: string | null;
 };
 
 export default function Topbar({ onMenu }: { onMenu: () => void }) {
@@ -37,7 +39,7 @@ export default function Topbar({ onMenu }: { onMenu: () => void }) {
       }
 
       const navKey = ddcKey.profileNav(authUser.id);
-      const cachedFlags = getClientCache<{ is_admin?: boolean | null; is_superadmin?: boolean | null }>(navKey);
+      const cachedFlags = getClientCache<{ is_admin?: boolean | null; is_superadmin?: boolean | null; avatar_url?: string | null }>(navKey);
       if (cachedFlags) {
         const roleLabel: BarUser["roleLabel"] =
           cachedFlags.is_superadmin === true
@@ -49,13 +51,14 @@ export default function Topbar({ onMenu }: { onMenu: () => void }) {
           email: authUser.email,
           roleLabel,
           initials: authUser.email.slice(0, 2).toUpperCase(),
+          avatarUrl: cachedFlags.avatar_url ?? null,
         });
         setReady(true);
       }
 
       const { data: profile } = await supabase
         .from("profiles")
-        .select("is_admin, is_superadmin")
+        .select("is_admin, is_superadmin, avatar_url")
         .eq("user_id", authUser.id)
         .maybeSingle();
 
@@ -63,7 +66,11 @@ export default function Topbar({ onMenu }: { onMenu: () => void }) {
 
       setClientCache(
         navKey,
-        { is_admin: profile?.is_admin ?? null, is_superadmin: profile?.is_superadmin ?? null },
+        {
+          is_admin: profile?.is_admin ?? null,
+          is_superadmin: profile?.is_superadmin ?? null,
+          avatar_url: profile?.avatar_url ?? null,
+        },
         CLIENT_DATA_CACHE_TTL_MS,
       );
 
@@ -78,6 +85,7 @@ export default function Topbar({ onMenu }: { onMenu: () => void }) {
         email: authUser.email,
         roleLabel,
         initials: authUser.email.slice(0, 2).toUpperCase(),
+        avatarUrl: profile?.avatar_url ?? null,
       });
       setReady(true);
     };
@@ -88,10 +96,16 @@ export default function Topbar({ onMenu }: { onMenu: () => void }) {
     } = supabase.auth.onAuthStateChange(() => {
       void load();
     });
+    const onAvatarChanged = (e: Event) => {
+      const detail = (e as CustomEvent<{ avatarUrl: string | null }>).detail;
+      setUser((u) => (u ? { ...u, avatarUrl: detail?.avatarUrl ?? null } : u));
+    };
+    window.addEventListener("manilibrary:avatar-changed", onAvatarChanged);
 
     return () => {
       cancelled = true;
       subscription.unsubscribe();
+      window.removeEventListener("manilibrary:avatar-changed", onAvatarChanged);
     };
   }, []);
 
@@ -183,8 +197,19 @@ export default function Topbar({ onMenu }: { onMenu: () => void }) {
               onClick={() => setMenuOpen((s) => !s)}
               className="flex items-center gap-2 rounded-full border border-ink-100 bg-white py-1 pl-1 pr-3 text-sm hover:border-ink-200"
             >
-              <span className="flex h-8 w-8 items-center justify-center rounded-full bg-azure-500 font-mono text-xs font-semibold text-white">
-                {initials}
+              <span className="flex h-8 w-8 items-center justify-center overflow-hidden rounded-full bg-azure-500 font-mono text-xs font-semibold text-white">
+                {user?.avatarUrl ? (
+                  <Image
+                    src={user.avatarUrl}
+                    alt=""
+                    width={32}
+                    height={32}
+                    unoptimized
+                    className="h-full w-full object-cover"
+                  />
+                ) : (
+                  initials
+                )}
               </span>
                 <span className="hidden flex-col items-start sm:flex">
                   {ready ? (

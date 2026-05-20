@@ -2,18 +2,16 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import ProfileIntakeCard, { type ProfileIntakeInitial } from "@/components/dashboard/ProfileIntakeCard";
 import { ProfileIntakePanelSkeleton } from "@/components/ui/ContentSkeletons";
+import { parseFetchJson } from "@/lib/api/parse-fetch-json";
 import { CLIENT_DATA_CACHE_TTL_MS, ddcKey, getClientCache, setClientCache } from "@/lib/client-data-cache";
 import { extrasToDisplayFields } from "@/lib/profiles/profile-extras";
 import { createClient } from "@/lib/supabase/client";
-import {
-  deriveUiVerificationStatus,
-  type VerificationDocItem,
-  type VerificationRow,
-} from "@/lib/verification/verification-repo";
+import { loadMemberKycForDashboard } from "@/lib/members/member-kyc-client-load";
+import type { KycDocType, MemberKycSlotSummary } from "@/lib/verification/verification-repo";
 
 type ProfileRow = {
   verification_status: string;
@@ -21,6 +19,17 @@ type ProfileRow = {
   student_roll_number: string | null;
   institution_type: string | null;
   preparing_for: string | null;
+};
+
+type CheckoutStagedCache = {
+  docs: Record<string, boolean>;
+  ready: boolean;
+};
+
+type DocumentCheckoutPendingJson = {
+  ok?: boolean;
+  stagedDocTypes?: string[];
+  checkoutKycStagingReady?: boolean;
 };
 
 export default function MembershipIntakeStepPanel({
@@ -33,19 +42,57 @@ export default function MembershipIntakeStepPanel({
 }) {
   const pathname = usePathname() ?? "/membership";
   const nextParam = encodeURIComponent(pathname);
-  const [loading, setLoading] = useState(true);
+  const [initialLoading, setInitialLoading] = useState(true);
   const [signedIn, setSignedIn] = useState(false);
   const [profile, setProfile] = useState<ProfileRow | null>(null);
   const [uploadedDocs, setUploadedDocs] = useState<Record<string, boolean>>({});
+  const [memberKycSlots, setMemberKycSlots] = useState<
+    Record<KycDocType, MemberKycSlotSummary> | null
+  >(null);
   const [checkoutStagedDocs, setCheckoutStagedDocs] = useState<Record<string, boolean>>({});
   const [checkoutStagingReady, setCheckoutStagingReady] = useState(true);
-  const [stagedRefresh, setStagedRefresh] = useState(0);
   const [err, setErr] = useState<string | null>(null);
+  const userIdRef = useRef<string | null>(null);
+
+  const refreshCheckoutStagedDocs = useCallback(async (userId?: string) => {
+    try {
+      const r = await fetch("/api/me/verification/document-checkout-pending");
+      const j = (await parseFetchJson(r)) as DocumentCheckoutPendingJson;
+      if (j.ok && Array.isArray(j.stagedDocTypes)) {
+        const m: Record<string, boolean> = {};
+        for (const t of j.stagedDocTypes) {
+          if (t) m[t] = true;
+        }
+        const ready = j.checkoutKycStagingReady !== false;
+        setCheckoutStagedDocs(m);
+        setCheckoutStagingReady(ready);
+        if (userId) {
+          setClientCache(
+            ddcKey.checkoutStagedDocs(userId),
+            { docs: m, ready } satisfies CheckoutStagedCache,
+            CLIENT_DATA_CACHE_TTL_MS,
+          );
+        }
+      } else {
+        setCheckoutStagedDocs({});
+        setCheckoutStagingReady(true);
+      }
+    } catch {
+      setCheckoutStagedDocs({});
+    }
+  }, []);
+
+  const onStagedDocChange = useCallback(
+    (docType: "aadhaar_front" | "aadhaar_back" | "student_id") => {
+      setCheckoutStagedDocs((prev) => ({ ...prev, [docType]: true }));
+      void refreshCheckoutStagedDocs(userIdRef.current ?? undefined);
+    },
+    [refreshCheckoutStagedDocs],
+  );
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      setLoading(true);
       setErr(null);
       const supabase = createClient();
       const {
@@ -55,83 +102,66 @@ export default function MembershipIntakeStepPanel({
         if (!cancelled) {
           setSignedIn(false);
           setProfile(null);
-          setLoading(false);
+          setInitialLoading(false);
         }
         return;
       }
       if (!cancelled) setSignedIn(true);
+      userIdRef.current = user.id;
 
       const kProf = ddcKey.profileMemberHome(user.id);
       const kDocs = ddcKey.verifDocs(user.id);
+      const kMyc = ddcKey.verifMemberKyc(user.id);
+      const kStaged = ddcKey.checkoutStagedDocs(user.id);
       const cProf = getClientCache<ProfileRow>(kProf);
+      const cMyc = getClientCache<{ uploadedDocs: Record<string, boolean>; memberKycSlots: Record<KycDocType, MemberKycSlotSummary> }>(
+        kMyc,
+      );
       const cDocs = getClientCache<Record<string, boolean>>(kDocs);
-      if (cProf && !cancelled) setProfile(cProf);
-      if (cDocs && !cancelled) setUploadedDocs(cDocs);
+      const cStaged = getClientCache<CheckoutStagedCache>(kStaged);
+      if (cProf && !cancelled) {
+        setProfile(cProf);
+      }
+      if ((cProf || cMyc) && !cancelled) {
+        setInitialLoading(false);
+      }
+      if (!cancelled) {
+        if (cMyc) {
+          setUploadedDocs(cMyc.uploadedDocs);
+          setMemberKycSlots(cMyc.memberKycSlots);
+        } else if (cDocs) {
+          setUploadedDocs(cDocs);
+        }
+      }
+      if (deferPersist && cStaged && !cancelled) {
+        setCheckoutStagedDocs(cStaged.docs);
+        setCheckoutStagingReady(cStaged.ready);
+      }
 
-      const [profRes, verRes] = await Promise.all([
-        supabase
-          .from("profiles")
-          .select("is_verified, profile_extras")
-          .eq("user_id", user.id)
-          .maybeSingle(),
-        supabase
-          .from("verification")
-          .select("id, status")
-          .eq("user_id", user.id)
-          .is("deleted_at", null)
-          .order("submitted_at", { ascending: false })
-          .limit(1)
-          .maybeSingle(),
-      ]);
+      const profPromise = supabase
+        .from("profiles")
+        .select("is_verified, profile_extras")
+        .eq("user_id", user.id)
+        .maybeSingle();
+
+      const stagedPromise =
+        deferPersist && user ? refreshCheckoutStagedDocs(user.id) : Promise.resolve();
+
+      const { data: prof, error: pe } = await profPromise;
 
       if (cancelled) return;
-      const { data: prof, error: pe } = profRes;
       if (pe) {
         setErr(pe.message);
-        setLoading(false);
+        setInitialLoading(false);
         return;
       }
       if (prof) {
         const x = extrasToDisplayFields((prof as { profile_extras?: unknown }).profile_extras);
-        const latestRow = verRes.data as Pick<VerificationRow, "id" | "status"> | null;
-        const latestDocs: VerificationDocItem[] = [];
-        if (latestRow?.id) {
-          const { data: docRows } = await supabase
-            .from("verification_documents")
-            .select("doc_type, phase, storage_bucket, storage_path, content_type")
-            .eq("verification_id", latestRow.id)
-            .is("deleted_at", null);
-          for (const r of docRows ?? []) {
-            const o = r as Record<string, unknown>;
-            const docType = o.doc_type;
-            const phase = o.phase;
-            if (
-              typeof docType === "string" &&
-              (docType === "aadhaar_front" || docType === "aadhaar_back" || docType === "student_id") &&
-              (phase === "checkout_pending" || phase === "submitted") &&
-              typeof o.storage_bucket === "string" &&
-              typeof o.storage_path === "string" &&
-              typeof o.content_type === "string"
-            ) {
-              latestDocs.push({
-                doc_type: docType as VerificationDocItem["doc_type"],
-                storage_bucket: o.storage_bucket,
-                storage_path: o.storage_path,
-                content_type: o.content_type,
-                phase,
-              });
-            }
-          }
-        }
-        const rowForUi: Pick<VerificationRow, "status"> | null = latestRow
-          ? { status: String(latestRow.status ?? "none") }
-          : null;
+        const isVerified = (prof as { is_verified?: boolean }).is_verified === true;
+        const kyc = await loadMemberKycForDashboard(supabase, user.id, isVerified);
+        if (cancelled) return;
         const mapped: ProfileRow = {
-          verification_status: deriveUiVerificationStatus(
-            (prof as { is_verified?: boolean }).is_verified === true,
-            rowForUi,
-            latestDocs,
-          ),
+          verification_status: kyc.verificationUiStatus,
           aadhaar_last_four: x.aadhaar_last_four,
           student_roll_number: x.student_roll_number,
           institution_type: x.institution_type,
@@ -139,73 +169,31 @@ export default function MembershipIntakeStepPanel({
         };
         setProfile(mapped);
         setClientCache(kProf, mapped, CLIENT_DATA_CACHE_TTL_MS);
-      }
-
-      const { data: openVer } = await supabase
-        .from("verification")
-        .select("id")
-        .eq("user_id", user.id)
-        .in("status", ["pending", "resubmit"])
-        .is("deleted_at", null)
-        .order("submitted_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
-
-      const docMap: Record<string, boolean> = {};
-      if (openVer?.id) {
-        const { data: openDocs } = await supabase
-          .from("verification_documents")
-          .select("doc_type, phase")
-          .eq("verification_id", openVer.id)
-          .eq("phase", "submitted")
-          .is("deleted_at", null);
-        for (const r of openDocs ?? []) {
-          const o = r as { doc_type?: string };
-          if (o.doc_type) docMap[o.doc_type] = true;
-        }
-      }
-      if (!cancelled) {
-        setUploadedDocs(docMap);
-        setClientCache(kDocs, docMap, CLIENT_DATA_CACHE_TTL_MS);
-      }
-
-      if (deferPersist && user) {
-        try {
-          const r = await fetch("/api/me/verification/document-checkout-pending");
-          const j = (await r.json()) as {
-            ok?: boolean;
-            stagedDocTypes?: string[];
-            checkoutKycStagingReady?: boolean;
-          };
-          if (!cancelled) {
-            if (j.ok && Array.isArray(j.stagedDocTypes)) {
-              const m: Record<string, boolean> = {};
-              for (const t of j.stagedDocTypes) {
-                if (t) m[t] = true;
-              }
-              setCheckoutStagedDocs(m);
-              setCheckoutStagingReady(j.checkoutKycStagingReady !== false);
-            } else {
-              setCheckoutStagedDocs({});
-              setCheckoutStagingReady(true);
-            }
-          }
-        } catch {
-          if (!cancelled) setCheckoutStagedDocs({});
-        }
-      } else if (!cancelled) {
+        setUploadedDocs(kyc.uploadedDocs);
+        setMemberKycSlots(kyc.memberKycSlots);
+        setClientCache(kDocs, kyc.uploadedDocs, CLIENT_DATA_CACHE_TTL_MS);
+        setClientCache(
+          kMyc,
+          { uploadedDocs: kyc.uploadedDocs, memberKycSlots: kyc.memberKycSlots },
+          CLIENT_DATA_CACHE_TTL_MS,
+        );
+      } else if (!deferPersist) {
         setCheckoutStagedDocs({});
         setCheckoutStagingReady(true);
       }
 
-      if (!cancelled) setLoading(false);
+      await stagedPromise;
+
+      if (!cancelled) {
+        setInitialLoading(false);
+      }
     })();
     return () => {
       cancelled = true;
     };
-  }, [deferPersist, stagedRefresh]);
+  }, [deferPersist, refreshCheckoutStagedDocs]);
 
-  if (loading) {
+  if (initialLoading) {
     return <ProfileIntakePanelSkeleton />;
   }
 
@@ -256,10 +244,11 @@ export default function MembershipIntakeStepPanel({
       <ProfileIntakeCard
         initial={initial}
         uploadedDocs={uploadedDocs}
+        memberKycSlots={memberKycSlots ?? undefined}
         checkoutStagedDocs={deferPersist ? checkoutStagedDocs : undefined}
         checkoutKycStagingReady={deferPersist ? checkoutStagingReady : true}
         onSaved={onSaved}
-        onStagedDocChange={deferPersist ? () => setStagedRefresh((n) => n + 1) : undefined}
+        onStagedDocChange={deferPersist ? onStagedDocChange : undefined}
         persistMode={deferPersist ? "defer_to_payment" : "immediate"}
       />
     </div>

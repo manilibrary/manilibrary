@@ -1,7 +1,8 @@
 "use client";
 
 import Image from "next/image";
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { compressImageUnder } from "@/lib/compress-image";
 import { displayPersonName } from "@/lib/format-person-name";
 
 type Props = {
@@ -32,9 +33,17 @@ export default function MemberProfileSection({
 }: Props) {
   const displayName = displayPersonName(fullName, "Member");
   const inputRef = useRef<HTMLInputElement>(null);
+  const busyRef = useRef(false);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  const [localAvatarUrl, setLocalAvatarUrl] = useState<string | null>(avatarUrl);
+
+  useEffect(() => {
+    setLocalAvatarUrl(avatarUrl);
+  }, [avatarUrl]);
+
+  const shownAvatarUrl = localAvatarUrl;
 
   const verificationLabel =
     verificationStatus === "approved"
@@ -53,23 +62,32 @@ export default function MemberProfileSection({
         setErr("Image must be 2 MB or smaller.");
         return;
       }
+      if (busyRef.current) return;
+      busyRef.current = true;
       setErr(null);
       setMsg(null);
       setBusy(true);
       try {
+        const compressed = await compressImageUnder(file);
         const fd = new FormData();
-        fd.set("file", file);
+        fd.set("file", compressed);
         const res = await fetch("/api/me/avatar", { method: "POST", body: fd });
-        const j = (await res.json()) as { error?: string; hint?: string; ok?: boolean };
+        const j = (await res.json()) as { error?: string; hint?: string; ok?: boolean; avatarUrl?: string };
         if (!res.ok || !j.ok) {
           const parts = [j.error, j.hint].filter(Boolean);
           throw new Error(parts.length ? parts.join(" ") : "Upload failed.");
         }
+        if (j.avatarUrl) setLocalAvatarUrl(j.avatarUrl);
+        window.dispatchEvent(
+          new CustomEvent("manilibrary:avatar-changed", { detail: { avatarUrl: j.avatarUrl ?? null } }),
+        );
         setMsg("Photo updated.");
         onAvatarChanged();
+        await new Promise((r) => setTimeout(r, 5000));
       } catch (e) {
         setErr(e instanceof Error ? e.message : "Upload failed.");
       } finally {
+        busyRef.current = false;
         setBusy(false);
       }
     },
@@ -77,6 +95,8 @@ export default function MemberProfileSection({
   );
 
   const removePhoto = useCallback(async () => {
+    if (busyRef.current) return;
+    busyRef.current = true;
     setErr(null);
     setMsg(null);
     setBusy(true);
@@ -86,11 +106,16 @@ export default function MemberProfileSection({
       if (!res.ok || !j.ok) {
         throw new Error(j.error ?? "Could not remove photo.");
       }
+      setLocalAvatarUrl(null);
+      window.dispatchEvent(
+        new CustomEvent("manilibrary:avatar-changed", { detail: { avatarUrl: null } }),
+      );
       setMsg("Photo removed.");
       onAvatarChanged();
     } catch (e) {
       setErr(e instanceof Error ? e.message : "Could not remove photo.");
     } finally {
+      busyRef.current = false;
       setBusy(false);
     }
   }, [onAvatarChanged]);
@@ -98,11 +123,35 @@ export default function MemberProfileSection({
   return (
     <div className="rounded-2xl border border-ink-100 bg-white p-6 shadow-sm">
       <div className="flex flex-col gap-6 sm:flex-row sm:items-start">
-        <div className="flex shrink-0 flex-col items-center gap-3 sm:items-start">
-          <div className="relative h-28 w-28 overflow-hidden rounded-2xl border border-ink-100 bg-ink-50 shadow-inner">
-            {avatarUrl ? (
+        <div
+          className="relative flex shrink-0 flex-col items-center gap-3 sm:items-start"
+          aria-busy={busy || undefined}
+        >
+          {busy ? (
+            <div
+              className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-2 rounded-2xl bg-white/80 backdrop-blur-[2px]"
+              role="status"
+              aria-live="polite"
+            >
+              <svg
+                className="h-6 w-6 shrink-0 animate-spin text-azure-500"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.5"
+                aria-hidden
+              >
+                <path d="M12 3a9 9 0 1 0 9 9" strokeLinecap="round" />
+              </svg>
+              <span className="max-w-[9rem] text-center text-[11px] font-medium text-ink-900">
+                Uploading photo…
+              </span>
+            </div>
+          ) : null}
+          <div className="group relative h-28 w-28 overflow-hidden rounded-2xl border border-ink-100 bg-ink-50 shadow-inner">
+            {shownAvatarUrl ? (
               <Image
-                src={avatarUrl}
+                src={shownAvatarUrl}
                 alt=""
                 width={112}
                 height={112}
@@ -114,6 +163,19 @@ export default function MemberProfileSection({
                 {initials(displayName)}
               </span>
             )}
+            {shownAvatarUrl ? (
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => void removePhoto()}
+                className="absolute right-1 top-1 z-10 flex h-6 w-6 items-center justify-center rounded-full bg-ink-900/75 text-white opacity-0 shadow-sm ring-1 ring-white/40 transition-opacity group-hover:opacity-100 group-active:opacity-100 focus:opacity-100 hover:bg-ink-900 disabled:pointer-events-none disabled:opacity-40"
+                aria-label="Remove profile photo"
+              >
+                <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="2.5" aria-hidden>
+                  <path d="M6 6l12 12M18 6L6 18" strokeLinecap="round" />
+                </svg>
+              </button>
+            ) : null}
           </div>
           <input
             ref={inputRef}
@@ -133,18 +195,8 @@ export default function MemberProfileSection({
               onClick={() => inputRef.current?.click()}
               className="rounded-full bg-azure-500 px-4 py-2 text-xs font-semibold text-white hover:bg-azure-600 disabled:opacity-50"
             >
-              {busy ? "Working…" : avatarUrl ? "Change photo" : "Upload photo"}
+              {busy ? "Working…" : shownAvatarUrl ? "Change photo" : "Upload photo"}
             </button>
-            {avatarUrl ? (
-              <button
-                type="button"
-                disabled={busy}
-                onClick={() => void removePhoto()}
-                className="rounded-full border border-ink-200 bg-white px-4 py-2 text-xs font-semibold text-ink-700 hover:bg-ink-50 disabled:opacity-50"
-              >
-                Remove
-              </button>
-            ) : null}
           </div>
           <p className="max-w-[200px] text-center text-[11px] leading-snug text-ink-500 sm:text-left">
             JPG, PNG or WebP · up to 2&nbsp;MB. Shown on your member profile only.
