@@ -1,13 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { startTransition, useCallback, useEffect, useState } from "react";
 import Logo from "./Logo";
 import { createClient } from "@/lib/supabase/client";
 import { clearClientCache } from "@/lib/client-data-cache";
-import { clearAllUxPreferenceCookies, getUxPreferenceCookie, setUxPreferenceCookie } from "@/lib/ux-cookies";
 import { MEMBER_ACCOUNT_PATH } from "@/lib/auth-landing";
+import { prefetchMembershipRoutes } from "@/lib/membership/prefetch-membership";
+import { clearAllUxPreferenceCookies, getUxPreferenceCookie, setUxPreferenceCookie } from "@/lib/ux-cookies";
 
 const links = [
   { href: "/#facilities", label: "Facilities", lockDuringCheckout: true },
@@ -34,12 +35,14 @@ function NavLinkItem({
   locked,
   className,
   onNavigate,
+  onWarm,
 }: {
   href: string;
   label: string;
   locked: boolean;
   className: string;
   onNavigate?: () => void;
+  onWarm?: () => void;
 }) {
   if (locked) {
     return (
@@ -49,7 +52,7 @@ function NavLinkItem({
     );
   }
   return (
-    <Link href={href} className={className} onClick={onNavigate}>
+    <Link href={href} className={className} onClick={onNavigate} onMouseEnter={onWarm} onFocus={onWarm}>
       {label}
     </Link>
   );
@@ -87,7 +90,18 @@ function initialsFrom(displayName: string, email: string): string {
 
 export default function Navbar() {
   const pathname = usePathname();
+  const router = useRouter();
   const checkoutNavLocked = isMembershipCheckoutPath(pathname);
+
+  const warmMembershipNav = useCallback(() => {
+    prefetchMembershipRoutes(router);
+  }, [router]);
+
+  useEffect(() => {
+    if (pathname === "/" || pathname?.startsWith("/membership")) {
+      prefetchMembershipRoutes(router);
+    }
+  }, [pathname, router]);
   const [open, setOpen] = useState(() => getUxPreferenceCookie("site_nav_drawer") === "open");
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [auth, setAuth] = useState<AuthBar>(initialAuth);
@@ -178,6 +192,7 @@ export default function Navbar() {
               href={l.href}
               label={l.label}
               locked={checkoutNavLocked && l.lockDuringCheckout}
+              onWarm={l.href === "/membership" ? warmMembershipNav : undefined}
               className={
                 checkoutNavLocked && l.lockDuringCheckout
                   ? "cursor-not-allowed text-sm font-medium text-ink-400"
@@ -393,6 +408,7 @@ export default function Navbar() {
                 href={l.href}
                 label={l.label}
                 locked={checkoutNavLocked && l.lockDuringCheckout}
+                onWarm={l.href === "/membership" ? warmMembershipNav : undefined}
                 className={
                   checkoutNavLocked && l.lockDuringCheckout
                     ? "cursor-not-allowed rounded-lg px-3 py-2 text-sm font-medium text-ink-400"

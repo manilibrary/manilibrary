@@ -2,6 +2,40 @@
 
 const pulse = "animate-pulse rounded bg-ink-100";
 
+export function MembershipFlowPageSkeleton() {
+  return (
+    <div
+      className="mx-auto max-w-6xl animate-pulse px-4 py-8 sm:px-6 md:px-8 md:py-12"
+      aria-busy="true"
+      aria-label="Loading membership"
+    >
+      <div className={`mb-5 h-4 w-28 ${pulse}`} />
+      <div className={`h-8 w-64 max-w-full ${pulse}`} />
+      <div className={`mt-2 h-4 w-48 ${pulse}`} />
+      <div className="mt-6 flex gap-2">
+        {[1, 2, 3].map((i) => (
+          <div key={i} className={`h-9 flex-1 rounded-full ${pulse}`} />
+        ))}
+      </div>
+      <div className={`mt-6 h-[min(420px,55vh)] rounded-2xl ${pulse}`} />
+      <div className={`mt-5 h-12 w-full rounded-full ${pulse}`} />
+    </div>
+  );
+}
+
+export function MembershipSeatMapSkeleton() {
+  return (
+    <div className="min-h-[280px] rounded-xl bg-ink-50/80 p-4" aria-busy="true" aria-label="Loading seat map">
+      <div className={`mb-4 h-4 w-32 ${pulse}`} />
+      <div className="grid grid-cols-4 gap-2 sm:grid-cols-6 md:grid-cols-8">
+        {Array.from({ length: 24 }).map((_, i) => (
+          <div key={i} className={`aspect-square rounded-md ${pulse}`} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export function MembershipHubRouteSkeleton() {
   return (
     <div className="space-y-6" aria-busy="true" aria-label="Loading membership hub">

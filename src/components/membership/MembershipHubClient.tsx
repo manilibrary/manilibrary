@@ -3,6 +3,10 @@
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  prefetchMembershipPath,
+  prefetchMembershipRoutes,
+} from "@/lib/membership/prefetch-membership";
 import { addDaysYmd, DEFAULT_LIBRARY_TZ, todayYmdInTz } from "@/lib/membership/windows";
 import { fetchResumableCheckout, type ResumableCheckoutPayload } from "@/lib/membership/resumable-checkout";
 import {
@@ -83,6 +87,10 @@ export default function MembershipHubClient() {
   const [dailyHours, setDailyHours] = useState<DailyHours>(12);
   const [hubResume, setHubResume] = useState<ResumableCheckoutPayload | null>(null);
   const [hubResumeDismissing, setHubResumeDismissing] = useState(false);
+
+  useEffect(() => {
+    prefetchMembershipRoutes(router);
+  }, [router]);
 
   useEffect(() => {
     queueMicrotask(() => {
@@ -167,6 +175,22 @@ export default function MembershipHubClient() {
     });
     return `${base}?${q.toString()}#seat-map`;
   }, [dailyHours, membershipStartDate, durationKey]);
+
+  const warmSeatOccupancy = useCallback(() => {
+    const params = new URLSearchParams({
+      planKind,
+      startDate: membershipStartDate,
+      durationKey,
+    });
+    void fetch(`/api/memberships/seat-occupancy?${params.toString()}`, {
+      credentials: "same-origin",
+    });
+  }, [planKind, membershipStartDate, durationKey]);
+
+  const onContinueHover = useCallback(() => {
+    prefetchMembershipPath(router, continueHref.split("#")[0] ?? continueHref);
+    warmSeatOccupancy();
+  }, [router, continueHref, warmSeatOccupancy]);
 
   const onContinue = useCallback(() => {
     router.push(continueHref);
@@ -272,6 +296,8 @@ export default function MembershipHubClient() {
         <button
           type="button"
           onClick={onContinue}
+          onMouseEnter={onContinueHover}
+          onFocus={onContinueHover}
           className="flex w-full min-h-[50px] items-center justify-center rounded-xl bg-azure-500 text-[15px] font-semibold text-white shadow-sm transition hover:bg-azure-600 active:scale-[0.99]"
         >
           Continue to seat map

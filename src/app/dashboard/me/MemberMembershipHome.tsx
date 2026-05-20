@@ -23,6 +23,7 @@ type ProfileRow = {
   full_name: string;
   device_user_id: number;
   phone: string | null;
+  email: string | null;
   verification_status: string;
   aadhaar_last_four: string | null;
   student_roll_number: string | null;
@@ -95,7 +96,7 @@ export default function MemberMembershipHome() {
       const [profRes, memRes] = await Promise.all([
         supabase
           .from("profiles")
-          .select("full_name, device_user_id, phone, is_verified, profile_extras, avatar_url")
+          .select("full_name, device_user_id, phone, email, is_verified, profile_extras, avatar_url")
           .eq("user_id", user.id)
           .maybeSingle(),
         supabase
@@ -122,6 +123,7 @@ export default function MemberMembershipHome() {
           full_name: String((prof as { full_name?: string }).full_name ?? ""),
           device_user_id: Number((prof as { device_user_id?: number }).device_user_id),
           phone: (prof as { phone?: string | null }).phone ?? null,
+          email: (prof as { email?: string | null }).email ?? null,
           verification_status: kyc.verificationUiStatus,
           aadhaar_last_four: x.aadhaar_last_four,
           student_roll_number: x.student_roll_number,
@@ -170,12 +172,13 @@ export default function MemberMembershipHome() {
           aria-labelledby={hasActive ? "your-profile-heading active-membership-heading" : "your-profile-heading"}
         >
           {sectionHeading("your-profile-heading", "Your profile")}
-          <div className="grid gap-6 lg:grid-cols-12 lg:items-start">
-            <div className="flex min-w-0 flex-col gap-6 lg:col-span-5">
+          <div className="grid gap-5 lg:grid-cols-12 lg:items-start lg:gap-5">
+            <div className="flex min-w-0 flex-col gap-6 lg:col-span-6 lg:-ml-1 xl:-ml-2">
               <MemberProfileSection
                 fullName={profile.full_name}
                 deviceUserId={profile.device_user_id}
                 phone={profile.phone}
+                email={profile.email}
                 verificationStatus={profile.verification_status ?? "none"}
                 avatarUrl={profile.avatar_url}
                 onAvatarChanged={() => setRefreshKey((k) => k + 1)}
@@ -201,7 +204,7 @@ export default function MemberMembershipHome() {
                 </div>
               ) : null}
             </div>
-            <div className="min-w-0 lg:col-span-7">
+            <div className="min-w-0 lg:col-span-6">
               <ProfileIntakeCard
                 initial={{
                   aadhaar_last_four: profile.aadhaar_last_four,

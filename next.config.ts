@@ -6,7 +6,9 @@ import type { NextConfig } from "next";
 loadEnvConfig(process.cwd());
 
 const nextConfig: NextConfig = {
-  /* config options here */
+  experimental: {
+    optimizePackageImports: ["@supabase/supabase-js", "react-hot-toast"],
+  },
 };
 
 export default nextConfig;

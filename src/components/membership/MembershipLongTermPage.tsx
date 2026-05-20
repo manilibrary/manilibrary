@@ -1,8 +1,10 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { MembershipSeatMapSkeleton, ProfileIntakePanelSkeleton } from "@/components/ui/ContentSkeletons";
 import { DEFAULT_LIBRARY_TZ, todayYmdInTz } from "@/lib/membership/windows";
 import { useActiveMembership } from "@/hooks/useActiveMembership";
 import { CLIENT_SEAT_OCC_CACHE_TTL_MS, ddcKey, getClientCache, setClientCache } from "@/lib/client-data-cache";
@@ -16,11 +18,17 @@ import {
 import { resolveMemberSeatDisplayLabel } from "@/lib/membership/seat-label";
 import libraryInfo from "@/data/libraryInfo.json";
 import ActiveMembershipBanner, { type ActiveMembership } from "./ActiveMembershipBanner";
-import LongTermSeatMap from "./LongTermSeatMap";
 import MembershipCheckoutButton from "./MembershipCheckoutButton";
 import MembershipFlowSteps from "./MembershipFlowSteps";
 import MembershipPendingCheckoutBanner from "./MembershipPendingCheckoutBanner";
-import MembershipIntakeStepPanel from "./MembershipIntakeStepPanel";
+
+const LongTermSeatMap = dynamic(() => import("./LongTermSeatMap"), {
+  loading: () => <MembershipSeatMapSkeleton />,
+});
+
+const MembershipIntakeStepPanel = dynamic(() => import("./MembershipIntakeStepPanel"), {
+  loading: () => <ProfileIntakePanelSkeleton />,
+});
 import MembershipLegend from "./MembershipLegend";
 import MembershipPayTipsDisclosure from "./MembershipPayTipsDisclosure";
 
@@ -248,6 +256,8 @@ export default function MembershipLongTermPage() {
                 type="button"
                 disabled={selected == null}
                 onClick={() => setStep(2)}
+                onMouseEnter={() => void import("./MembershipIntakeStepPanel")}
+                onFocus={() => void import("./MembershipIntakeStepPanel")}
                 className="flex w-full min-h-12 items-center justify-center rounded-full bg-azure-500 px-6 text-sm font-semibold text-white shadow-sm transition hover:bg-azure-600 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 Next: details &amp; documents

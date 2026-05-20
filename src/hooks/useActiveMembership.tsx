@@ -52,7 +52,18 @@ function writeCache(userId: string | undefined, payload: MeActiveCachePayload): 
 }
 
 export function ActiveMembershipProvider({ children }: { children: React.ReactNode }) {
-  const [state, setState] = useState<State>(initial);
+  const [state, setState] = useState<State>(() => {
+    const guest = readCache(undefined);
+    if (guest) {
+      return {
+        loading: false,
+        signedIn: guest.signedIn,
+        membership: guest.membership,
+        error: guest.error,
+      };
+    }
+    return initial;
+  });
 
   useEffect(() => {
     let cancelled = false;
