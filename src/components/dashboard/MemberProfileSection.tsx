@@ -13,6 +13,8 @@ type Props = {
   onAvatarChanged: () => void;
 };
 
+const AVATAR_MAX_BYTES = 2 * 1024 * 1024;
+
 function initials(name: string): string {
   const parts = name.trim().split(/\s+/).filter(Boolean);
   if (parts.length >= 2) return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
@@ -47,6 +49,10 @@ export default function MemberProfileSection({
 
   const upload = useCallback(
     async (file: File) => {
+      if (file.size > AVATAR_MAX_BYTES) {
+        setErr("Image must be 2 MB or smaller.");
+        return;
+      }
       setErr(null);
       setMsg(null);
       setBusy(true);

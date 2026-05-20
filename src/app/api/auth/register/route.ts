@@ -1,6 +1,7 @@
 import { apiError, apiSuccess, apiErrorSafe } from "@/lib/api/json-response";
 import { createSupabaseRouteHandlerClient } from "@/lib/supabase/route-handler";
 import { guardAuthEmail, guardPublicAuthPost } from "@/lib/security/request-guards";
+import { signupEmailRedirectTo } from "@/lib/auth/signup-email-redirect";
 import { validateRegisterFields } from "@/lib/security/validate-fields";
 
 export const runtime = "nodejs";
@@ -47,7 +48,7 @@ export async function POST(request: Request) {
       email,
       password,
       options: {
-        emailRedirectTo: origin ? `${origin}/auth/callback?next=${encodeURIComponent("/login")}` : undefined,
+        emailRedirectTo: signupEmailRedirectTo(origin, mobile),
         data: {
           full_name: name,
           ...(phone ? { phone } : {}),
@@ -59,7 +60,7 @@ export async function POST(request: Request) {
       const msg = error.message?.toLowerCase() ?? "";
       if (msg.includes("confirmation email") || msg.includes("error sending")) {
         return apiError(
-          "Could not send the verification email. In Supabase: Authentication → SMTP — use a Gmail App Password (not your normal password), then save and try again.",
+          "Could not send the verification email. Titan SMTP often blocks Supabase — use Resend SMTP in Supabase, or ask Titan to allow Supabase IPs. Check Authentication → Logs for details.",
           400,
         );
       }
