@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
 
 import { formatDateDdMmYyyy } from "@/lib/date-format";
 import { CLIENT_DATA_CACHE_TTL_MS, ddcKey, getClientCache, invalidateClientCachePrefix, setClientCache } from "@/lib/client-data-cache";
@@ -37,6 +37,8 @@ const initial: State = {
   error: null,
 };
 
+const ActiveMembershipContext = createContext<State | null>(null);
+
 function cacheKeyForUser(userId: string | undefined): string {
   return userId ? ddcKey.meActive(userId) : ddcKey.meActiveGuest();
 }
@@ -49,15 +51,7 @@ function writeCache(userId: string | undefined, payload: MeActiveCachePayload): 
   setClientCache(cacheKeyForUser(userId), payload, CLIENT_DATA_CACHE_TTL_MS);
 }
 
-/**
- * Centralised client hook that asks `/api/memberships/me-active` once per
- * mount. Components reuse the result to swap CTAs ("Reserve a seat" →
- * "View my membership"), display badges, etc.
- *
- * Results are mirrored to sessionStorage (via client-data-cache) for faster
- * reloads and tab returns. Cache is cleared on sign-out.
- */
-export function useActiveMembership(): State {
+export function ActiveMembershipProvider({ children }: { children: React.ReactNode }) {
   const [state, setState] = useState<State>(initial);
 
   useEffect(() => {
@@ -141,7 +135,17 @@ export function useActiveMembership(): State {
     };
   }, []);
 
-  return state;
+  const value = useMemo(() => state, [state]);
+  return <ActiveMembershipContext.Provider value={value}>{children}</ActiveMembershipContext.Provider>;
+}
+
+/** One shared `/api/memberships/me-active` fetch per page (via `ActiveMembershipProvider`). */
+export function useActiveMembership(): State {
+  const ctx = useContext(ActiveMembershipContext);
+  if (!ctx) {
+    throw new Error("useActiveMembership must be used inside ActiveMembershipProvider");
+  }
+  return ctx;
 }
 
 export function formatMembershipWindow(m: ActiveMembershipShape): string {

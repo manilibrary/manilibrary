@@ -2,7 +2,9 @@
 
 import Image from "next/image";
 import { useCallback, useEffect, useRef, useState } from "react";
+
 import UploadBlockingOverlay from "@/components/UploadBlockingOverlay";
+
 import { compressImageUnder } from "@/lib/compress-image";
 import { displayPersonName } from "@/lib/format-person-name";
 
@@ -14,6 +16,8 @@ type Props = {
   avatarUrl: string | null;
   onAvatarChanged: () => void;
 };
+
+const AVATAR_MAX_BYTES = 2 * 1024 * 1024;
 
 function initials(name: string): string {
   const parts = name.trim().split(/\s+/).filter(Boolean);
@@ -57,6 +61,8 @@ export default function MemberProfileSection({
 
   const upload = useCallback(
     async (file: File) => {
+
+
       if (busyRef.current) return;
       busyRef.current = true;
       setErr(null);
@@ -119,8 +125,7 @@ export default function MemberProfileSection({
     <div className="rounded-2xl border border-ink-100 bg-white p-6 shadow-sm">
       <UploadBlockingOverlay active={busy} label="Uploading photo…" />
       <div className="flex flex-col gap-6 sm:flex-row sm:items-start">
-        <div className="flex shrink-0 flex-col items-center gap-3 sm:items-start">
-          <div className="relative h-28 w-28 overflow-hidden rounded-2xl border border-ink-100 bg-ink-50 shadow-inner">
+
             {shownAvatarUrl ? (
               <Image
                 src={shownAvatarUrl}
@@ -135,6 +140,19 @@ export default function MemberProfileSection({
                 {initials(displayName)}
               </span>
             )}
+            {shownAvatarUrl ? (
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => void removePhoto()}
+                className="absolute right-1 top-1 z-10 flex h-6 w-6 items-center justify-center rounded-full bg-ink-900/75 text-white opacity-0 shadow-sm ring-1 ring-white/40 transition-opacity group-hover:opacity-100 group-active:opacity-100 focus:opacity-100 hover:bg-ink-900 disabled:pointer-events-none disabled:opacity-40"
+                aria-label="Remove profile photo"
+              >
+                <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="2.5" aria-hidden>
+                  <path d="M6 6l12 12M18 6L6 18" strokeLinecap="round" />
+                </svg>
+              </button>
+            ) : null}
           </div>
           <input
             ref={inputRef}
@@ -156,16 +174,7 @@ export default function MemberProfileSection({
             >
               {busy ? "Working…" : shownAvatarUrl ? "Change photo" : "Upload photo"}
             </button>
-            {shownAvatarUrl ? (
-              <button
-                type="button"
-                disabled={busy}
-                onClick={() => void removePhoto()}
-                className="rounded-full border border-ink-200 bg-white px-4 py-2 text-xs font-semibold text-ink-700 hover:bg-ink-50 disabled:opacity-50"
-              >
-                Remove
-              </button>
-            ) : null}
+
           </div>
           <p className="max-w-[200px] text-center text-[11px] leading-snug text-ink-500 sm:text-left">
             JPG, PNG or WebP · up to 2&nbsp;MB. Shown on your member profile only.

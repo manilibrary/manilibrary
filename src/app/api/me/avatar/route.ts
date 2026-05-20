@@ -1,12 +1,11 @@
 import { randomUUID } from "crypto";
 
 import { apiError, apiSuccess, apiErrorSafe } from "@/lib/api/json-response";
+import { AVATAR_UPLOAD_MAX_BYTES } from "@/lib/security/field-limits";
 import { getAuthUserForApiRequest } from "@/lib/supabase/api-route-auth";
 import { createSupabaseServiceRoleClient } from "@/lib/supabase/service-role";
 
 export const runtime = "nodejs";
-
-const MAX_BYTES = 2 * 1024 * 1024;
 const ALLOWED = new Set(["image/jpeg", "image/png", "image/webp"]);
 
 function bucket(): string {
@@ -64,7 +63,7 @@ export async function POST(request: Request) {
   if (!ALLOWED.has(ct)) {
     return apiError("Use JPG, PNG, or WebP.", 400);
   }
-  if (file.size > MAX_BYTES) {
+  if (file.size > AVATAR_UPLOAD_MAX_BYTES) {
     return apiError("Image must be 2 MB or smaller.", 400);
   }
 

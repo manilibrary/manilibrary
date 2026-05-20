@@ -13,10 +13,10 @@ import MemberProfileSection from "@/components/dashboard/MemberProfileSection";
 import { CLIENT_DATA_CACHE_TTL_MS, ddcKey, getClientCache, setClientCache } from "@/lib/client-data-cache";
 import { extrasToDisplayFields } from "@/lib/profiles/profile-extras";
 import { createClient } from "@/lib/supabase/client";
+import { loadMemberKycForDashboard } from "@/lib/members/member-kyc-client-load";
 import {
-  deriveUiVerificationStatus,
-  type VerificationDocItem,
-  type VerificationRow,
+  type KycDocType,
+  type MemberKycSlotSummary,
 } from "@/lib/verification/verification-repo";
 
 type ProfileRow = {
@@ -50,6 +50,9 @@ export default function MemberMembershipHome() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
   const [uploadedDocs, setUploadedDocs] = useState<Record<string, boolean>>({});
+  const [memberKycSlots, setMemberKycSlots] = useState<
+    Record<KycDocType, MemberKycSlotSummary> | null
+  >(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -70,17 +73,26 @@ export default function MemberMembershipHome() {
       const kProf = ddcKey.profileMemberHome(user.id);
       const kMem = ddcKey.memberships(user.id);
       const kDocs = ddcKey.verifDocs(user.id);
+      const kMyc = ddcKey.verifMemberKyc(user.id);
 
       if (useCache) {
         const cProf = getClientCache<ProfileRow>(kProf);
         const cMem = getClientCache<MemberActivePlanRow[]>(kMem);
+        const cMyc = getClientCache<{ uploadedDocs: Record<string, boolean>; memberKycSlots: Record<KycDocType, MemberKycSlotSummary> }>(
+          kMyc,
+        );
         const cDocs = getClientCache<Record<string, boolean>>(kDocs);
         if (cProf) setProfile(cProf);
         if (cMem) setMemberships(cMem);
-        if (cDocs) setUploadedDocs(cDocs);
+        if (cMyc) {
+          setUploadedDocs(cMyc.uploadedDocs);
+          setMemberKycSlots(cMyc.memberKycSlots);
+        } else if (cDocs) {
+          setUploadedDocs(cDocs);
+        }
       }
 
-      const [profRes, memRes, verRes] = await Promise.all([
+      const [profRes, memRes] = await Promise.all([
         supabase
           .from("profiles")
           .select("full_name, device_user_id, phone, is_verified, profile_extras, avatar_url")
@@ -91,14 +103,6 @@ export default function MemberMembershipHome() {
           .select("id, plan_kind, status, seat_number, starts_at, ends_at, valid_from, valid_until, created_at")
           .eq("user_id", user.id)
           .order("created_at", { ascending: false }),
-        supabase
-          .from("verification")
-          .select("id, status")
-          .eq("user_id", user.id)
-          .is("deleted_at", null)
-          .order("submitted_at", { ascending: false })
-          .limit(1)
-          .maybeSingle(),
       ]);
 
       if (cancelled) return;
@@ -110,48 +114,15 @@ export default function MemberMembershipHome() {
       }
       if (prof) {
         const x = extrasToDisplayFields((prof as { profile_extras?: unknown }).profile_extras);
-        const latestRow = verRes.data as Pick<VerificationRow, "id" | "status"> | null;
-        const latestDocs: VerificationDocItem[] = [];
-        if (latestRow?.id) {
-          const { data: docRows } = await supabase
-            .from("verification_documents")
-            .select("doc_type, phase, storage_bucket, storage_path, content_type")
-            .eq("verification_id", latestRow.id)
-            .is("deleted_at", null);
-          for (const r of docRows ?? []) {
-            const o = r as Record<string, unknown>;
-            const docType = o.doc_type;
-            const phase = o.phase;
-            if (
-              typeof docType === "string" &&
-              (docType === "aadhaar_front" || docType === "aadhaar_back" || docType === "student_id") &&
-              (phase === "checkout_pending" || phase === "submitted") &&
-              typeof o.storage_bucket === "string" &&
-              typeof o.storage_path === "string" &&
-              typeof o.content_type === "string"
-            ) {
-              latestDocs.push({
-                doc_type: docType as VerificationDocItem["doc_type"],
-                storage_bucket: o.storage_bucket,
-                storage_path: o.storage_path,
-                content_type: o.content_type,
-                phase,
-              });
-            }
-          }
-        }
-        const rowForUi: Pick<VerificationRow, "status"> | null = latestRow
-          ? { status: String(latestRow.status ?? "none") }
-          : null;
+        const isVerified = (prof as { is_verified?: boolean }).is_verified === true;
+        const kycPromise = loadMemberKycForDashboard(supabase, user.id, isVerified);
+        const kyc = await kycPromise;
+        if (cancelled) return;
         const mapped: ProfileRow = {
           full_name: String((prof as { full_name?: string }).full_name ?? ""),
           device_user_id: Number((prof as { device_user_id?: number }).device_user_id),
           phone: (prof as { phone?: string | null }).phone ?? null,
-          verification_status: deriveUiVerificationStatus(
-            (prof as { is_verified?: boolean }).is_verified === true,
-            rowForUi,
-            latestDocs,
-          ),
+          verification_status: kyc.verificationUiStatus,
           aadhaar_last_four: x.aadhaar_last_four,
           student_roll_number: x.student_roll_number,
           institution_type: x.institution_type,
@@ -160,6 +131,14 @@ export default function MemberMembershipHome() {
         };
         setProfile(mapped);
         setClientCache(kProf, mapped, CLIENT_DATA_CACHE_TTL_MS);
+        setUploadedDocs(kyc.uploadedDocs);
+        setMemberKycSlots(kyc.memberKycSlots);
+        setClientCache(kDocs, kyc.uploadedDocs, CLIENT_DATA_CACHE_TTL_MS);
+        setClientCache(
+          kMyc,
+          { uploadedDocs: kyc.uploadedDocs, memberKycSlots: kyc.memberKycSlots },
+          CLIENT_DATA_CACHE_TTL_MS,
+        );
       }
 
       const { data: memRows, error: me } = memRes;
@@ -167,34 +146,6 @@ export default function MemberMembershipHome() {
         const rows = (memRows ?? []) as MemberActivePlanRow[];
         setMemberships(rows);
         setClientCache(kMem, rows, CLIENT_DATA_CACHE_TTL_MS);
-      }
-
-      const { data: openVer } = await supabase
-        .from("verification")
-        .select("id")
-        .eq("user_id", user.id)
-        .in("status", ["pending", "resubmit"])
-        .is("deleted_at", null)
-        .order("submitted_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
-
-      const docMap: Record<string, boolean> = {};
-      if (openVer?.id) {
-        const { data: openDocs } = await supabase
-          .from("verification_documents")
-          .select("doc_type, phase")
-          .eq("verification_id", openVer.id)
-          .eq("phase", "submitted")
-          .is("deleted_at", null);
-        for (const r of openDocs ?? []) {
-          const o = r as { doc_type?: string };
-          if (o.doc_type) docMap[o.doc_type] = true;
-        }
-      }
-      if (!cancelled) {
-        setUploadedDocs(docMap);
-        setClientCache(kDocs, docMap, CLIENT_DATA_CACHE_TTL_MS);
       }
     })();
     return () => {
@@ -260,6 +211,7 @@ export default function MemberMembershipHome() {
                   verification_status: profile.verification_status ?? "none",
                 }}
                 uploadedDocs={uploadedDocs}
+                memberKycSlots={memberKycSlots ?? undefined}
                 onSaved={() => setRefreshKey((k) => k + 1)}
               />
             </div>

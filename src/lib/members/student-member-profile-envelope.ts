@@ -3,10 +3,27 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { displayPersonName } from "@/lib/format-person-name";
 import { extrasToDisplayFields } from "@/lib/profiles/profile-extras";
 import {
+  buildMemberKycSlotSummaries,
   deriveUiVerificationStatus,
+  fetchDocumentsForVerificationIds,
+  fetchLatestVerification,
+  fetchOpenVerification,
+  kycOriginalNamesFromDocs,
+  mergeVerificationDocsForMember,
+  type KycDocType,
   type VerificationDocItem,
   type VerificationRow,
 } from "@/lib/verification/verification-repo";
+
+function kycDocUploadedSlots(docs: VerificationDocItem[]) {
+  const has = (dt: KycDocType) =>
+    docs.some((d) => d.doc_type === dt && (d.phase === "checkout_pending" || d.phase === "submitted"));
+  return {
+    aadhaarFront: has("aadhaar_front"),
+    aadhaarBack: has("aadhaar_back"),
+    studentId: has("student_id"),
+  };
+}
 
 export type StudentMemberProfileBodyResult =
   | { ok: true; body: Record<string, unknown> }
@@ -26,6 +43,7 @@ function parseDeviceUserId(raw: unknown): number | null {
 /**
  * JSON body for `GET /api/me/member-profile` and (subset use) enriched `GET /api/auth/me` —
  * same shape the Expo app expects via `pickMemberProfile`.
+ * Includes `kycDocUploaded` + `kycDocOriginalNames` for per-document UI (filenames, re-upload).
  */
 export async function buildStudentMemberProfileBody(
   admin: SupabaseClient,
@@ -47,53 +65,28 @@ export async function buildStudentMemberProfileBody(
     return { ok: false, status: 403, message: "No library profile for this account." };
   }
 
-  const { data: latestRow } = await admin
-    .from("verification")
-    .select("id, status")
-    .eq("user_id", user.id)
-    .is("deleted_at", null)
-    .order("submitted_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
+  const [{ data: openRow }, { data: latestRow }] = await Promise.all([
+    fetchOpenVerification(admin, user.id),
+    fetchLatestVerification(admin, user.id),
+  ]);
 
-  const latestDocs: VerificationDocItem[] = [];
-  const row = latestRow as Pick<VerificationRow, "id" | "status"> | null;
-  if (row?.id) {
-    const { data: docRows } = await admin
-      .from("verification_documents")
-      .select("doc_type, phase, storage_bucket, storage_path, content_type")
-      .eq("verification_id", row.id)
-      .is("deleted_at", null);
-    for (const r of docRows ?? []) {
-      const o = r as Record<string, unknown>;
-      const docType = o.doc_type;
-      const phase = o.phase;
-      if (
-        typeof docType === "string" &&
-        (docType === "aadhaar_front" || docType === "aadhaar_back" || docType === "student_id") &&
-        (phase === "checkout_pending" || phase === "submitted") &&
-        typeof o.storage_bucket === "string" &&
-        typeof o.storage_path === "string" &&
-        typeof o.content_type === "string"
-      ) {
-        latestDocs.push({
-          doc_type: docType as VerificationDocItem["doc_type"],
-          storage_bucket: o.storage_bucket,
-          storage_path: o.storage_path,
-          content_type: o.content_type,
-          phase,
-        });
-      }
-    }
-  }
+  const open = openRow as Pick<VerificationRow, "id" | "status"> | null;
+  const latest = latestRow as Pick<VerificationRow, "id" | "status"> | null;
+  const orderedIds = [...new Set([open?.id, latest?.id].filter((x): x is string => typeof x === "string" && x.length > 0))];
+  const docMap =
+    orderedIds.length > 0 ? await fetchDocumentsForVerificationIds(admin, orderedIds) : new Map<string, VerificationDocItem[]>();
+  const mergedDocs = mergeVerificationDocsForMember(orderedIds, docMap);
 
   const x = extrasToDisplayFields((prof as { profile_extras?: unknown }).profile_extras);
-  const rowForUi: Pick<VerificationRow, "status"> | null = row ? { status: String(row.status ?? "none") } : null;
+  const statusRow: Pick<VerificationRow, "status"> | null = (open ?? latest) ? { status: String((open ?? latest)?.status ?? "none") } : null;
   const verificationStatus = deriveUiVerificationStatus(
     (prof as { is_verified?: boolean }).is_verified === true,
-    rowForUi,
-    latestDocs,
+    statusRow,
+    mergedDocs,
   );
+
+  const isVerifiedProf = (prof as { is_verified?: boolean }).is_verified === true;
+  const slotSummaries = buildMemberKycSlotSummaries(isVerifiedProf, verificationStatus, mergedDocs);
 
   const isStaff =
     (prof as { is_admin?: boolean }).is_admin === true ||
@@ -114,6 +107,9 @@ export async function buildStudentMemberProfileBody(
       libraryNumber,
       avatarUrl: ((prof as { avatar_url?: string | null }).avatar_url as string | null) ?? null,
       verificationStatus,
+      kycDocUploaded: kycDocUploadedSlots(mergedDocs),
+      kycDocOriginalNames: kycOriginalNamesFromDocs(mergedDocs),
+      memberKycSlots: slotSummaries,
       aadhaarLastFour: x.aadhaar_last_four,
       studentRollNumber: x.student_roll_number,
       institutionType: x.institution_type,

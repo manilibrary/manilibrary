@@ -45,6 +45,9 @@ export default function RegisterForm() {
   const [error, setError] = useState<string | null>(null);
   const [verificationSent, setVerificationSent] = useState(false);
   const [cooldownLeft, setCooldownLeft] = useState(0);
+  const [resending, setResending] = useState(false);
+  const [resendError, setResendError] = useState<string | null>(null);
+  const [resendOk, setResendOk] = useState(false);
   const loginAfterVerifyHref = useMemo(() => {
     const q = new URLSearchParams({ registered: "1", confirm: "1" });
     const next = sanitizeInternalNext(searchParams.get("next"));
@@ -127,6 +130,47 @@ export default function RegisterForm() {
     }
   };
 
+  const onResendVerification = async () => {
+    setResendError(null);
+    setResendOk(false);
+    if (cooldownLeft > 0) return;
+    if (captchaRequired && !turnstileToken) {
+      setResendError("Complete the security check below.");
+      return;
+    }
+    const trimmedEmail = email.trim().toLowerCase();
+    if (!trimmedEmail.includes("@")) {
+      setResendError("Enter a valid email address.");
+      return;
+    }
+    setResending(true);
+    try {
+      const res = await fetch("/api/auth/resend-verification", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          email: trimmedEmail,
+          origin: typeof window !== "undefined" ? window.location.origin : "",
+          ...(turnstileToken ? { turnstileToken } : {}),
+        }),
+      });
+      const json = (await res.json()) as { ok?: boolean; error?: string };
+      if (!res.ok || json.ok === false) {
+        setResendError(json.error ?? "Could not resend verification email.");
+        setResending(false);
+        return;
+      }
+      startSignupEmailCooldown();
+      setCooldownLeft(SIGNUP_EMAIL_COOLDOWN_SEC);
+      setResendOk(true);
+      setResending(false);
+    } catch {
+      setResendError("Network error. Try again.");
+      setResending(false);
+    }
+  };
+
   return (
     <div className="grid min-h-screen lg:grid-cols-2">
       <section className="flex flex-col justify-between bg-white px-6 py-8 md:px-12 lg:px-16">
@@ -171,6 +215,12 @@ export default function RegisterForm() {
               email={email.trim().toLowerCase()}
               cooldownLeft={cooldownLeft}
               loginHref={loginAfterVerifyHref}
+              captchaRequired={captchaRequired}
+              onTurnstileToken={setTurnstileToken}
+              resending={resending}
+              resendError={resendError}
+              resendOk={resendOk}
+              onResend={onResendVerification}
             />
           ) : null}
 
@@ -394,10 +444,22 @@ function VerificationSentPanel({
   email,
   cooldownLeft,
   loginHref,
+  captchaRequired,
+  onTurnstileToken,
+  resending,
+  resendError,
+  resendOk,
+  onResend,
 }: {
   email: string;
   cooldownLeft: number;
   loginHref: string;
+  captchaRequired: boolean;
+  onTurnstileToken: (token: string | null) => void;
+  resending: boolean;
+  resendError: string | null;
+  resendOk: boolean;
+  onResend: () => void;
 }) {
   return (
     <div className="mt-6 rounded-xl border border-emerald-200 bg-emerald-50/80 p-4 text-sm text-emerald-900">
@@ -406,11 +468,31 @@ function VerificationSentPanel({
         We sent a verification link to <span className="font-mono">{email}</span>. Open it to
         confirm your account, then sign in.
       </p>
+      {resendOk ? (
+        <p className="mt-3 text-xs font-medium text-emerald-900">Verification email sent again.</p>
+      ) : null}
       {cooldownLeft > 0 ? (
         <p className="mt-3 text-xs text-emerald-800">
-          You can register again in <span className="font-semibold tabular-nums">{cooldownLeft}s</span>.
+          Resend available in <span className="font-semibold tabular-nums">{cooldownLeft}s</span>.
         </p>
-      ) : null}
+      ) : (
+        <div className="mt-3 space-y-3">
+          {captchaRequired ? <TurnstileWidget onToken={onTurnstileToken} /> : null}
+          {resendError ? (
+            <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
+              {resendError}
+            </p>
+          ) : null}
+          <button
+            type="button"
+            onClick={onResend}
+            disabled={resending}
+            className="inline-flex items-center justify-center rounded-full border border-emerald-300 bg-white px-4 py-2 text-xs font-semibold text-emerald-900 transition hover:bg-emerald-50 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {resending ? "Sending…" : "Resend verification email"}
+          </button>
+        </div>
+      )}
       <Link
         href={loginHref}
         className="mt-4 inline-block text-sm font-medium text-azure-600 hover:text-azure-700"

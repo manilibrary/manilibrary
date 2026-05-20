@@ -2,7 +2,7 @@ import { loadEnvConfig } from "@next/env";
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import { MEMBER_LANDING_PATH, STAFF_LANDING_PATH } from "@/lib/auth-landing";
-import { JSON_BODY_MAX_BYTES } from "@/lib/security/field-limits";
+import { maxPostBodyBytesForPath } from "@/lib/security/field-limits";
 import { applyRateLimit, getClientIp } from "@/lib/security/request-guards";
 import { RATE_WINDOWS } from "@/lib/security/rate-limit";
 import { applySecurityHeaders } from "@/lib/security/security-headers";
@@ -13,6 +13,7 @@ const AUTH_API_PATHS = new Set([
   "/api/auth/login",
   "/api/auth/register",
   "/api/auth/forgot-password",
+  "/api/auth/resend-verification",
 ]);
 
 function guardApiRequest(request: NextRequest): NextResponse | null {
@@ -20,18 +21,7 @@ function guardApiRequest(request: NextRequest): NextResponse | null {
   const method = request.method.toUpperCase();
 
   if (method === "POST" || method === "PATCH" || method === "PUT") {
-    const contentType = request.headers.get("content-type") ?? "";
-    const isJson = contentType.includes("application/json");
-    if (isJson) {
-      const contentLength = request.headers.get("content-length");
-      if (contentLength) {
-        const n = Number.parseInt(contentLength, 10);
-        if (Number.isFinite(n) && n > JSON_BODY_MAX_BYTES) {
-          return NextResponse.json(
-            { ok: false, error: "Request body too large.", message: "Request body too large." },
-            { status: 413 },
-          );
-        }
+
       }
     }
   }
@@ -63,10 +53,21 @@ function guardApiRequest(request: NextRequest): NextResponse | null {
   return null;
 }
 
+function pathNeedsSessionRefresh(path: string): boolean {
+  return (
+    path.startsWith("/dashboard") || path === "/login" || path === "/register"
+  );
+}
+
 export async function proxy(request: NextRequest) {
   const blocked = guardApiRequest(request);
   if (blocked) {
     return applySecurityHeaders(blocked);
+  }
+
+  const path = request.nextUrl.pathname;
+  if (!pathNeedsSessionRefresh(path)) {
+    return applySecurityHeaders(NextResponse.next({ request }));
   }
 
   let supabaseResponse = NextResponse.next({ request });
@@ -119,8 +120,6 @@ export async function proxy(request: NextRequest) {
     isStaff = profile?.is_admin === true;
     isSuper = profile?.is_superadmin === true;
   }
-
-  const path = request.nextUrl.pathname;
 
   if (!user && path.startsWith("/dashboard")) {
     const url = request.nextUrl.clone();

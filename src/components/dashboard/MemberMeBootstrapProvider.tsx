@@ -10,7 +10,7 @@ import React, {
 } from "react";
 
 import type { MemberActivePlanRow } from "@/components/dashboard/MemberActiveMembershipCards";
-import { CLIENT_DATA_CACHE_TTL_MS, ddcKey, setClientCache } from "@/lib/client-data-cache";
+import { CLIENT_DATA_CACHE_TTL_MS, ddcKey, getClientCache, setClientCache } from "@/lib/client-data-cache";
 import { createClient } from "@/lib/supabase/client";
 
 type MeAttendanceDailyRow = {
@@ -44,6 +44,8 @@ export type MemberMeBootstrapContextValue = {
   ready: boolean;
   /** Initial member bundle fetch in flight (not used for silent refetch). */
   loading: boolean;
+  /** eTime attendance still loading after memberships are ready. */
+  attendanceLoading: boolean;
   /** Staff/admin — member me bundle is not fetched here. */
   skipped: boolean;
   memberUserId: string | null;
@@ -56,56 +58,48 @@ export type MemberMeBootstrapContextValue = {
 
 const MemberMeBootstrapContext = createContext<MemberMeBootstrapContextValue | null>(null);
 
-async function fetchMemberBundle(userId: string): Promise<{
+async function fetchMembershipRows(userId: string): Promise<{
   membershipRows: MemberActivePlanRow[] | null;
   membershipError: string | null;
-  attendance: MeTodayAttendancePayload | null;
-  attendanceError: string | null;
 }> {
   const supabase = createClient();
-
-  const settled = await Promise.allSettled([
-    supabase
+  try {
+    const { data, error } = await supabase
       .from("memberships")
       .select("id, plan_kind, status, seat_number, starts_at, ends_at, valid_from, valid_until, created_at")
       .eq("user_id", userId)
-      .order("created_at", { ascending: false }),
-    fetch("/api/me/today-attendance", { cache: "no-store" }).then(async (res) => {
-      const j = (await res.json()) as MeTodayAttendancePayload & { error?: string };
-      if (!res.ok || !j.ok) {
-        throw new Error(j.error ?? "Could not load attendance.");
-      }
-      return j;
-    }),
-  ]);
-
-  let membershipRows: MemberActivePlanRow[] | null = null;
-  let membershipError: string | null = null;
-  if (settled[0].status === "fulfilled") {
-    const { data, error } = settled[0].value;
+      .order("created_at", { ascending: false });
     if (error) {
-      membershipError = error.message;
-      membershipRows = [];
-    } else {
-      membershipRows = (data ?? []) as MemberActivePlanRow[];
-      setClientCache(ddcKey.memberships(userId), membershipRows, CLIENT_DATA_CACHE_TTL_MS);
+      return { membershipRows: [], membershipError: error.message };
     }
-  } else {
-    const r = settled[0].reason;
-    membershipError = r instanceof Error ? r.message : "Could not load memberships.";
-    membershipRows = [];
+    const membershipRows = (data ?? []) as MemberActivePlanRow[];
+    setClientCache(ddcKey.memberships(userId), membershipRows, CLIENT_DATA_CACHE_TTL_MS);
+    return { membershipRows, membershipError: null };
+  } catch (e) {
+    return {
+      membershipRows: [],
+      membershipError: e instanceof Error ? e.message : "Could not load memberships.",
+    };
   }
+}
 
-  let attendance: MeTodayAttendancePayload | null = null;
-  let attendanceError: string | null = null;
-  if (settled[1].status === "fulfilled") {
-    attendance = settled[1].value;
-  } else {
-    const r = settled[1].reason;
-    attendanceError = r instanceof Error ? r.message : "Could not load attendance.";
+async function fetchTodayAttendance(): Promise<{
+  attendance: MeTodayAttendancePayload | null;
+  attendanceError: string | null;
+}> {
+  try {
+    const res = await fetch("/api/me/today-attendance", { cache: "no-store" });
+    const j = (await res.json()) as MeTodayAttendancePayload & { error?: string };
+    if (!res.ok || !j.ok) {
+      return { attendance: null, attendanceError: j.error ?? "Could not load attendance." };
+    }
+    return { attendance: j, attendanceError: null };
+  } catch (e) {
+    return {
+      attendance: null,
+      attendanceError: e instanceof Error ? e.message : "Could not load attendance.",
+    };
   }
-
-  return { membershipRows, membershipError, attendance, attendanceError };
 }
 
 export function MemberMeBootstrapProvider({ children }: { children: React.ReactNode }) {
@@ -114,6 +108,7 @@ export function MemberMeBootstrapProvider({ children }: { children: React.ReactN
   const [phase, setPhase] = useState<Phase>("idle");
   const [membershipRows, setMembershipRows] = useState<MemberActivePlanRow[] | null>(null);
   const [membershipError, setMembershipError] = useState<string | null>(null);
+  const [attendanceLoading, setAttendanceLoading] = useState(false);
   const [attendance, setAttendance] = useState<MeTodayAttendancePayload | null>(null);
   const [attendanceError, setAttendanceError] = useState<string | null>(null);
 
@@ -130,6 +125,7 @@ export function MemberMeBootstrapProvider({ children }: { children: React.ReactN
       setPhase("idle");
       setMembershipRows(null);
       setMembershipError(null);
+      setAttendanceLoading(false);
       setAttendance(null);
       setAttendanceError(null);
       return;
@@ -147,6 +143,7 @@ export function MemberMeBootstrapProvider({ children }: { children: React.ReactN
       setPhase("ready");
       setMembershipRows(null);
       setMembershipError(null);
+      setAttendanceLoading(false);
       setAttendance(null);
       setAttendanceError(null);
       return;
@@ -154,18 +151,28 @@ export function MemberMeBootstrapProvider({ children }: { children: React.ReactN
 
     setSkipped(false);
     setMemberUserId(user.id);
-    if (!silent) {
+    const cachedMem = getClientCache<MemberActivePlanRow[]>(ddcKey.memberships(user.id));
+    if (cachedMem) {
+      setMembershipRows(cachedMem);
+      setMembershipError(null);
+      if (!silent) setPhase("ready");
+    } else if (!silent) {
       setPhase("loading");
     }
     setMembershipError(null);
     setAttendanceError(null);
+    setAttendanceLoading(true);
 
-    const r = await fetchMemberBundle(user.id);
-    setMembershipRows(r.membershipRows);
-    setMembershipError(r.membershipError);
-    setAttendance(r.attendance);
-    setAttendanceError(r.attendanceError);
+    const memberships = await fetchMembershipRows(user.id);
+    setMembershipRows(memberships.membershipRows);
+    setMembershipError(memberships.membershipError);
     setPhase("ready");
+
+    void fetchTodayAttendance().then((r) => {
+      setAttendance(r.attendance);
+      setAttendanceError(r.attendanceError);
+      setAttendanceLoading(false);
+    });
   }, []);
 
   useEffect(() => {
@@ -191,6 +198,7 @@ export function MemberMeBootstrapProvider({ children }: { children: React.ReactN
     () => ({
       ready: phase === "ready",
       loading: phase === "loading",
+      attendanceLoading,
       skipped,
       memberUserId,
       membershipRows,
@@ -199,7 +207,7 @@ export function MemberMeBootstrapProvider({ children }: { children: React.ReactN
       attendanceError,
       refetch,
     }),
-    [phase, skipped, memberUserId, membershipRows, membershipError, attendance, attendanceError, refetch],
+    [phase, attendanceLoading, skipped, memberUserId, membershipRows, membershipError, attendance, attendanceError, refetch],
   );
 
   return <MemberMeBootstrapContext.Provider value={value}>{children}</MemberMeBootstrapContext.Provider>;
