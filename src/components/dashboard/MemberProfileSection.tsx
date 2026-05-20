@@ -3,8 +3,6 @@
 import Image from "next/image";
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import UploadBlockingOverlay from "@/components/UploadBlockingOverlay";
-
 import { compressImageUnder } from "@/lib/compress-image";
 import { displayPersonName } from "@/lib/format-person-name";
 
@@ -12,10 +10,25 @@ type Props = {
   fullName: string;
   deviceUserId: number;
   phone: string | null;
+  email: string | null;
   verificationStatus: string;
   avatarUrl: string | null;
   onAvatarChanged: () => void;
 };
+
+function displayPhone(phone: string | null): string | null {
+  const p = phone?.trim();
+  if (!p || p.includes("@")) return null;
+  return p;
+}
+
+function displayEmail(email: string | null, phone: string | null): string | null {
+  const e = email?.trim();
+  if (e) return e;
+  const p = phone?.trim();
+  if (p?.includes("@")) return p;
+  return null;
+}
 
 const AVATAR_MAX_BYTES = 2 * 1024 * 1024;
 
@@ -30,10 +43,13 @@ export default function MemberProfileSection({
   fullName,
   deviceUserId,
   phone,
+  email,
   verificationStatus,
   avatarUrl,
   onAvatarChanged,
 }: Props) {
+  const phoneLabel = displayPhone(phone);
+  const emailLabel = displayEmail(email, phone);
   const displayName = displayPersonName(fullName, "Member");
   const inputRef = useRef<HTMLInputElement>(null);
   const busyRef = useRef(false);
@@ -122,10 +138,34 @@ export default function MemberProfileSection({
   }, [onAvatarChanged]);
 
   return (
-    <div className="rounded-2xl border border-ink-100 bg-white p-6 shadow-sm">
-      <UploadBlockingOverlay active={busy} label="Uploading photo…" />
-      <div className="flex flex-col gap-6 sm:flex-row sm:items-start">
-
+    <div className="rounded-2xl border border-ink-100 bg-white py-5 pl-4 pr-5 shadow-sm sm:pl-5 sm:pr-6">
+      <div className="flex flex-col gap-5 sm:flex-row sm:items-start sm:gap-4">
+        <div
+          className="relative flex shrink-0 flex-col items-center gap-3 sm:items-start"
+          aria-busy={busy || undefined}
+        >
+          <div className="group relative h-28 w-28 overflow-hidden rounded-2xl border border-ink-100 bg-ink-50 shadow-inner">
+            {busy ? (
+              <div
+                className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-2 bg-white/80 backdrop-blur-[2px]"
+                role="status"
+                aria-live="polite"
+              >
+                <svg
+                  className="h-6 w-6 shrink-0 animate-spin text-azure-500"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2.5"
+                  aria-hidden
+                >
+                  <path d="M12 3a9 9 0 1 0 9 9" strokeLinecap="round" />
+                </svg>
+                <span className="max-w-[6.5rem] text-center text-[10px] font-medium leading-snug text-ink-900">
+                  Uploading…
+                </span>
+              </div>
+            ) : null}
             {shownAvatarUrl ? (
               <Image
                 src={shownAvatarUrl}
@@ -186,21 +226,27 @@ export default function MemberProfileSection({
             <dt className="font-mono text-[10px] uppercase tracking-widest text-ink-500">Name</dt>
             <dd className="mt-1 font-medium text-ink-900">{displayName}</dd>
           </div>
-          <div>
+          <div className="min-w-0">
             <dt className="font-mono text-[10px] uppercase tracking-widest text-ink-500">Device user id</dt>
             <dd className="mt-1 font-mono text-lg font-semibold text-azure-600">
               {String(deviceUserId).padStart(4, "0")}
             </dd>
           </div>
-          {phone ? (
-            <div>
+          {phoneLabel ? (
+            <div className="min-w-0">
               <dt className="font-mono text-[10px] uppercase tracking-widest text-ink-500">Phone</dt>
-              <dd className="mt-1 text-ink-900">{phone}</dd>
+              <dd className="mt-1 break-all text-ink-900">{phoneLabel}</dd>
             </div>
-          ) : (
-            <div className="hidden sm:block" aria-hidden />
-          )}
-          <div className="sm:col-span-2">
+          ) : null}
+          {emailLabel ? (
+            <div className="flex min-w-0 flex-col gap-1 sm:col-span-2 sm:flex-row sm:items-center sm:gap-4">
+              <dt className="shrink-0 font-mono text-[10px] uppercase tracking-widest text-ink-500">Email</dt>
+              <dd className="min-w-0 truncate text-ink-900" title={emailLabel}>
+                {emailLabel}
+              </dd>
+            </div>
+          ) : null}
+          <div className="min-w-0 sm:col-span-2">
             <dt className="font-mono text-[10px] uppercase tracking-widest text-ink-500">ID verification</dt>
             <dd className="mt-1 capitalize text-ink-900">{verificationLabel}</dd>
           </div>

@@ -1,15 +1,16 @@
 import Link from "next/link";
+import dynamic from "next/dynamic";
 import { Suspense } from "react";
-import MembershipHubClient from "@/components/membership/MembershipHubClient";
 import { MembershipHubRouteSkeleton } from "@/components/ui/ContentSkeletons";
+
+const MembershipHubClient = dynamic(
+  () => import("@/components/membership/MembershipHubClient"),
+  { loading: () => <MembershipHubRouteSkeleton /> },
+);
 
 export const metadata = {
   title: "Membership & seats",
 };
-
-function HubFallback() {
-  return <MembershipHubRouteSkeleton />;
-}
 
 export default function MembershipHubPage() {
   return (
@@ -20,7 +21,7 @@ export default function MembershipHubPage() {
         </Link>
       </nav>
 
-      <Suspense fallback={<HubFallback />}>
+      <Suspense fallback={<MembershipHubRouteSkeleton />}>
         <MembershipHubClient />
       </Suspense>
     </div>

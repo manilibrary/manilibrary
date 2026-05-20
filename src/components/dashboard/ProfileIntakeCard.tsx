@@ -5,8 +5,6 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import { parseFetchJson } from "@/lib/api/parse-fetch-json";
 
-import UploadBlockingOverlay from "@/components/UploadBlockingOverlay";
-
 import { compressImageUnder } from "@/lib/compress-image";
 import { createClient } from "@/lib/supabase/client";
 import {
@@ -364,7 +362,7 @@ export default function ProfileIntakeCard({
         }
         setMsg("Uploaded. Change file anytime before you pay.");
 
-        onStagedDocChange?.();
+        onStagedDocChange?.(docType);
         await new Promise((r) => setTimeout(r, 5000));
 
       } catch (e) {
@@ -392,7 +390,6 @@ export default function ProfileIntakeCard({
 
   return (
     <div className="w-full space-y-6 rounded-2xl border border-ink-100 bg-white p-6 shadow-sm">
-      <UploadBlockingOverlay active={upBusy !== null} label="Uploading document…" />
       <div
         className={`relative flex flex-wrap items-start justify-between gap-3 ${verifiedOnDashboard ? "pr-10 sm:pr-12" : ""}`}
       >

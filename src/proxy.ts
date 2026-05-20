@@ -21,7 +21,15 @@ function guardApiRequest(request: NextRequest): NextResponse | null {
   const method = request.method.toUpperCase();
 
   if (method === "POST" || method === "PATCH" || method === "PUT") {
-
+    const maxBytes = maxPostBodyBytesForPath(path);
+    const contentLength = request.headers.get("content-length");
+    if (contentLength) {
+      const n = Number.parseInt(contentLength, 10);
+      if (Number.isFinite(n) && n > maxBytes) {
+        return NextResponse.json(
+          { ok: false, error: "Request body too large.", message: "Request body too large." },
+          { status: 413 },
+        );
       }
     }
   }

@@ -1,10 +1,16 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import ProfileIntakeCard, { type ProfileIntakeInitial } from "@/components/dashboard/ProfileIntakeCard";
+import type { ProfileIntakeInitial } from "@/components/dashboard/ProfileIntakeCard";
+
+const ProfileIntakeCard = dynamic(
+  () => import("@/components/dashboard/ProfileIntakeCard"),
+  { loading: () => <ProfileIntakePanelSkeleton /> },
+);
 import { ProfileIntakePanelSkeleton } from "@/components/ui/ContentSkeletons";
 import { parseFetchJson } from "@/lib/api/parse-fetch-json";
 import { CLIENT_DATA_CACHE_TTL_MS, ddcKey, getClientCache, setClientCache } from "@/lib/client-data-cache";

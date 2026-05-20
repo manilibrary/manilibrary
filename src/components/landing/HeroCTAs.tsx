@@ -1,14 +1,19 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 
 import { useActiveMembership } from "@/hooks/useActiveMembership";
 import { MEMBER_MEMBERSHIP_PATH } from "@/lib/auth-landing";
+import { prefetchMembershipPath } from "@/lib/membership/prefetch-membership";
 
 const MEMBERSHIP_ENTRY = "/membership";
 
 export default function HeroCTAs() {
+  const router = useRouter();
   const { loading, membership, signedIn } = useActiveMembership();
+
+  const warmMembership = () => prefetchMembershipPath(router, MEMBERSHIP_ENTRY);
 
   if (loading) {
     return (
@@ -41,6 +46,8 @@ export default function HeroCTAs() {
         </Link>
         <Link
           href={MEMBERSHIP_ENTRY}
+          onMouseEnter={warmMembership}
+          onFocus={warmMembership}
           className="inline-flex items-center gap-2 rounded-full border border-ink-200 bg-white px-6 py-3 text-sm font-semibold text-ink-700 transition-colors hover:border-ink-300 hover:bg-ink-50"
         >
           Explore plans &amp; seats
@@ -57,6 +64,8 @@ export default function HeroCTAs() {
     <div className="flex flex-wrap items-center justify-center gap-3">
       <Link
         href={reserveHref}
+        onMouseEnter={warmMembership}
+        onFocus={warmMembership}
         className="inline-flex items-center gap-2 rounded-full bg-azure-500 px-6 py-3 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-azure-600"
       >
         Reserve your seat
