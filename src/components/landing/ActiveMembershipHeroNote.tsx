@@ -14,7 +14,7 @@ export default function ActiveMembershipHeroNote() {
 
   return (
     <div
-      className="mx-auto mt-6 max-w-xl rounded-2xl border border-emerald-200 bg-emerald-50/85 px-5 py-3 text-left text-sm shadow-sm"
+      className="mt-6 w-full rounded-2xl border border-emerald-200 bg-emerald-50/85 px-5 py-3 text-left text-sm shadow-sm"
       role="status"
     >
       <p className="font-mono text-[10px] uppercase tracking-widest text-emerald-700">
