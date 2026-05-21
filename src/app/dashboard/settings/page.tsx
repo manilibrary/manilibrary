@@ -1,5 +1,6 @@
 import DashboardAccountPhotoCard from "@/components/dashboard/DashboardAccountPhotoCard";
 import PageHeader from "@/components/dashboard/PageHeader";
+import StaffHeroSettingsPanel from "@/components/dashboard/StaffHeroSettingsPanel";
 import libraryInfo from "@/data/libraryInfo.json";
 
 export const metadata = { title: "Settings" };
@@ -16,6 +17,15 @@ export default function SettingsPage() {
       <div className="space-y-3">
         <h2 className="font-mono text-[10px] uppercase tracking-widest text-ink-500">Your profile photo</h2>
         <DashboardAccountPhotoCard />
+      </div>
+
+      <div className="space-y-3">
+        <h2 className="font-mono text-[10px] uppercase tracking-widest text-ink-500">Homepage hero</h2>
+        <p className="text-sm text-ink-600">
+          Choose three photos from Gallery for the landing page collage. Hero 2 is the largest (center). No two
+          heroes can share the same image.
+        </p>
+        <StaffHeroSettingsPanel />
       </div>
 
       <div className="grid gap-6 lg:grid-cols-3">

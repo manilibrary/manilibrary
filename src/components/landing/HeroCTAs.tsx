@@ -9,15 +9,19 @@ import { prefetchMembershipPath } from "@/lib/membership/prefetch-membership";
 
 const MEMBERSHIP_ENTRY = "/membership";
 
-export default function HeroCTAs() {
+export default function HeroCTAs({ align = "center" }: { align?: "center" | "start" }) {
   const router = useRouter();
   const { loading, membership, signedIn } = useActiveMembership();
+  const rowClass =
+    align === "start"
+      ? "flex flex-wrap items-center justify-center gap-3 lg:justify-start"
+      : "flex flex-wrap items-center justify-center gap-3";
 
   const warmMembership = () => prefetchMembershipPath(router, MEMBERSHIP_ENTRY);
 
   if (loading) {
     return (
-      <div className="flex flex-wrap items-center justify-center gap-3">
+      <div className={rowClass}>
         <span
           className="inline-flex h-[46px] w-[200px] animate-pulse items-center justify-center rounded-full bg-azure-100/70 text-sm font-semibold text-azure-500"
           aria-label="Loading membership status"
@@ -34,7 +38,7 @@ export default function HeroCTAs() {
 
   if (membership) {
     return (
-      <div className="flex flex-wrap items-center justify-center gap-3">
+      <div className={rowClass}>
         <Link
           href={MEMBER_MEMBERSHIP_PATH}
           className="inline-flex items-center gap-2 rounded-full bg-emerald-600 px-6 py-3 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-emerald-700"
@@ -61,7 +65,7 @@ export default function HeroCTAs() {
     : `/login?next=${encodeURIComponent(MEMBERSHIP_ENTRY)}`;
 
   return (
-    <div className="flex flex-wrap items-center justify-center gap-3">
+    <div className={rowClass}>
       <Link
         href={reserveHref}
         onMouseEnter={warmMembership}

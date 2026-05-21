@@ -1,5 +1,6 @@
 import { apiError, apiSuccess, apiErrorSafe } from "@/lib/api/json-response";
 import { GALLERY_STORAGE_BUCKET } from "@/lib/gallery/constants";
+import { heroSlotColumnPrefix } from "@/lib/hero/constants";
 import { requireLibraryAdmin } from "@/lib/supabase/require-library-admin";
 import { createSupabaseServiceRoleClient } from "@/lib/supabase/service-role";
 
@@ -38,6 +39,18 @@ export async function DELETE(request: Request, context: RouteContext) {
     .eq("id", id);
 
   if (delErr) return apiErrorSafe(delErr, 400);
+
+  for (const slot of [1, 2, 3] as const) {
+    const prefix = heroSlotColumnPrefix(slot);
+    await admin
+      .from("library_settings")
+      .update({
+        [`${prefix}_gallery_image_id`]: null,
+        [`${prefix}_image_url`]: null,
+        updated_at: now,
+      })
+      .eq(`${prefix}_gallery_image_id`, id);
+  }
 
   await admin.storage.from(GALLERY_STORAGE_BUCKET).remove([row.storage_path]);
 

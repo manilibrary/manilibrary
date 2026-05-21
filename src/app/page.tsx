@@ -1,7 +1,6 @@
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
-import ActiveMembershipHeroNote from "@/components/landing/ActiveMembershipHeroNote";
-import HeroCTAs from "@/components/landing/HeroCTAs";
+import HomeHero from "@/components/landing/HomeHero";
 import PlanChooseCTA from "@/components/landing/PlanChooseCTA";
 import StatsCounter from "@/components/StatsCounter";
 import GallerySection from "@/components/landing/GallerySection";
@@ -18,7 +17,7 @@ export default function HomePage() {
     <>
       <Navbar />
       <main className="flex-1">
-        <Hero />
+        <HomeHero />
         <StatsCounter />
         <TestimonialsSection />
         <GallerySection />
@@ -31,102 +30,6 @@ export default function HomePage() {
     </>
   );
 }
-
-/* ---------------------------------------------------------- */
-/*  Hero                                                       */
-/* ---------------------------------------------------------- */
-
-function Hero() {
-  return (
-    <section className="relative overflow-hidden bg-white">
-      <div className="absolute inset-0 bg-grid-azure [mask-image:linear-gradient(to_bottom,white,transparent_85%)]" />
-      <div className="absolute inset-0 bg-azure-glow" />
-
-      <div className="relative mx-auto max-w-7xl px-5 pb-20 pt-16 md:px-8 md:pb-28 md:pt-24">
-        <div className="mx-auto max-w-3xl text-center">
-          <span className="inline-flex items-center gap-2 rounded-full border border-azure-200 bg-azure-50 px-3 py-1 text-xs font-semibold uppercase tracking-widest text-azure-700">
-            <span className="h-1.5 w-1.5 rounded-full bg-azure-500" />
-            Open 24 / 7 in Madhubani
-          </span>
-          <h1 className="mt-6 text-4xl font-semibold leading-[1.1] tracking-tight text-ink-900 md:text-6xl">
-            A focused space to{" "}
-            <span className="text-azure-500">study, read, and grow.</span>
-          </h1>
-          <p className="mx-auto mt-6 max-w-xl text-base leading-relaxed text-ink-600 md:text-lg">
-            {libraryInfo.shortDescription}
-          </p>
-          <div className="mt-8">
-            <HeroCTAs />
-          </div>
-          <ActiveMembershipHeroNote />
-          <div className="mt-6 flex flex-wrap items-center justify-center gap-2">
-            {[
-              {
-                icon: (
-                  <svg className="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <rect x="3" y="4" width="18" height="18" rx="2" /><path d="M16 2v4M8 2v4M3 10h18" />
-                  </svg>
-                ),
-                label: `Est. ${libraryInfo.established}`,
-              },
-              {
-                icon: (
-                  <svg className="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" />
-                  </svg>
-                ),
-                label: `${libraryInfo.capacity} Seats`,
-              },
-              {
-                icon: (
-                  <svg className="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" />
-                  </svg>
-                ),
-                label: "24 / 7",
-              },
-            ].map((tag) => (
-              <span
-                key={tag.label}
-                className="inline-flex items-center gap-1.5 rounded-full border border-ink-200 bg-ink-50 px-3 py-1 font-mono text-[10px] uppercase tracking-widest text-ink-500"
-              >
-                {tag.icon}
-                {tag.label}
-              </span>
-            ))}
-          </div>
-        </div>
-
-        <div className="relative mx-auto mt-14 max-w-5xl">
-          <div className="rounded-lg border border-ink-100 bg-white p-1 shadow-card">
-            <div className="overflow-hidden rounded-md border border-ink-100">
-              <div className="grid grid-cols-3 gap-px bg-ink-100">
-                {[
-                  { label: "Quiet zones", value: "8" },
-                  { label: "Cabins", value: "120" },
-                  { label: "Always open", value: "24/7" },
-                ].map((item) => (
-                  <div
-                    key={item.label}
-                    className="bg-white px-6 py-8 text-center"
-                  >
-                    <p className="font-mono text-3xl font-semibold tracking-tight text-azure-500 md:text-4xl">
-                      {item.value}
-                    </p>
-                    <p className="mt-2 text-xs uppercase tracking-widest text-ink-500">
-                      {item.label}
-                    </p>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </section>
-  );
-}
-
 
 /* ---------------------------------------------------------- */
 /*  Facilities                                                 */
