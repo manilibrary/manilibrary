@@ -10,6 +10,7 @@ import {
 import { useMemberMeBootstrap } from "@/components/dashboard/MemberMeBootstrapProvider";
 import ProfileIntakeCard from "@/components/dashboard/ProfileIntakeCard";
 import MemberProfileSection from "@/components/dashboard/MemberProfileSection";
+import MemberFeedbackCard from "@/components/dashboard/MemberFeedbackCard";
 import { CLIENT_DATA_CACHE_TTL_MS, ddcKey, getClientCache, setClientCache } from "@/lib/client-data-cache";
 import { extrasToDisplayFields } from "@/lib/profiles/profile-extras";
 import { createClient } from "@/lib/supabase/client";
@@ -30,6 +31,8 @@ type ProfileRow = {
   institution_type: string | null;
   preparing_for: string | null;
   avatar_url: string | null;
+  is_admin: boolean;
+  is_verified: boolean;
 };
 
 function sectionHeading(id: string, label: string) {
@@ -96,7 +99,7 @@ export default function MemberMembershipHome() {
       const [profRes, memRes] = await Promise.all([
         supabase
           .from("profiles")
-          .select("full_name, device_user_id, phone, email, is_verified, profile_extras, avatar_url")
+          .select("full_name, device_user_id, phone, email, is_admin, is_verified, profile_extras, avatar_url")
           .eq("user_id", user.id)
           .maybeSingle(),
         supabase
@@ -130,6 +133,8 @@ export default function MemberMembershipHome() {
           institution_type: x.institution_type,
           preparing_for: x.preparing_for,
           avatar_url: (prof as { avatar_url?: string | null }).avatar_url ?? null,
+          is_admin: (prof as { is_admin?: boolean }).is_admin === true,
+          is_verified: (prof as { is_verified?: boolean }).is_verified === true,
         };
         setProfile(mapped);
         setClientCache(kProf, mapped, CLIENT_DATA_CACHE_TTL_MS);
@@ -219,6 +224,13 @@ export default function MemberMembershipHome() {
               />
             </div>
           </div>
+        </section>
+      ) : null}
+
+      {profile && !profile.is_admin && profile.is_verified ? (
+        <section className="scroll-mt-8 space-y-4" aria-labelledby="your-feedback-heading">
+          {sectionHeading("your-feedback-heading", "Feedback")}
+          <MemberFeedbackCard />
         </section>
       ) : null}
     </div>

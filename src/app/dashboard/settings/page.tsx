@@ -1,3 +1,4 @@
+import DashboardAccountPhotoCard from "@/components/dashboard/DashboardAccountPhotoCard";
 import PageHeader from "@/components/dashboard/PageHeader";
 import libraryInfo from "@/data/libraryInfo.json";
 
@@ -11,6 +12,11 @@ export default function SettingsPage() {
         title="Library settings"
         description="Manage details that appear across the website and dashboard."
       />
+
+      <div className="space-y-3">
+        <h2 className="font-mono text-[10px] uppercase tracking-widest text-ink-500">Your profile photo</h2>
+        <DashboardAccountPhotoCard />
+      </div>
 
       <div className="grid gap-6 lg:grid-cols-3">
         <Card title="Library">

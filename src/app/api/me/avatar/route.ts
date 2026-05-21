@@ -15,11 +15,8 @@ function bucket(): string {
 function publicObjectUrl(objectPath: string): string {
   const base = process.env.NEXT_PUBLIC_SUPABASE_URL?.replace(/\/$/, "");
   if (!base) throw new Error("NEXT_PUBLIC_SUPABASE_URL is not set.");
-  const enc = objectPath
-    .split("/")
-    .map((s) => encodeURIComponent(s))
-    .join("/");
-  return `${base}/storage/v1/object/public/${bucket()}/${enc}`;
+  // Path segments must not be pre-encoded; Supabase serves the raw object key.
+  return `${base}/storage/v1/object/public/${bucket()}/${objectPath}`;
 }
 
 function pathFromPublicUrl(avatarUrl: string | null | undefined): string | null {
@@ -85,7 +82,8 @@ export async function POST(request: Request) {
     });
   }
 
-  const avatarUrl = publicObjectUrl(path);
+  const { data: urlData } = admin.storage.from(bucket()).getPublicUrl(path);
+  const avatarUrl = urlData.publicUrl || publicObjectUrl(path);
 
   const { error: updErr } = await admin.from("profiles").update({ avatar_url: avatarUrl }).eq("user_id", user.id);
   if (updErr) {

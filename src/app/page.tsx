@@ -4,6 +4,7 @@ import ActiveMembershipHeroNote from "@/components/landing/ActiveMembershipHeroN
 import HeroCTAs from "@/components/landing/HeroCTAs";
 import PlanChooseCTA from "@/components/landing/PlanChooseCTA";
 import StatsCounter from "@/components/StatsCounter";
+import TestimonialsSection from "@/components/landing/TestimonialsSection";
 import libraryInfo from "@/data/libraryInfo.json";
 
 export default function HomePage() {
@@ -13,6 +14,7 @@ export default function HomePage() {
       <main className="flex-1">
         <Hero />
         <StatsCounter />
+        <TestimonialsSection />
         <Facilities />
         <About />
         <Plans />

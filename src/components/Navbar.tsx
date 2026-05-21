@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { startTransition, useCallback, useEffect, useState } from "react";
 import Logo from "./Logo";
+import { avatarDisplayUrl } from "@/lib/avatars/avatar-display-url";
 import { createClient } from "@/lib/supabase/client";
 import { clearClientCache } from "@/lib/client-data-cache";
 import { MEMBER_ACCOUNT_PATH } from "@/lib/auth-landing";
@@ -63,6 +64,7 @@ type AuthBar = {
   signedIn: boolean;
   displayName: string;
   email: string;
+  avatarUrl: string | null;
   isAdmin: boolean;
   isSuperAdmin: boolean;
 };
@@ -72,6 +74,7 @@ const initialAuth: AuthBar = {
   signedIn: false,
   displayName: "",
   email: "",
+  avatarUrl: null,
   isAdmin: false,
   isSuperAdmin: false,
 };
@@ -105,6 +108,7 @@ export default function Navbar() {
   const [open, setOpen] = useState(() => getUxPreferenceCookie("site_nav_drawer") === "open");
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [auth, setAuth] = useState<AuthBar>(initialAuth);
+  const [avatarCacheBust, setAvatarCacheBust] = useState(0);
 
   const setSiteNavDrawerOpen = useCallback((next: boolean) => {
     setOpen(next);
@@ -118,13 +122,21 @@ export default function Navbar() {
     } = await supabase.auth.getUser();
 
     if (!user?.email) {
-      setAuth({ ready: true, signedIn: false, displayName: "", email: "", isAdmin: false, isSuperAdmin: false });
+      setAuth({
+        ready: true,
+        signedIn: false,
+        displayName: "",
+        email: "",
+        avatarUrl: null,
+        isAdmin: false,
+        isSuperAdmin: false,
+      });
       return;
     }
 
     const { data: profile } = await supabase
       .from("profiles")
-      .select("full_name, is_admin, is_superadmin")
+      .select("full_name, is_admin, is_superadmin, avatar_url")
       .eq("user_id", user.id)
       .maybeSingle();
 
@@ -143,6 +155,7 @@ export default function Navbar() {
       signedIn: true,
       displayName,
       email: user.email,
+      avatarUrl: (profile as { avatar_url?: string | null } | null)?.avatar_url ?? null,
       isAdmin: profile?.is_admin === true,
       isSuperAdmin: profile?.is_superadmin === true,
     });
@@ -160,7 +173,19 @@ export default function Navbar() {
         void loadAuth();
       });
     });
-    return () => subscription.unsubscribe();
+    const onAvatarChanged = (e: Event) => {
+      const detail = (e as CustomEvent<{ avatarUrl: string | null }>).detail;
+      setAvatarCacheBust(Date.now());
+      setAuth((a) =>
+        a.signedIn ? { ...a, avatarUrl: detail?.avatarUrl ?? a.avatarUrl } : a,
+      );
+    };
+    window.addEventListener("manilibrary:avatar-changed", onAvatarChanged);
+
+    return () => {
+      subscription.unsubscribe();
+      window.removeEventListener("manilibrary:avatar-changed", onAvatarChanged);
+    };
   }, [loadAuth]);
 
   const signOut = async () => {
@@ -179,6 +204,29 @@ export default function Navbar() {
     : "";
 
   const roleLabel = auth.isSuperAdmin ? "Superadmin" : auth.isAdmin ? "Admin" : "Member";
+  const navAvatarSrc = avatarDisplayUrl(auth.avatarUrl, avatarCacheBust || undefined);
+
+  function UserAvatarCircle({ className }: { className?: string }) {
+    return (
+      <span
+        className={`flex shrink-0 items-center justify-center overflow-hidden rounded-full bg-azure-500 font-mono text-xs font-semibold text-white ${className ?? "h-8 w-8"}`}
+      >
+        {navAvatarSrc ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={navAvatarSrc}
+            alt=""
+            width={32}
+            height={32}
+            referrerPolicy="no-referrer"
+            className="h-full w-full object-cover"
+          />
+        ) : (
+          initials
+        )}
+      </span>
+    );
+  }
 
   return (
     <header className="sticky top-0 z-50 border-b border-ink-100 bg-white/85 backdrop-blur supports-[backdrop-filter]:bg-white/70">
@@ -215,9 +263,7 @@ export default function Navbar() {
                 aria-expanded={userMenuOpen}
                 aria-haspopup="menu"
               >
-                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-azure-500 font-mono text-xs font-semibold text-white">
-                  {initials}
-                </span>
+                <UserAvatarCircle />
                 <span className="hidden max-w-[160px] flex-col items-start sm:flex lg:max-w-[220px]">
                   <span className="w-full truncate text-xs font-semibold text-ink-900">
                     {roleLabel}
@@ -245,9 +291,7 @@ export default function Navbar() {
                 aria-expanded={userMenuOpen}
                 aria-haspopup="menu"
               >
-                <span className="flex h-8 w-8 items-center justify-center rounded-full bg-azure-500 font-mono text-xs font-semibold text-white">
-                  {initials}
-                </span>
+                <UserAvatarCircle />
                 <svg
                   className={`h-4 w-4 text-ink-400 transition-transform ${userMenuOpen ? "rotate-180" : ""}`}
                   viewBox="0 0 20 20"

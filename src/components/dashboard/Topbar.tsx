@@ -1,8 +1,8 @@
 "use client";
 
-import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
+import { avatarDisplayUrl } from "@/lib/avatars/avatar-display-url";
 import { createClient } from "@/lib/supabase/client";
 import { clearAllUxPreferenceCookies } from "@/lib/ux-cookies";
 import { TopbarUserTextSkeleton } from "@/components/ui/ContentSkeletons";
@@ -21,6 +21,7 @@ export default function Topbar({ onMenu }: { onMenu: () => void }) {
   const [user, setUser] = useState<BarUser | null>(null);
   const [ready, setReady] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [avatarCacheBust, setAvatarCacheBust] = useState(0);
 
   useEffect(() => {
     const supabase = createClient();
@@ -98,6 +99,7 @@ export default function Topbar({ onMenu }: { onMenu: () => void }) {
     });
     const onAvatarChanged = (e: Event) => {
       const detail = (e as CustomEvent<{ avatarUrl: string | null }>).detail;
+      setAvatarCacheBust(Date.now());
       setUser((u) => (u ? { ...u, avatarUrl: detail?.avatarUrl ?? null } : u));
     };
     window.addEventListener("manilibrary:avatar-changed", onAvatarChanged);
@@ -121,6 +123,7 @@ export default function Topbar({ onMenu }: { onMenu: () => void }) {
   const roleLabel = user?.roleLabel ?? "Member";
   const initials =
     user?.initials ?? (ready ? "?" : "·");
+  const topbarAvatarSrc = avatarDisplayUrl(user?.avatarUrl, avatarCacheBust || undefined);
 
   return (
     <header
@@ -198,13 +201,14 @@ export default function Topbar({ onMenu }: { onMenu: () => void }) {
               className="flex items-center gap-2 rounded-full border border-ink-100 bg-white py-1 pl-1 pr-3 text-sm hover:border-ink-200"
             >
               <span className="flex h-8 w-8 items-center justify-center overflow-hidden rounded-full bg-azure-500 font-mono text-xs font-semibold text-white">
-                {user?.avatarUrl ? (
-                  <Image
-                    src={user.avatarUrl}
+                {topbarAvatarSrc ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={topbarAvatarSrc}
                     alt=""
                     width={32}
                     height={32}
-                    unoptimized
+                    referrerPolicy="no-referrer"
                     className="h-full w-full object-cover"
                   />
                 ) : (

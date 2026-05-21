@@ -90,15 +90,20 @@ export default function Footer() {
             </svg>
             <span>Built by</span>
             {libraryInfo.developers.map((d, i) => (
-              <span key={d.name}>
-                {i > 0 && ", "}
+              <span key={d.name} className="inline-flex items-center gap-1.5">
+                {i > 0 && <span>,</span>}
                 <a
                   href={d.url}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-azure-500 hover:text-azure-600"
+                  className="group inline-flex items-center gap-1.5 rounded-full px-1 transition-colors hover:text-azure-600"
                 >
-                  {d.creditName ?? d.label}
+                  <span className="font-medium text-azure-500 underline-offset-2 group-hover:text-azure-600 group-hover:underline">
+                    {d.creditName ?? d.label}
+                  </span>
+                  <span className="inline-flex items-center rounded-full border border-azure-200 bg-azure-50 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-azure-600 transition-colors group-hover:border-azure-400 group-hover:bg-azure-500 group-hover:text-white">
+                    Portfolio
+                  </span>
                 </a>
               </span>
             ))}

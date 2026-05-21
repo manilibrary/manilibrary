@@ -1,8 +1,8 @@
 "use client";
 
-import Image from "next/image";
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import { avatarDisplayUrl } from "@/lib/avatars/avatar-display-url";
 import { compressImageUnder } from "@/lib/compress-image";
 import { displayPersonName } from "@/lib/format-person-name";
 
@@ -11,9 +11,13 @@ type Props = {
   deviceUserId: number;
   phone: string | null;
   email: string | null;
-  verificationStatus: string;
+  /** When omitted (account variant), verification row is hidden. */
+  verificationStatus?: string;
   avatarUrl: string | null;
   onAvatarChanged: () => void;
+  /** Member account page vs settings (staff/member photo). */
+  variant?: "member" | "account";
+  isStaff?: boolean;
 };
 
 function displayPhone(phone: string | null): string | null {
@@ -47,7 +51,10 @@ export default function MemberProfileSection({
   verificationStatus,
   avatarUrl,
   onAvatarChanged,
+  variant = "member",
+  isStaff = false,
 }: Props) {
+  const isAccountVariant = variant === "account";
   const phoneLabel = displayPhone(phone);
   const emailLabel = displayEmail(email, phone);
   const displayName = displayPersonName(fullName, "Member");
@@ -57,12 +64,13 @@ export default function MemberProfileSection({
   const [msg, setMsg] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [localAvatarUrl, setLocalAvatarUrl] = useState<string | null>(avatarUrl);
-
+  const [avatarCacheBust, setAvatarCacheBust] = useState(0);
   useEffect(() => {
     setLocalAvatarUrl(avatarUrl);
   }, [avatarUrl]);
 
   const shownAvatarUrl = localAvatarUrl;
+  const avatarSrc = avatarDisplayUrl(shownAvatarUrl, avatarCacheBust || undefined);
 
   const verificationLabel =
     verificationStatus === "approved"
@@ -74,6 +82,7 @@ export default function MemberProfileSection({
           : verificationStatus === "resubmit"
             ? "Resubmit requested"
             : "Not submitted";
+  const showVerification = !isAccountVariant && verificationStatus != null;
 
   const upload = useCallback(
     async (file: File) => {
@@ -85,22 +94,34 @@ export default function MemberProfileSection({
       setMsg(null);
       setBusy(true);
       try {
-        const compressed = await compressImageUnder(file);
+        let uploadFile = file;
+        try {
+          uploadFile = await Promise.race([
+            compressImageUnder(file),
+            new Promise<File>((_, reject) =>
+              setTimeout(() => reject(new Error("compress_timeout")), 20_000),
+            ),
+          ]);
+        } catch {
+          uploadFile = file;
+        }
         const fd = new FormData();
-        fd.set("file", compressed);
+        fd.set("file", uploadFile);
         const res = await fetch("/api/me/avatar", { method: "POST", body: fd });
         const j = (await res.json()) as { error?: string; hint?: string; ok?: boolean; avatarUrl?: string };
         if (!res.ok || !j.ok) {
           const parts = [j.error, j.hint].filter(Boolean);
           throw new Error(parts.length ? parts.join(" ") : "Upload failed.");
         }
-        if (j.avatarUrl) setLocalAvatarUrl(j.avatarUrl);
+        if (j.avatarUrl) {
+          setLocalAvatarUrl(j.avatarUrl);
+          setAvatarCacheBust(Date.now());
+        }
         window.dispatchEvent(
           new CustomEvent("manilibrary:avatar-changed", { detail: { avatarUrl: j.avatarUrl ?? null } }),
         );
         setMsg("Photo updated.");
         onAvatarChanged();
-        await new Promise((r) => setTimeout(r, 5000));
       } catch (e) {
         setErr(e instanceof Error ? e.message : "Upload failed.");
       } finally {
@@ -166,13 +187,14 @@ export default function MemberProfileSection({
                 </span>
               </div>
             ) : null}
-            {shownAvatarUrl ? (
-              <Image
-                src={shownAvatarUrl}
+            {avatarSrc ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={avatarSrc}
                 alt=""
                 width={112}
                 height={112}
-                unoptimized
+                referrerPolicy="no-referrer"
                 className="h-full w-full object-cover"
               />
             ) : (
@@ -180,7 +202,7 @@ export default function MemberProfileSection({
                 {initials(displayName)}
               </span>
             )}
-            {shownAvatarUrl ? (
+            {avatarSrc ? (
               <button
                 type="button"
                 disabled={busy}
@@ -212,12 +234,15 @@ export default function MemberProfileSection({
               onClick={() => inputRef.current?.click()}
               className="rounded-full bg-azure-500 px-4 py-2 text-xs font-semibold text-white hover:bg-azure-600 disabled:opacity-50"
             >
-              {busy ? "Working…" : shownAvatarUrl ? "Change photo" : "Upload photo"}
+              {busy ? "Working…" : avatarSrc ? "Change photo" : "Upload photo"}
             </button>
 
           </div>
           <p className="max-w-[200px] text-center text-[11px] leading-snug text-ink-500 sm:text-left">
-            JPG, PNG or WebP · up to 2&nbsp;MB. Shown on your member profile only.
+            JPG, PNG or WebP · up to 2&nbsp;MB.{" "}
+            {isAccountVariant
+              ? "Shown in the site header and dashboard."
+              : "Shown on your member profile only."}
           </p>
         </div>
 
@@ -226,12 +251,14 @@ export default function MemberProfileSection({
             <dt className="font-mono text-[10px] uppercase tracking-widest text-ink-500">Name</dt>
             <dd className="mt-1 font-medium text-ink-900">{displayName}</dd>
           </div>
-          <div className="min-w-0">
-            <dt className="font-mono text-[10px] uppercase tracking-widest text-ink-500">Device user id</dt>
-            <dd className="mt-1 font-mono text-lg font-semibold text-azure-600">
-              {String(deviceUserId).padStart(4, "0")}
-            </dd>
-          </div>
+          {!isAccountVariant || isStaff ? (
+            <div className="min-w-0">
+              <dt className="font-mono text-[10px] uppercase tracking-widest text-ink-500">Device user id</dt>
+              <dd className="mt-1 font-mono text-lg font-semibold text-azure-600">
+                {String(deviceUserId).padStart(4, "0")}
+              </dd>
+            </div>
+          ) : null}
           {phoneLabel ? (
             <div className="min-w-0">
               <dt className="font-mono text-[10px] uppercase tracking-widest text-ink-500">Phone</dt>
@@ -246,10 +273,18 @@ export default function MemberProfileSection({
               </dd>
             </div>
           ) : null}
-          <div className="min-w-0 sm:col-span-2">
-            <dt className="font-mono text-[10px] uppercase tracking-widest text-ink-500">ID verification</dt>
-            <dd className="mt-1 capitalize text-ink-900">{verificationLabel}</dd>
-          </div>
+          {showVerification ? (
+            <div className="min-w-0 sm:col-span-2">
+              <dt className="font-mono text-[10px] uppercase tracking-widest text-ink-500">ID verification</dt>
+              <dd className="mt-1 capitalize text-ink-900">{verificationLabel}</dd>
+            </div>
+          ) : null}
+          {isAccountVariant && isStaff ? (
+            <div className="min-w-0 sm:col-span-2">
+              <dt className="font-mono text-[10px] uppercase tracking-widest text-ink-500">Role</dt>
+              <dd className="mt-1 text-ink-900">Library staff (admin)</dd>
+            </div>
+          ) : null}
         </dl>
       </div>
 
@@ -264,9 +299,11 @@ export default function MemberProfileSection({
         </p>
       ) : null}
 
-      <p className="mt-6 border-t border-ink-100 pt-4 text-xs text-ink-600">
-        Desk staff and biometric devices use your four-digit member id (leading zeros are fine).
-      </p>
+      {!isAccountVariant ? (
+        <p className="mt-6 border-t border-ink-100 pt-4 text-xs text-ink-600">
+          Desk staff and biometric devices use your four-digit member id (leading zeros are fine).
+        </p>
+      ) : null}
     </div>
   );
 }
