@@ -4,8 +4,14 @@ import ActiveMembershipHeroNote from "@/components/landing/ActiveMembershipHeroN
 import HeroCTAs from "@/components/landing/HeroCTAs";
 import PlanChooseCTA from "@/components/landing/PlanChooseCTA";
 import StatsCounter from "@/components/StatsCounter";
+import GallerySection from "@/components/landing/GallerySection";
 import TestimonialsSection from "@/components/landing/TestimonialsSection";
 import libraryInfo from "@/data/libraryInfo.json";
+import {
+  HOME_SECTION_PAD,
+  HOME_SECTION_PAD_TOP_TIGHT,
+  HOME_SECTION_PAD_BOTTOM,
+} from "@/lib/landing/home-section-spacing";
 
 export default function HomePage() {
   return (
@@ -15,6 +21,7 @@ export default function HomePage() {
         <Hero />
         <StatsCounter />
         <TestimonialsSection />
+        <GallerySection />
         <Facilities />
         <About />
         <Plans />
@@ -128,7 +135,7 @@ function Hero() {
 function Facilities() {
   return (
     <section id="facilities" className="bg-white">
-      <div className="mx-auto max-w-7xl px-5 py-20 md:px-8 md:py-28">
+      <div className={`mx-auto max-w-7xl ${HOME_SECTION_PAD_TOP_TIGHT} ${HOME_SECTION_PAD_BOTTOM}`}>
         <div className="mx-auto max-w-2xl text-center">
           <p className="text-xs font-semibold uppercase tracking-widest text-azure-500">
             Facilities
@@ -255,7 +262,7 @@ function FacilityIcon({ id }: { id: string }) {
 function About() {
   return (
     <section id="about" className="bg-surface-muted">
-      <div className="mx-auto grid max-w-7xl gap-12 px-5 py-20 md:grid-cols-2 md:gap-16 md:px-8 md:py-28">
+      <div className={`mx-auto grid max-w-7xl gap-12 md:grid-cols-2 md:gap-16 ${HOME_SECTION_PAD}`}>
         <div>
           <p className="text-xs font-semibold uppercase tracking-widest text-azure-500">
             About {libraryInfo.name}
@@ -340,7 +347,7 @@ function About() {
 function Plans() {
   return (
     <section id="plans" className="bg-white">
-      <div className="mx-auto max-w-7xl px-5 py-20 md:px-8 md:py-28">
+      <div className={`mx-auto max-w-7xl ${HOME_SECTION_PAD}`}>
         <div className="mx-auto max-w-2xl text-center">
           <p className="text-xs font-semibold uppercase tracking-widest text-azure-500">
             Membership
@@ -432,7 +439,7 @@ function Contact() {
 
   return (
     <section id="contact" className="bg-surface-muted">
-      <div className="mx-auto max-w-7xl px-5 py-20 md:px-8 md:py-28">
+      <div className={`mx-auto max-w-7xl ${HOME_SECTION_PAD}`}>
         <div className="grid gap-12 md:grid-cols-2">
           <div>
             <p className="text-xs font-semibold uppercase tracking-widest text-azure-500">
