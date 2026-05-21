@@ -1,5 +1,6 @@
 import { apiSuccess, apiErrorSafe } from "@/lib/api/json-response";
 import { displayPersonName } from "@/lib/format-person-name";
+import { extrasToDisplayFields } from "@/lib/profiles/profile-extras";
 import { createSupabaseServiceRoleClient } from "@/lib/supabase/service-role";
 
 export const runtime = "nodejs";
@@ -14,7 +15,7 @@ export async function GET() {
 
   const { data, error } = await admin
     .from("profiles")
-    .select("full_name, avatar_url, user_feedback_rating, user_feedback_comment")
+    .select("full_name, avatar_url, profile_extras, user_feedback_rating, user_feedback_comment")
     .eq("user_feedback_approved", true)
     .is("deleted_at", null)
     .not("user_feedback_rating", "is", null)
@@ -25,12 +26,16 @@ export async function GET() {
 
   const testimonials = (data ?? [])
     .filter((r) => r.user_feedback_comment?.trim())
-    .map((r) => ({
-      fullName: displayPersonName(r.full_name, "Member"),
-      avatarUrl: r.avatar_url ?? null,
-      rating: r.user_feedback_rating,
-      comment: r.user_feedback_comment,
-    }));
+    .map((r) => {
+      const preparingFor = extrasToDisplayFields(r.profile_extras).preparing_for?.trim();
+      return {
+        fullName: displayPersonName(r.full_name, "Member"),
+        subtitle: preparingFor || "Mani Library member",
+        avatarUrl: r.avatar_url ?? null,
+        rating: r.user_feedback_rating,
+        comment: r.user_feedback_comment,
+      };
+    });
 
   return apiSuccess("OK.", { testimonials });
 }

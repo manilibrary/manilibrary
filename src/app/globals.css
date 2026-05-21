@@ -168,63 +168,12 @@ thead .sticky-col {
   );
 }
 
-@keyframes testimonials-marquee {
-  from {
-    transform: translateX(0);
-  }
-  to {
-    transform: translateX(-50%);
-  }
-}
-
-.testimonials-marquee {
-  animation: testimonials-marquee 45s linear infinite;
-}
-
-.testimonials-marquee-mask {
-  -webkit-mask-image: linear-gradient(
-    to right,
-    transparent 0%,
-    rgba(0, 0, 0, 0.2) 5%,
-    rgba(0, 0, 0, 0.55) 8%,
-    rgba(0, 0, 0, 0.85) 11%,
-    #000 14%,
-    #000 86%,
-    rgba(0, 0, 0, 0.85) 89%,
-    rgba(0, 0, 0, 0.55) 92%,
-    rgba(0, 0, 0, 0.2) 95%,
-    transparent 100%
-  );
-  mask-image: linear-gradient(
-    to right,
-    transparent 0%,
-    rgba(0, 0, 0, 0.2) 5%,
-    rgba(0, 0, 0, 0.55) 8%,
-    rgba(0, 0, 0, 0.85) 11%,
-    #000 14%,
-    #000 86%,
-    rgba(0, 0, 0, 0.85) 89%,
-    rgba(0, 0, 0, 0.55) 92%,
-    rgba(0, 0, 0, 0.2) 95%,
-    transparent 100%
-  );
-  mask-mode: alpha;
-  -webkit-mask-mode: alpha;
-  mask-repeat: no-repeat;
-  -webkit-mask-repeat: no-repeat;
-  mask-size: 100% 100%;
-  -webkit-mask-size: 100% 100%;
+.testimonials-carousel-track {
+  transition: transform 450ms cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .testimonials-marquee {
-    animation: none;
-    flex-wrap: wrap;
-    width: 100%;
-    justify-content: center;
-  }
-  .testimonials-marquee-mask {
-    -webkit-mask-image: none;
-    mask-image: none;
+  .testimonials-carousel-track {
+    transition: none;
   }
 }

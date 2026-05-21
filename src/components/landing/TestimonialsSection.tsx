@@ -1,15 +1,19 @@
 "use client";
 
 import Image from "next/image";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { avatarDisplayUrl } from "@/lib/avatars/avatar-display-url";
 
 type Testimonial = {
   fullName: string;
+  subtitle: string;
   avatarUrl: string | null;
   rating: number;
   comment: string;
 };
+
+const DESKTOP_PAGE_SIZE = 3;
+const MOBILE_BREAKPOINT = 768;
 
 function initials(name: string): string {
   const parts = name.trim().split(/\s+/).filter(Boolean);
@@ -17,49 +21,127 @@ function initials(name: string): string {
   return (parts[0] ?? "?").slice(0, 2).toUpperCase();
 }
 
+function StarRating({ rating }: { rating: number }) {
+  return (
+    <p className="text-sm leading-none text-amber-400" aria-label={`${rating} out of 5 stars`}>
+      {"★".repeat(rating)}
+      <span className="text-ink-200">{"★".repeat(5 - rating)}</span>
+    </p>
+  );
+}
+
 function TestimonialCard({ item }: { item: Testimonial }) {
   const avatarSrc = avatarDisplayUrl(item.avatarUrl);
   return (
-    <article className="relative flex h-full w-[min(88vw,22rem)] shrink-0 flex-col justify-between rounded-2xl border border-ink-200/80 bg-ink-900 px-6 py-7 text-white shadow-card-hover sm:w-[22rem]">
-      <span
-        className="pointer-events-none select-none font-serif text-6xl leading-none text-white/10"
-        aria-hidden
-      >
+    <article className="flex h-full flex-col rounded-2xl border border-ink-100 bg-white p-6 shadow-sm md:p-7">
+      <span className="font-serif text-5xl leading-none text-azure-200" aria-hidden>
         &ldquo;
       </span>
-      <p className="mt-2 text-base font-semibold leading-snug text-white sm:text-lg">{item.comment}</p>
-      <div className="mt-6 flex items-center gap-3 border-t border-white/10 pt-4">
-        <div className="relative h-10 w-10 shrink-0 overflow-hidden rounded-full bg-white/10 ring-2 ring-azure-400/40">
+      <p className="mt-3 flex-1 text-sm leading-relaxed text-ink-700 md:text-[15px]">{item.comment}</p>
+      <div className="mt-4">
+        <StarRating rating={item.rating} />
+      </div>
+      <div className="mt-5 flex items-center gap-3 border-t border-ink-100 pt-5">
+        <div className="relative h-11 w-11 shrink-0 overflow-hidden rounded-full bg-ink-50 ring-1 ring-ink-100">
           {avatarSrc ? (
             <Image
               src={avatarSrc}
               alt=""
-              width={40}
-              height={40}
+              width={44}
+              height={44}
               unoptimized
               className="h-full w-full object-cover"
             />
           ) : (
-            <span className="flex h-full w-full items-center justify-center text-xs font-semibold text-white/80">
+            <span className="flex h-full w-full items-center justify-center text-xs font-semibold text-ink-500">
               {initials(item.fullName)}
             </span>
           )}
         </div>
         <div className="min-w-0">
-          <p className="truncate text-sm font-semibold text-white">{item.fullName}</p>
-          <p className="text-xs text-amber-300" aria-label={`${item.rating} out of 5 stars`}>
-            {"★".repeat(item.rating)}
-            <span className="text-white/20">{"★".repeat(5 - item.rating)}</span>
-          </p>
+          <p className="truncate text-sm font-semibold text-ink-900">{item.fullName}</p>
+          <p className="truncate text-xs text-ink-500">{item.subtitle}</p>
         </div>
       </div>
     </article>
   );
 }
 
+function NavArrow({
+  direction,
+  onClick,
+  disabled,
+}: {
+  direction: "prev" | "next";
+  onClick: () => void;
+  disabled: boolean;
+}) {
+  const label = direction === "prev" ? "Previous testimonials" : "Next testimonials";
+  return (
+    <button
+      type="button"
+      aria-label={label}
+      disabled={disabled}
+      onClick={onClick}
+      className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-ink-200 bg-white text-ink-700 shadow-sm transition hover:border-azure-300 hover:bg-azure-50 hover:text-azure-600 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:border-ink-200 disabled:hover:bg-white disabled:hover:text-ink-700"
+    >
+      <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+        {direction === "prev" ? (
+          <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+        ) : (
+          <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+        )}
+      </svg>
+    </button>
+  );
+}
+
+function TestimonialCarousel({
+  pages,
+  pageIndex,
+  pageCount,
+}: {
+  pages: Testimonial[][];
+  pageIndex: number;
+  pageCount: number;
+}) {
+  const slidePct = pageCount > 0 ? 100 / pageCount : 100;
+
+  return (
+    <div className="min-h-[16rem] min-w-0 flex-1 overflow-hidden" aria-live="polite">
+      <div
+        className="testimonials-carousel-track flex"
+        style={{
+          width: `${pageCount * 100}%`,
+          transform: `translateX(-${pageIndex * slidePct}%)`,
+        }}
+      >
+        {pages.map((page, pi) => (
+          <div
+            key={pi}
+            className="shrink-0 px-0.5"
+            style={{ width: `${slidePct}%` }}
+          >
+            <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
+              {page.map((item) => (
+                <TestimonialCard
+                  key={`${pi}-${item.fullName}-${item.comment}`}
+                  item={item}
+                />
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export default function TestimonialsSection() {
   const [items, setItems] = useState<Testimonial[]>([]);
   const [loaded, setLoaded] = useState(false);
+  const [pageIndex, setPageIndex] = useState(0);
+  const [pageSize, setPageSize] = useState(1);
 
   useEffect(() => {
     let cancelled = false;
@@ -79,14 +161,45 @@ export default function TestimonialsSection() {
     };
   }, []);
 
-  const marquee = items.length >= 3;
-  const loop = useMemo(() => {
-    if (items.length === 0) return [];
-    return marquee ? [...items, ...items] : items;
-  }, [items, marquee]);
+  useEffect(() => {
+    const mq = window.matchMedia(`(min-width: ${MOBILE_BREAKPOINT}px)`);
+    const sync = () => setPageSize(mq.matches ? DESKTOP_PAGE_SIZE : 1);
+    sync();
+    mq.addEventListener("change", sync);
+    return () => mq.removeEventListener("change", sync);
+  }, []);
+
+  const pages = useMemo(() => {
+    const out: Testimonial[][] = [];
+    for (let i = 0; i < items.length; i += pageSize) {
+      out.push(items.slice(i, i + pageSize));
+    }
+    return out;
+  }, [items, pageSize]);
+
+  const pageCount = pages.length;
+
+  useEffect(() => {
+    if (pageCount === 0) {
+      setPageIndex(0);
+      return;
+    }
+    setPageIndex((i) => Math.min(i, pageCount - 1));
+  }, [pageCount, pageSize]);
+
+  const goPrev = useCallback(() => {
+    setPageIndex((i) => Math.max(0, i - 1));
+  }, []);
+
+  const goNext = useCallback(() => {
+    setPageIndex((i) => Math.min(pageCount - 1, i + 1));
+  }, [pageCount]);
+
+  const atStart = pageIndex <= 0;
+  const atEnd = pageIndex >= pageCount - 1;
 
   return (
-    <section id="testimonials" className="overflow-hidden bg-surface-muted">
+    <section id="testimonials" className="bg-surface-muted">
       <div className="mx-auto max-w-7xl px-5 py-16 md:px-8 md:py-24">
         <div className="mx-auto max-w-2xl text-center">
           <p className="text-xs font-semibold uppercase tracking-widest text-azure-500">Testimonials</p>
@@ -105,16 +218,38 @@ export default function TestimonialsSection() {
             No feedbacks yet.
           </p>
         ) : (
-          <div
-            className={`mt-12 ${marquee ? "testimonials-marquee-mask overflow-hidden" : "flex flex-wrap justify-center gap-4"}`}
-          >
-            <div
-              className={`flex gap-4 py-2 ${marquee ? "testimonials-marquee w-max" : "flex-wrap justify-center"}`}
-            >
-              {loop.map((item, i) => (
-                <TestimonialCard key={`${item.comment}-${item.fullName}-${i}`} item={item} />
-              ))}
+          <div className="mt-12">
+            <div className="flex items-center gap-3 md:gap-4">
+              <div className="hidden md:block">
+                <NavArrow direction="prev" onClick={goPrev} disabled={atStart || pageCount <= 1} />
+              </div>
+              <TestimonialCarousel pages={pages} pageIndex={pageIndex} pageCount={pageCount} />
+              <div className="hidden md:block">
+                <NavArrow direction="next" onClick={goNext} disabled={atEnd || pageCount <= 1} />
+              </div>
             </div>
+
+            {pageCount > 1 ? (
+              <div
+                className="mt-8 flex justify-center gap-2 md:hidden"
+                role="tablist"
+                aria-label="Testimonial pages"
+              >
+                {Array.from({ length: pageCount }, (_, i) => (
+                  <button
+                    key={i}
+                    type="button"
+                    role="tab"
+                    aria-selected={i === pageIndex}
+                    aria-label={`Page ${i + 1} of ${pageCount}`}
+                    onClick={() => setPageIndex(i)}
+                    className={`h-2.5 rounded-full transition-all duration-300 ${
+                      i === pageIndex ? "w-7 bg-azure-500" : "w-2.5 bg-ink-200 hover:bg-ink-300"
+                    }`}
+                  />
+                ))}
+              </div>
+            ) : null}
           </div>
         )}
       </div>
