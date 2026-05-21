@@ -54,6 +54,17 @@ export const staffWorkspaceItems: DashboardNavItem[] = [
     ),
   },
   {
+    href: "/dashboard/gallery",
+    label: "Gallery",
+    icon: (
+      <svg {...DASHBOARD_NAV_ICON}>
+        <rect x="3" y="5" width="18" height="14" rx="2" />
+        <circle cx="8.5" cy="10" r="1.5" />
+        <path d="m21 17-5.5-5.5a1.5 1.5 0 0 0-2.1 0L7 18" />
+      </svg>
+    ),
+  },
+  {
     href: "/dashboard/payments",
     label: "Payments",
     icon: (

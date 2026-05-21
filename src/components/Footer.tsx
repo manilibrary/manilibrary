@@ -3,6 +3,7 @@ import Logo from "./Logo";
 import libraryInfo from "@/data/libraryInfo.json";
 
 const libraryLinks = [
+  { href: "/gallery", label: "Gallery" },
   { href: "/#facilities", label: "Facilities" },
   { href: "/#plans", label: "Plans" },
   { href: "/#about", label: "About" },

@@ -12,6 +12,7 @@ import { prefetchMembershipRoutes } from "@/lib/membership/prefetch-membership";
 import { clearAllUxPreferenceCookies, getUxPreferenceCookie, setUxPreferenceCookie } from "@/lib/ux-cookies";
 
 const links = [
+  { href: "/gallery", label: "Gallery", lockDuringCheckout: true },
   { href: "/#facilities", label: "Facilities", lockDuringCheckout: true },
   { href: "/#about", label: "About", lockDuringCheckout: true },
   { href: "/#plans", label: "Plans", lockDuringCheckout: true },

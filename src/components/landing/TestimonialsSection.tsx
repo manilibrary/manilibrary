@@ -1,8 +1,11 @@
 "use client";
 
 import Image from "next/image";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { avatarDisplayUrl } from "@/lib/avatars/avatar-display-url";
+import { HOME_SECTION_PAD } from "@/lib/landing/home-section-spacing";
+
+const SWIPE_THRESHOLD_PX = 48;
 
 type Testimonial = {
   fullName: string;
@@ -100,34 +103,165 @@ function TestimonialCarousel({
   pages,
   pageIndex,
   pageCount,
+  onPrev,
+  onNext,
 }: {
   pages: Testimonial[][];
   pageIndex: number;
   pageCount: number;
+  onPrev: () => void;
+  onNext: () => void;
 }) {
   const slidePct = pageCount > 0 ? 100 / pageCount : 100;
+  const viewportRef = useRef<HTMLDivElement>(null);
+  const [dragX, setDragX] = useState(0);
+  const [dragging, setDragging] = useState(false);
+  const dragRef = useRef<{ startX: number; startY: number; axis: "x" | "y" | null } | null>(null);
+
+  const finishDrag = useCallback(
+    (deltaX: number) => {
+      if (pageCount <= 1) return;
+      if (deltaX <= -SWIPE_THRESHOLD_PX && pageIndex < pageCount - 1) onNext();
+      else if (deltaX >= SWIPE_THRESHOLD_PX && pageIndex > 0) onPrev();
+      setDragX(0);
+      setDragging(false);
+      dragRef.current = null;
+    },
+    [onNext, onPrev, pageCount, pageIndex],
+  );
+
+  useEffect(() => {
+    const el = viewportRef.current;
+    if (!el || pageCount <= 1) return;
+
+    const clampDrag = (dx: number) => {
+      if (pageIndex === 0 && dx > 0) return dx * 0.35;
+      if (pageIndex === pageCount - 1 && dx < 0) return dx * 0.35;
+      return dx;
+    };
+
+    const onTouchStart = (e: TouchEvent) => {
+      const t = e.touches[0];
+      if (!t) return;
+      dragRef.current = { startX: t.clientX, startY: t.clientY, axis: null };
+      setDragging(true);
+    };
+
+    const onTouchMove = (e: TouchEvent) => {
+      const d = dragRef.current;
+      const t = e.touches[0];
+      if (!d || !t) return;
+      const dx = t.clientX - d.startX;
+      const dy = t.clientY - d.startY;
+      if (d.axis === null) {
+        if (Math.abs(dx) < 8 && Math.abs(dy) < 8) return;
+        if (Math.abs(dx) <= Math.abs(dy)) {
+          d.axis = "y";
+          setDragging(false);
+          setDragX(0);
+          return;
+        }
+        d.axis = "x";
+      }
+      if (d.axis !== "x") return;
+      e.preventDefault();
+      setDragX(clampDrag(dx));
+    };
+
+    const onTouchEnd = (e: TouchEvent) => {
+      const d = dragRef.current;
+      if (!d || d.axis !== "x") {
+        setDragX(0);
+        setDragging(false);
+        dragRef.current = null;
+        return;
+      }
+      const t = e.changedTouches[0];
+      const dx = t ? t.clientX - d.startX : 0;
+      finishDrag(dx);
+    };
+
+    const onPointerDown = (e: PointerEvent) => {
+      if (e.pointerType === "touch") return;
+      dragRef.current = { startX: e.clientX, startY: e.clientY, axis: null };
+      setDragging(true);
+      el.setPointerCapture(e.pointerId);
+    };
+
+    const onPointerMove = (e: PointerEvent) => {
+      const d = dragRef.current;
+      if (!d || e.pointerType === "touch") return;
+      const dx = e.clientX - d.startX;
+      const dy = e.clientY - d.startY;
+      if (d.axis === null) {
+        if (Math.abs(dx) < 8 && Math.abs(dy) < 8) return;
+        if (Math.abs(dx) <= Math.abs(dy)) {
+          d.axis = "y";
+          setDragging(false);
+          setDragX(0);
+          return;
+        }
+        d.axis = "x";
+      }
+      if (d.axis !== "x") return;
+      setDragX(clampDrag(dx));
+    };
+
+    const onPointerUp = (e: PointerEvent) => {
+      const d = dragRef.current;
+      if (!d || e.pointerType === "touch") return;
+      if (d.axis === "x") finishDrag(e.clientX - d.startX);
+      else {
+        setDragX(0);
+        setDragging(false);
+      }
+      dragRef.current = null;
+      try {
+        el.releasePointerCapture(e.pointerId);
+      } catch {
+        /* already released */
+      }
+    };
+
+    el.addEventListener("touchstart", onTouchStart, { passive: true });
+    el.addEventListener("touchmove", onTouchMove, { passive: false });
+    el.addEventListener("touchend", onTouchEnd, { passive: true });
+    el.addEventListener("touchcancel", onTouchEnd, { passive: true });
+    el.addEventListener("pointerdown", onPointerDown);
+    el.addEventListener("pointermove", onPointerMove);
+    el.addEventListener("pointerup", onPointerUp);
+    el.addEventListener("pointercancel", onPointerUp);
+
+    return () => {
+      el.removeEventListener("touchstart", onTouchStart);
+      el.removeEventListener("touchmove", onTouchMove);
+      el.removeEventListener("touchend", onTouchEnd);
+      el.removeEventListener("touchcancel", onTouchEnd);
+      el.removeEventListener("pointerdown", onPointerDown);
+      el.removeEventListener("pointermove", onPointerMove);
+      el.removeEventListener("pointerup", onPointerUp);
+      el.removeEventListener("pointercancel", onPointerUp);
+    };
+  }, [finishDrag, pageCount, pageIndex]);
 
   return (
-    <div className="min-h-[16rem] min-w-0 flex-1 overflow-hidden" aria-live="polite">
+    <div
+      ref={viewportRef}
+      className="min-h-[16rem] min-w-0 flex-1 touch-pan-y overflow-hidden select-none"
+      aria-live="polite"
+    >
       <div
-        className="testimonials-carousel-track flex"
+        className={dragging ? "flex" : "testimonials-carousel-track flex"}
         style={{
           width: `${pageCount * 100}%`,
-          transform: `translateX(-${pageIndex * slidePct}%)`,
+          transform: `translateX(calc(-${pageIndex * slidePct}% + ${dragX}px))`,
         }}
       >
         {pages.map((page, pi) => (
-          <div
-            key={pi}
-            className="shrink-0 px-0.5"
-            style={{ width: `${slidePct}%` }}
-          >
+          <div key={pi} className="shrink-0 px-0.5" style={{ width: `${slidePct}%` }}>
             <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
               {page.map((item) => (
-                <TestimonialCard
-                  key={`${pi}-${item.fullName}-${item.comment}`}
-                  item={item}
-                />
+                <TestimonialCard key={`${pi}-${item.fullName}-${item.comment}`} item={item} />
               ))}
             </div>
           </div>
@@ -200,7 +334,7 @@ export default function TestimonialsSection() {
 
   return (
     <section id="testimonials" className="bg-surface-muted">
-      <div className="mx-auto max-w-7xl px-5 py-16 md:px-8 md:py-24">
+      <div className={`mx-auto max-w-7xl ${HOME_SECTION_PAD}`}>
         <div className="mx-auto max-w-2xl text-center">
           <p className="text-xs font-semibold uppercase tracking-widest text-azure-500">Testimonials</p>
           <h2 className="mt-3 text-3xl font-semibold tracking-tight text-ink-900 md:text-4xl">
@@ -219,14 +353,20 @@ export default function TestimonialsSection() {
           </p>
         ) : (
           <div className="mt-12">
-            <div className="flex items-center gap-3 md:gap-4">
-              <div className="hidden md:block">
-                <NavArrow direction="prev" onClick={goPrev} disabled={atStart || pageCount <= 1} />
-              </div>
-              <TestimonialCarousel pages={pages} pageIndex={pageIndex} pageCount={pageCount} />
-              <div className="hidden md:block">
-                <NavArrow direction="next" onClick={goNext} disabled={atEnd || pageCount <= 1} />
-              </div>
+            <div className="flex items-center gap-2 md:gap-4">
+              {pageCount > 1 ? (
+                <NavArrow direction="prev" onClick={goPrev} disabled={atStart} />
+              ) : null}
+              <TestimonialCarousel
+                pages={pages}
+                pageIndex={pageIndex}
+                pageCount={pageCount}
+                onPrev={goPrev}
+                onNext={goNext}
+              />
+              {pageCount > 1 ? (
+                <NavArrow direction="next" onClick={goNext} disabled={atEnd} />
+              ) : null}
             </div>
 
             {pageCount > 1 ? (
