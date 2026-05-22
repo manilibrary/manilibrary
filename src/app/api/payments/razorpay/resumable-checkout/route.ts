@@ -8,7 +8,7 @@ import {
   rupeesToRazorpayPaise,
   type MembershipPlanKind,
 } from "@/lib/payments/pricing";
-import { getAuthUserForApiRequest } from "@/lib/supabase/api-route-auth";
+import { requireMemberNotStaffForRazorpay } from "@/lib/payments/require-member-razorpay";
 import { createSupabaseServiceRoleClient } from "@/lib/supabase/service-role";
 
 export const runtime = "nodejs";
@@ -71,13 +71,11 @@ export async function GET(request: Request) {
     return apiError("Invalid planKind (use short_term, long_term, or omit).", 400);
   }
 
-  const {
-    data: { user },
-    error: authErr,
-  } = await getAuthUserForApiRequest(request);
-  if (authErr || !user) {
-    return apiError("Sign in required.", 401);
+  const gate = await requireMemberNotStaffForRazorpay(request);
+  if (!gate.ok) {
+    return apiError(gate.message, gate.status);
   }
+  const userId = gate.userId;
 
   let admin;
   try {
@@ -105,7 +103,7 @@ export async function GET(request: Request) {
       )
     `,
     )
-    .eq("user_id", user.id)
+    .eq("user_id", userId)
     .eq("provider", "razorpay")
     .eq("status", "pending")
     .order("created_at", { ascending: false })

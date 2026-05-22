@@ -2,6 +2,7 @@ import { apiError, apiSuccess, apiErrorSafe } from "@/lib/api/json-response";
 import { displayPersonName } from "@/lib/format-person-name";
 import { createSupabaseRouteHandlerClient } from "@/lib/supabase/route-handler";
 import { guardAuthEmail, guardPublicAuthPost } from "@/lib/security/request-guards";
+import { profilePhoneFromDb } from "@/lib/profile-phone";
 import { validateLoginFields } from "@/lib/security/validate-fields";
 
 export const runtime = "nodejs";
@@ -95,7 +96,7 @@ export async function POST(request: Request) {
       role,
       name: displayPersonName(profile.full_name as string, "Member"),
       email: (profile.email as string | null) ?? data.user.email ?? email,
-      phone: (profile.phone as string | null) ?? undefined,
+      phone: profilePhoneFromDb(profile.phone),
     };
 
     if (mobile) {

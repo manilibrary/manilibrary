@@ -1,4 +1,5 @@
 import { formatPersonName } from "@/lib/format-person-name";
+import { normalizeIndianMobile10, stripIndianPhoneInput } from "@/lib/profile-phone";
 import { FIELD_LIMITS } from "@/lib/security/field-limits";
 
 export type FieldValidationResult =
@@ -8,8 +9,6 @@ export type FieldValidationResult =
 export function normalizeEmail(raw: string): string {
   return raw.trim().toLowerCase().slice(0, FIELD_LIMITS.emailMax);
 }
-
-const PHONE_DIGITS_MIN = 10;
 
 export function normalizePhoneDigits(raw: string): string {
   return raw.replace(/\D/g, "");
@@ -23,11 +22,11 @@ export function validateStaffNewMemberAccountFields(input: {
 }): FieldValidationResult {
   const base = validateRegisterFields(input);
   if (!base.ok) return base;
-  const digits = normalizePhoneDigits(base.phone);
-  if (digits.length < PHONE_DIGITS_MIN) {
-    return { ok: false, error: `Phone is required (at least ${PHONE_DIGITS_MIN} digits).` };
+  const indian = normalizeIndianMobile10(base.phone);
+  if (!indian) {
+    return { ok: false, error: "Phone is required (10-digit Indian mobile)." };
   }
-  return { ok: true, name: base.name, email: base.email, phone: base.phone.trim(), password: base.password };
+  return { ok: true, name: base.name, email: base.email, phone: indian, password: base.password };
 }
 
 export function validateRegisterFields(input: {
@@ -40,7 +39,7 @@ export function validateRegisterFields(input: {
   const name = formatPersonName(nameRaw).slice(0, FIELD_LIMITS.nameMax);
   const email = typeof input.email === "string" ? normalizeEmail(input.email) : "";
   const phone =
-    typeof input.phone === "string" ? input.phone.trim().slice(0, FIELD_LIMITS.phoneMax) : "";
+    typeof input.phone === "string" ? stripIndianPhoneInput(input.phone.trim()) : "";
   const password = typeof input.password === "string" ? input.password : "";
 
   if (name.length < FIELD_LIMITS.nameMin) {
@@ -58,7 +57,14 @@ export function validateRegisterFields(input: {
   if (password.length > FIELD_LIMITS.passwordMax) {
     return { ok: false, error: "Password is too long." };
   }
-  return { ok: true, name, email, phone, password };
+  if (phone.includes("@")) {
+    return { ok: false, error: "Use a phone number, not an email, in the phone field." };
+  }
+  const indian = phone.length > 0 ? normalizeIndianMobile10(phone) : null;
+  if (phone.length > 0 && !indian) {
+    return { ok: false, error: "Enter a valid 10-digit Indian mobile (starts with 6–9)." };
+  }
+  return { ok: true, name, email, phone: indian ?? "", password };
 }
 
 export function validateLoginFields(input: {

@@ -72,7 +72,6 @@ type PaymentRow = {
   currency: string;
   provider: string | null;
   status: string;
-  provider_payment_id: string | null;
   razorpay_order_id: string | null;
   razorpay_payment_id: string | null;
   created_at: string;
@@ -300,9 +299,6 @@ export default function StaffPaymentsPanel() {
                             <CopyableChip label="User" value={r.user_id} />
                             {rzpPay ? <CopyableChip label="RZP pay" value={rzpPay} /> : null}
                             {rzpOrder ? <CopyableChip label="RZP order" value={rzpOrder} /> : null}
-                            {r.provider_payment_id?.trim() && r.provider_payment_id !== rzpPay ? (
-                              <CopyableChip label="Provider ref" value={r.provider_payment_id.trim()} />
-                            ) : null}
                           </div>
                         </td>
                       </tr>

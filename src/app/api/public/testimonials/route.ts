@@ -20,7 +20,8 @@ export async function GET() {
     .is("deleted_at", null)
     .not("user_feedback_rating", "is", null)
     .not("user_feedback_comment", "is", null)
-    .order("updated_at", { ascending: false });
+    .order("updated_at", { ascending: false })
+    .limit(24);
 
   if (error) return apiErrorSafe(error, 500);
 

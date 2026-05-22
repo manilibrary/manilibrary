@@ -2,8 +2,9 @@
 
 import Link, { useLinkStatus } from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { Fragment, useCallback, useEffect, useState, type ReactNode } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import Logo from "@/components/Logo";
+import { useAuthSession } from "@/components/auth/AuthSessionProvider";
 import {
   dashboardNavItemIsActive,
   dashboardSecondaryNav,
@@ -12,8 +13,6 @@ import {
   superadminNavItem,
   type DashboardNavItem,
 } from "@/components/dashboard/dashboard-nav-config";
-import { createClient } from "@/lib/supabase/client";
-import { CLIENT_DATA_CACHE_TTL_MS, ddcKey, getClientCache, setClientCache } from "@/lib/client-data-cache";
 
 type Item = DashboardNavItem;
 
@@ -78,8 +77,20 @@ export default function Sidebar({
 }) {
   const pathname = usePathname();
   const router = useRouter();
-  // Default least-privilege until we know is_admin (avoids flashing staff nav for members).
-  const [workspaceItems, setWorkspaceItems] = useState<Item[]>(memberWorkspaceItems);
+  const session = useAuthSession();
+
+  const workspaceItems = useMemo(() => {
+    if (!session.ready || !session.signedIn) return memberWorkspaceItems;
+    if (session.isAdmin) {
+      const merged = [...staffWorkspaceItems];
+      if (session.isSuperAdmin && !merged.some((i) => i.href === superadminNavItem.href)) {
+        merged.push(superadminNavItem);
+      }
+      return merged;
+    }
+    if (session.isSuperAdmin) return [...memberWorkspaceItems, superadminNavItem];
+    return memberWorkspaceItems;
+  }, [session]);
 
   const prefetchPath = useCallback((path: string) => {
     try {
@@ -95,83 +106,6 @@ export default function Sidebar({
       prefetchPath(href);
     }
   }, [workspaceItems, prefetchPath]);
-
-  useEffect(() => {
-    const supabase = createClient();
-    let cancelled = false;
-
-    const load = async () => {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (cancelled) return;
-
-      if (!user) {
-        setWorkspaceItems(memberWorkspaceItems);
-        return;
-      }
-
-      const navKey = ddcKey.profileNav(user.id);
-      const cached = getClientCache<{ is_admin?: boolean | null; is_superadmin?: boolean | null }>(navKey);
-      if (cached) {
-        const isSuper = cached.is_superadmin === true;
-        if (cached.is_admin) {
-          const merged = [...staffWorkspaceItems];
-          if (isSuper && !merged.some((i) => i.href === superadminNavItem.href)) {
-            merged.push(superadminNavItem);
-          }
-          setWorkspaceItems(merged);
-        } else if (isSuper) {
-          setWorkspaceItems([...memberWorkspaceItems, superadminNavItem]);
-        } else {
-          setWorkspaceItems(memberWorkspaceItems);
-        }
-      }
-
-      const { data: profile, error: profileErr } = await supabase
-        .from("profiles")
-        .select("is_admin, is_superadmin")
-        .eq("user_id", user.id)
-        .maybeSingle();
-
-      if (cancelled) return;
-      if (profileErr) {
-        setWorkspaceItems(memberWorkspaceItems);
-        return;
-      }
-
-      setClientCache(
-        navKey,
-        { is_admin: profile?.is_admin ?? null, is_superadmin: profile?.is_superadmin ?? null },
-        CLIENT_DATA_CACHE_TTL_MS,
-      );
-
-      const isSuper = profile?.is_superadmin === true;
-      if (profile?.is_admin) {
-        const merged = [...staffWorkspaceItems];
-        if (isSuper && !merged.some((i) => i.href === superadminNavItem.href)) {
-          merged.push(superadminNavItem);
-        }
-        setWorkspaceItems(merged);
-      } else if (isSuper) {
-        setWorkspaceItems([...memberWorkspaceItems, superadminNavItem]);
-      } else {
-        setWorkspaceItems(memberWorkspaceItems);
-      }
-    };
-
-    void load();
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange(() => {
-      void load();
-    });
-
-    return () => {
-      cancelled = true;
-      subscription.unsubscribe();
-    };
-  }, []);
 
   return (
     <>

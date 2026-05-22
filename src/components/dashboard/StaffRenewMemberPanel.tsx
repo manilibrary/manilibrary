@@ -25,6 +25,7 @@ import {
   SHORT_TERM_DURATION_OPTIONS,
   type MembershipPlanKind,
 } from "@/lib/payments/pricing";
+import { formatMemberSeatLabel } from "@/lib/membership/seat-label";
 
 type MembershipRow = {
   user_id: string;
@@ -101,6 +102,11 @@ export default function StaffRenewMemberPanel({ rows, profiles, onClose, onSaved
     const n = parseInt(seat.trim(), 10);
     return Number.isFinite(n) && n >= 1 ? n : null;
   }, [seat]);
+
+  const seatDisplayLabel = useMemo(() => {
+    if (mapSelectedSeat == null) return "—";
+    return formatMemberSeatLabel(planKind, mapSelectedSeat);
+  }, [planKind, mapSelectedSeat]);
 
   useEffect(() => {
     if (step !== "enroll" || !/^\d{4}-\d{2}-\d{2}$/.test(startYmd)) return;
@@ -327,11 +333,11 @@ export default function StaffRenewMemberPanel({ rows, profiles, onClose, onSaved
             <p className="mt-2 text-xs font-medium text-azure-800">{renewStartDateHint(selected.expiryYmd, minStart)}</p>
           </div>
 
-          <div className="flex flex-wrap gap-3">
-            <label className="flex flex-col gap-1 text-xs text-ink-600">
+          <div className="flex flex-nowrap items-end gap-3 overflow-x-auto pb-0.5">
+            <label className="flex min-w-[11rem] flex-1 flex-col gap-1 text-xs text-ink-600">
               Plan
               <select
-                className="rounded-lg border border-ink-200 bg-white px-3 py-2 text-sm"
+                className="w-full rounded-lg border border-ink-200 bg-white px-3 py-2 text-sm"
                 value={planKind}
                 onChange={(e) => {
                   const pk = e.target.value as MembershipPlanKind;
@@ -345,10 +351,10 @@ export default function StaffRenewMemberPanel({ rows, profiles, onClose, onSaved
                 <option value="short_term">Row hall · short term</option>
               </select>
             </label>
-            <label className="flex min-w-[200px] flex-col gap-1 text-xs text-ink-600">
+            <label className="flex min-w-[10rem] flex-1 flex-col gap-1 text-xs text-ink-600">
               Duration
               <select
-                className="rounded-lg border border-ink-200 bg-white px-3 py-2 text-sm"
+                className="w-full rounded-lg border border-ink-200 bg-white px-3 py-2 text-sm"
                 value={durationKey}
                 onChange={(e) => {
                   setDurationKey(e.target.value);
@@ -363,11 +369,11 @@ export default function StaffRenewMemberPanel({ rows, profiles, onClose, onSaved
                 ))}
               </select>
             </label>
-            <label className="flex flex-col gap-1 text-xs text-ink-600">
+            <label className="flex min-w-[9.5rem] shrink-0 flex-col gap-1 text-xs text-ink-600">
               New period starts
               <input
                 type="date"
-                className="rounded-lg border border-ink-200 bg-white px-3 py-2 text-sm"
+                className="w-full rounded-lg border border-ink-200 bg-white px-3 py-2 text-sm"
                 value={startYmd}
                 min={minStart}
                 onChange={(e) => {
@@ -377,21 +383,20 @@ export default function StaffRenewMemberPanel({ rows, profiles, onClose, onSaved
                 disabled={busy}
               />
             </label>
-            <label className="flex w-24 flex-col gap-1 text-xs text-ink-600">
-              Seat #
-              <input
-                inputMode="numeric"
-                className="rounded-lg border border-ink-200 bg-white px-3 py-2 text-sm"
-                value={seat}
-                onChange={(e) => setSeat(e.target.value)}
-                disabled={busy}
-              />
-            </label>
-            <label className="flex w-32 flex-col gap-1 text-xs text-ink-600">
+            <div className="flex min-w-[5.5rem] shrink-0 flex-col gap-1 text-xs text-ink-600">
+              <span>Seat #</span>
+              <div
+                className="flex h-[2.375rem] w-full items-center rounded-lg border border-ink-200 bg-ink-50 px-3 text-sm font-mono text-ink-900"
+                aria-live="polite"
+              >
+                {seatDisplayLabel}
+              </div>
+            </div>
+            <label className="flex min-w-[8rem] flex-1 flex-col gap-1 text-xs text-ink-600">
               Amount (₹)
               <input
                 inputMode="numeric"
-                className="rounded-lg border border-ink-200 bg-white px-3 py-2 text-sm"
+                className="w-full rounded-lg border border-ink-200 bg-white px-3 py-2 text-sm"
                 value={amount}
                 onChange={(e) => setAmount(e.target.value)}
                 disabled={busy}
@@ -406,7 +411,7 @@ export default function StaffRenewMemberPanel({ rows, profiles, onClose, onSaved
                 <p className="text-xs text-ink-600">Blue = free · Amber = taken for this period</p>
               </div>
               <p className="font-mono text-xs text-ink-600">
-                Selected: <span className="font-semibold text-azure-700">{mapSelectedSeat ?? "—"}</span>
+                Selected: <span className="font-semibold text-azure-700">{seatDisplayLabel}</span>
               </p>
             </div>
             {seatOccErr ? (

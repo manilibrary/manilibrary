@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { formatPersonName } from "@/lib/format-person-name";
+import { normalizeIndianMobile10 } from "@/lib/profile-phone";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -36,7 +37,7 @@ export async function createMemberAccount(
 ): Promise<CreateMemberAccountResult> {
   const fullName = formatPersonName(params.full_name).slice(0, 200);
   const email = normalizeMemberEmail(params.email);
-  const phone = params.phone?.trim().slice(0, 40) ?? "";
+  const phoneDigits = params.phone ? normalizeIndianMobile10(params.phone) ?? "" : "";
   const passwordRaw = params.password ?? "";
 
   if (!fullName || fullName.length > 200) {
@@ -61,7 +62,7 @@ export async function createMemberAccount(
     email_confirm: true,
     user_metadata: {
       full_name: fullName,
-      ...(phone ? { phone } : {}),
+      ...(phoneDigits ? { phone: phoneDigits } : {}),
     },
   });
 

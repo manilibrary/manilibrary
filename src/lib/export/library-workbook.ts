@@ -2,6 +2,7 @@ import ExcelJS from "exceljs";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { parseAttendanceMemberRowsJson } from "@/lib/etime/attendance-history-store";
+import { profilePhoneFromDb } from "@/lib/profile-phone";
 import { resolveMemberSeatDisplayLabel } from "@/lib/membership/seat-label";
 import { DEFAULT_LIBRARY_TZ, membershipCoversLibraryDay } from "@/lib/membership/windows";
 import { deriveUiVerificationStatus, mapLatestVerificationWithDocsByUserId } from "@/lib/verification/verification-repo";
@@ -378,7 +379,7 @@ export async function buildLibraryExportWorkbook(
       p.full_name,
       p.device_user_id,
       p.email ?? "",
-      p.phone ?? "",
+      profilePhoneFromDb(p.phone) ?? "",
       verificationLabel,
       p.is_admin === true ? "Yes" : "No",
       formatInLibraryTz(p.created_at),

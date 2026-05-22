@@ -9,7 +9,16 @@ import libraryInfo from "@/data/libraryInfo.json";
 import TurnstileWidget from "@/components/security/TurnstileWidget";
 import { createClient } from "@/lib/supabase/client";
 import { MEMBER_LANDING_PATH, STAFF_LANDING_PATH, sanitizeInternalNext } from "@/lib/auth-landing";
-import { clearClientCache } from "@/lib/client-data-cache";
+import { useAuthSession } from "@/components/auth/AuthSessionProvider";
+import { notifyAuthSessionChanged, syncBrowserAuthSession } from "@/lib/auth-client-sync";
+import {
+  CLIENT_DATA_CACHE_TTL_MS,
+  clearClientCache,
+  ddcKey,
+  invalidateClientCachePrefix,
+  setClientCache,
+} from "@/lib/client-data-cache";
+import { warmMemberClientCache } from "@/lib/member/warm-member-client-cache";
 import { FIELD_LIMITS } from "@/lib/security/field-limits";
 import { turnstileRequiredOnClient } from "@/lib/security/turnstile-client";
 import { clearAllUxPreferenceCookies } from "@/lib/ux-cookies";
@@ -54,6 +63,7 @@ function decodeQueryMessage(raw: string | null): string | null {
 export default function LoginForm() {
   const router = useRouter();
   const params = useSearchParams();
+  const { refresh: refreshAuthSession } = useAuthSession();
   const registered = params.get("registered") === "1";
   const staffPortalKey = staffPortalKeyFromEnv();
   const staffPortalActive = Boolean(
@@ -157,8 +167,25 @@ export default function LoginForm() {
       return;
     }
 
+    setClientCache(
+      ddcKey.profileNav(user.id),
+      {
+        full_name: null,
+        is_admin: profile.is_admin,
+        is_superadmin: profile.is_superadmin ?? null,
+        avatar_url: null,
+      },
+      CLIENT_DATA_CACHE_TTL_MS,
+    );
+    invalidateClientCachePrefix(ddcKey.meActiveGuest());
+    if (!profile.is_admin) {
+      await warmMemberClientCache(user.id);
+    }
+    await syncBrowserAuthSession();
+    await refreshAuthSession();
+    notifyAuthSessionChanged();
+
     setSubmitting(false);
-    clearClientCache();
     const next = sanitizeInternalNext(params.get("next"));
     const dest =
       profile.is_admin
@@ -167,7 +194,6 @@ export default function LoginForm() {
           ? "/dashboard/superadmin"
           : next ?? MEMBER_LANDING_PATH;
     router.replace(dest);
-    router.refresh();
   };
 
   return (

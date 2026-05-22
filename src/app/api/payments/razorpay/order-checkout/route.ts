@@ -1,6 +1,6 @@
 import { apiError, apiErrorSafe, apiSuccess } from "@/lib/api/json-response";
 import { rupeesToRazorpayPaise } from "@/lib/payments/pricing";
-import { getAuthUserForApiRequest } from "@/lib/supabase/api-route-auth";
+import { requireMemberNotStaffForRazorpay } from "@/lib/payments/require-member-razorpay";
 import { createSupabaseServiceRoleClient } from "@/lib/supabase/service-role";
 
 export const runtime = "nodejs";
@@ -17,13 +17,11 @@ export async function GET(request: Request) {
     return apiError("Query payment_id is required.", 400);
   }
 
-  const {
-    data: { user },
-    error: authErr,
-  } = await getAuthUserForApiRequest(request);
-  if (authErr || !user) {
-    return apiError("Sign in required.", 401);
+  const gate = await requireMemberNotStaffForRazorpay(request);
+  if (!gate.ok) {
+    return apiError(gate.message, gate.status);
   }
+  const userId = gate.userId;
 
   let admin;
   try {
@@ -41,7 +39,7 @@ export async function GET(request: Request) {
   if (payErr || !pay) {
     return apiError("Payment not found.", 404);
   }
-  if (pay.user_id !== user.id) {
+  if (pay.user_id !== userId) {
     return apiError("Forbidden.", 403);
   }
   if (pay.status !== "pending") {

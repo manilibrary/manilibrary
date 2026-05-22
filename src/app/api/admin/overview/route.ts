@@ -1,4 +1,5 @@
 import { apiError, apiSuccess } from "@/lib/api/json-response";
+import { toAdminRecentPaymentClient } from "@/lib/api/sanitize-client-payload";
 import { displayPersonName } from "@/lib/format-person-name";
 import { formatProfileMemberLabel } from "@/lib/membership/profile-label";
 import { parseNumericSeatFromStoredSeat } from "@/lib/membership/seat-label";
@@ -38,19 +39,18 @@ function parsePaidSumAggregate(data: unknown): number | null {
 async function profilesMiniByUserIds(
   admin: SupabaseClient,
   userIds: string[],
-): Promise<Record<string, { full_name: string; device_user_id: number; email: string | null }>> {
+): Promise<Record<string, { full_name: string; device_user_id: number }>> {
   const uniq = [...new Set(userIds)].filter(Boolean);
   if (uniq.length === 0) return {};
   const { data } = await admin
     .from("profiles")
-    .select("user_id, full_name, device_user_id, email")
+    .select("user_id, full_name, device_user_id")
     .in("user_id", uniq);
-  const out: Record<string, { full_name: string; device_user_id: number; email: string | null }> = {};
+  const out: Record<string, { full_name: string; device_user_id: number }> = {};
   for (const p of data ?? []) {
     out[p.user_id] = {
       full_name: displayPersonName(p.full_name, "Member"),
       device_user_id: p.device_user_id,
-      email: p.email ?? null,
     };
   }
   return out;
@@ -111,6 +111,8 @@ export async function GET(request: Request) {
     expiringLongRaw,
     expiringShortRaw,
     paid30dRows,
+    paid30dSumAgg,
+    paid30dCount,
     memCreated30dRows,
     seatsLong,
     seatsShort,
@@ -153,8 +155,6 @@ export async function GET(request: Request) {
         amount_rupees,
         status,
         created_at,
-        provider,
-        provider_payment_id,
         memberships!payments_membership_id_fkey ( plan_kind )
       `,
       )
@@ -188,12 +188,18 @@ export async function GET(request: Request) {
       .select("created_at, amount_rupees")
       .eq("status", "paid")
       .gte("created_at", thirtyAgoIso)
-      .limit(5000),
+      .limit(800),
+    admin.from("payments").select("amount_rupees.sum()").eq("status", "paid").gte("created_at", thirtyAgoIso).maybeSingle(),
+    admin
+      .from("payments")
+      .select("id", { count: "exact", head: true })
+      .eq("status", "paid")
+      .gte("created_at", thirtyAgoIso),
     admin
       .from("memberships")
       .select("created_at")
       .gte("created_at", thirtyAgoIso)
-      .limit(5000),
+      .limit(800),
     distinctActiveSeatCount(admin, "long_term", today, nowIso),
     distinctActiveSeatCount(admin, "short_term", today, nowIso),
     admin.from("payments").select("amount_rupees.sum()").eq("status", "paid").maybeSingle(),
@@ -231,11 +237,14 @@ export async function GET(request: Request) {
     0,
   );
 
-  const revenue30dInr = (paid30dRows.data ?? []).reduce(
-    (sum, r) => sum + Number((r as { amount_rupees: number }).amount_rupees ?? 0),
-    0,
-  );
-  const paidCount30d = paid30dRows.data?.length ?? 0;
+  const revenue30dFromAgg = !paid30dSumAgg.error ? parsePaidSumAggregate(paid30dSumAgg.data) : null;
+  const revenue30dInr =
+    revenue30dFromAgg ??
+    (paid30dRows.data ?? []).reduce(
+      (sum, r) => sum + Number((r as { amount_rupees: number }).amount_rupees ?? 0),
+      0,
+    );
+  const paidCount30d = paid30dCount.count ?? paid30dRows.data?.length ?? 0;
 
   let totalPaidRevenueInr = 0;
   if (!paidAllTimeAgg.error) {
@@ -291,8 +300,6 @@ export async function GET(request: Request) {
       amount_rupees: number;
       status: string;
       created_at: string;
-      provider: string | null;
-      provider_payment_id: string | null;
       memberships: { plan_kind: string } | { plan_kind: string }[] | null;
     };
     const pr = profs[p.user_id];
@@ -303,19 +310,17 @@ export async function GET(request: Request) {
         : Array.isArray(mem)
           ? (mem[0]?.plan_kind ?? null)
           : mem.plan_kind ?? null;
-    return {
+    return toAdminRecentPaymentClient({
       id: p.id,
       user_id: p.user_id,
       membership_id: p.membership_id,
       amount_rupees: p.amount_rupees,
       status: p.status,
       created_at: p.created_at,
-      provider: p.provider,
-      provider_payment_id: p.provider_payment_id,
       plan_kind,
       member_label: pr ? formatProfileMemberLabel(pr) : p.user_id,
       device_user_id: pr?.device_user_id ?? null,
-    };
+    });
   });
 
   const recentMemberships = (recentMembershipsRaw.data ?? []).map((row) => {

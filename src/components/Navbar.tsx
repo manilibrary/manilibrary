@@ -2,8 +2,9 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { startTransition, useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Logo from "./Logo";
+import { useAuthSession } from "@/components/auth/AuthSessionProvider";
 import { avatarDisplayUrl } from "@/lib/avatars/avatar-display-url";
 import { createClient } from "@/lib/supabase/client";
 import { clearClientCache } from "@/lib/client-data-cache";
@@ -60,26 +61,6 @@ function NavLinkItem({
   );
 }
 
-type AuthBar = {
-  ready: boolean;
-  signedIn: boolean;
-  displayName: string;
-  email: string;
-  avatarUrl: string | null;
-  isAdmin: boolean;
-  isSuperAdmin: boolean;
-};
-
-const initialAuth: AuthBar = {
-  ready: false,
-  signedIn: false,
-  displayName: "",
-  email: "",
-  avatarUrl: null,
-  isAdmin: false,
-  isSuperAdmin: false,
-};
-
 function initialsFrom(displayName: string, email: string): string {
   const n = displayName.trim();
   if (n.length >= 2) {
@@ -108,7 +89,7 @@ export default function Navbar() {
   }, [pathname, router]);
   const [open, setOpen] = useState(() => getUxPreferenceCookie("site_nav_drawer") === "open");
   const [userMenuOpen, setUserMenuOpen] = useState(false);
-  const [auth, setAuth] = useState<AuthBar>(initialAuth);
+  const auth = useAuthSession();
   const [avatarCacheBust, setAvatarCacheBust] = useState(0);
 
   const setSiteNavDrawerOpen = useCallback((next: boolean) => {
@@ -116,78 +97,11 @@ export default function Navbar() {
     setUxPreferenceCookie("site_nav_drawer", next ? "open" : "closed");
   }, []);
 
-  const loadAuth = useCallback(async () => {
-    const supabase = createClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    if (!user?.email) {
-      setAuth({
-        ready: true,
-        signedIn: false,
-        displayName: "",
-        email: "",
-        avatarUrl: null,
-        isAdmin: false,
-        isSuperAdmin: false,
-      });
-      return;
-    }
-
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("full_name, is_admin, is_superadmin, avatar_url")
-      .eq("user_id", user.id)
-      .maybeSingle();
-
-    const fromMeta =
-      typeof user.user_metadata?.full_name === "string"
-        ? user.user_metadata.full_name.trim()
-        : "";
-    const displayName =
-      profile?.full_name?.trim() ||
-      fromMeta ||
-      user.email.split("@")[0] ||
-      "Member";
-
-    setAuth({
-      ready: true,
-      signedIn: true,
-      displayName,
-      email: user.email,
-      avatarUrl: (profile as { avatar_url?: string | null } | null)?.avatar_url ?? null,
-      isAdmin: profile?.is_admin === true,
-      isSuperAdmin: profile?.is_superadmin === true,
-    });
-  }, []);
-
   useEffect(() => {
-    const supabase = createClient();
-    startTransition(() => {
-      void loadAuth();
-    });
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange(() => {
-      startTransition(() => {
-        void loadAuth();
-      });
-    });
-    const onAvatarChanged = (e: Event) => {
-      const detail = (e as CustomEvent<{ avatarUrl: string | null }>).detail;
-      setAvatarCacheBust(Date.now());
-      setAuth((a) =>
-        a.signedIn ? { ...a, avatarUrl: detail?.avatarUrl ?? a.avatarUrl } : a,
-      );
-    };
+    const onAvatarChanged = () => setAvatarCacheBust(Date.now());
     window.addEventListener("manilibrary:avatar-changed", onAvatarChanged);
-
-    return () => {
-      subscription.unsubscribe();
-      window.removeEventListener("manilibrary:avatar-changed", onAvatarChanged);
-    };
-  }, [loadAuth]);
+    return () => window.removeEventListener("manilibrary:avatar-changed", onAvatarChanged);
+  }, []);
 
   const signOut = async () => {
     const supabase = createClient();

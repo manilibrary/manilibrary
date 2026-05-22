@@ -9,6 +9,7 @@ import MembershipLegend from "@/components/membership/MembershipLegend";
 import ShortTermSeatMap from "@/components/membership/ShortTermSeatMap";
 import { formatDateDdMmYyyy, formatDateTimeDdMmYyyy } from "@/lib/date-format";
 import { formatPersonName } from "@/lib/format-person-name";
+import IndianPhoneInput from "@/components/ui/IndianPhoneInput";
 import { FIELD_LIMITS } from "@/lib/security/field-limits";
 import { membershipDisplayStatusLabel } from "@/lib/membership/display-status";
 import { validateStaffNewMemberAccountFields } from "@/lib/security/validate-fields";
@@ -17,7 +18,7 @@ import { CLIENT_SEAT_OCC_CACHE_TTL_MS, ddcKey, getClientCache, setClientCache } 
 import { TableBodySkeleton } from "@/components/ui/ContentSkeletons";
 import { useStaleWhileRevalidate } from "@/hooks/useStaleWhileRevalidate";
 import { fetchAdminMembersList, type AdminMembersListCache } from "@/lib/client/fetch-admin-members-list";
-import { resolveMemberSeatDisplayLabel } from "@/lib/membership/seat-label";
+import { formatMemberSeatLabel, resolveMemberSeatDisplayLabel } from "@/lib/membership/seat-label";
 import { addDaysYmd, DEFAULT_LIBRARY_TZ, todayYmdInTz } from "@/lib/membership/windows";
 import {
   computeOrderAmountRupees,
@@ -276,6 +277,11 @@ export default function StaffMembershipsPanel() {
     const n = parseInt(manSeat.trim(), 10);
     return Number.isFinite(n) && n >= 1 ? n : null;
   }, [manSeat]);
+
+  const enrollSeatDisplayLabel = useMemo(() => {
+    if (enrollMapSelectedSeat == null) return "—";
+    return formatMemberSeatLabel(manPlanKind, enrollMapSelectedSeat);
+  }, [manPlanKind, enrollMapSelectedSeat]);
 
   useEffect(() => {
     if (enrollMode !== "new" || !/^\d{4}-\d{2}-\d{2}$/.test(manStart)) return;
@@ -551,8 +557,8 @@ export default function StaffMembershipsPanel() {
           <div className="space-y-4">
             <div>
               <p className="font-mono text-[10px] uppercase tracking-widest text-ink-500">Account (app login)</p>
-              <div className="mt-2 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                <label className="flex flex-col gap-1 text-xs text-ink-600">
+              <div className="mt-2 flex flex-nowrap items-end gap-3 overflow-x-auto pb-0.5">
+                <label className="flex min-w-[9rem] flex-1 flex-col gap-1 text-xs text-ink-600">
                   Full name
                   <input
                     className="w-full rounded-lg border border-ink-200 bg-white px-3 py-2 text-sm"
@@ -565,7 +571,7 @@ export default function StaffMembershipsPanel() {
                     name="staff_enroll_member_full_name"
                   />
                 </label>
-                <label className="flex flex-col gap-1 text-xs text-ink-600">
+                <label className="flex min-w-[11rem] flex-1 flex-col gap-1 text-xs text-ink-600">
                   Email (login)
                   <input
                     type="email"
@@ -578,23 +584,20 @@ export default function StaffMembershipsPanel() {
                     name="staff_enroll_member_email"
                   />
                 </label>
-                <label className="flex flex-col gap-1 text-xs text-ink-600">
+                <label className="flex min-w-[8rem] flex-1 flex-col gap-1 text-xs text-ink-600">
                   Phone
-                  <input
-                    type="tel"
-                    inputMode="tel"
-                    className="w-full rounded-lg border border-ink-200 bg-white px-3 py-2 text-sm"
+                  <IndianPhoneInput
+                    name="staff_enroll_member_phone"
                     value={manPhone}
-                    onChange={(e) => setManPhone(e.target.value)}
+                    onChange={setManPhone}
                     disabled={manBusy}
                     required
                     autoComplete="off"
-                    name="staff_enroll_member_phone"
-                    data-lpignore="true"
-                    data-1p-ignore="true"
+                    className="rounded-lg"
+                    inputClassName="px-3 py-2 text-sm"
                   />
                 </label>
-                <label className="flex flex-col gap-1 text-xs text-ink-600">
+                <label className="flex min-w-[8rem] flex-1 flex-col gap-1 text-xs text-ink-600">
                   Password
                   <input
                     type="password"
@@ -620,8 +623,8 @@ export default function StaffMembershipsPanel() {
 
             <div>
               <p className="font-mono text-[10px] uppercase tracking-widest text-ink-500">Membership</p>
-              <div className="mt-2 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
-                <label className="flex flex-col gap-1 text-xs text-ink-600 xl:col-span-1">
+              <div className="mt-2 flex flex-nowrap items-end gap-3 overflow-x-auto pb-0.5">
+                <label className="flex min-w-[11rem] flex-1 flex-col gap-1 text-xs text-ink-600">
                   Plan
                   <select
                     className="w-full rounded-lg border border-ink-200 bg-white px-3 py-2 text-sm"
@@ -638,7 +641,7 @@ export default function StaffMembershipsPanel() {
                     <option value="short_term">Row hall · short term</option>
                   </select>
                 </label>
-                <label className="flex flex-col gap-1 text-xs text-ink-600 xl:col-span-1">
+                <label className="flex min-w-[10rem] flex-1 flex-col gap-1 text-xs text-ink-600">
                   Duration
                   <select
                     className="w-full rounded-lg border border-ink-200 bg-white px-3 py-2 text-sm"
@@ -656,7 +659,7 @@ export default function StaffMembershipsPanel() {
                     ))}
                   </select>
                 </label>
-                <label className="flex flex-col gap-1 text-xs text-ink-600 xl:col-span-1">
+                <label className="flex min-w-[9.5rem] shrink-0 flex-col gap-1 text-xs text-ink-600">
                   Start (library day)
                   <input
                     type="date"
@@ -666,19 +669,16 @@ export default function StaffMembershipsPanel() {
                     disabled={manBusy}
                   />
                 </label>
-                <label className="flex flex-col gap-1 text-xs text-ink-600 xl:col-span-1">
-                  Seat #
-                  <input
-                    inputMode="numeric"
-                    className="w-full rounded-lg border border-ink-200 bg-white px-3 py-2 text-sm"
-                    value={manSeat}
-                    onChange={(e) => setManSeat(e.target.value)}
-                    disabled={manBusy}
-                    autoComplete="off"
-                    name="staff_enroll_seat_number"
-                  />
-                </label>
-                <label className="flex flex-col gap-1 text-xs text-ink-600 sm:col-span-2 xl:col-span-2">
+                <div className="flex min-w-[5.5rem] shrink-0 flex-col gap-1 text-xs text-ink-600">
+                  <span>Seat #</span>
+                  <div
+                    className="flex h-[2.375rem] w-full items-center rounded-lg border border-ink-200 bg-ink-50 px-3 text-sm font-mono text-ink-900"
+                    aria-live="polite"
+                  >
+                    {enrollSeatDisplayLabel}
+                  </div>
+                </div>
+                <label className="flex min-w-[8rem] flex-1 flex-col gap-1 text-xs text-ink-600">
                   <span className="flex flex-wrap items-center justify-between gap-1">
                     Amount (₹)
                     {catalogAmount != null ? (
@@ -706,8 +706,9 @@ export default function StaffMembershipsPanel() {
                   />
                 </label>
               </div>
+              <p className="mt-1 text-[10px] text-ink-500">Seat # — pick on the floor map below.</p>
               {catalogAmount != null ? (
-                <p className="mt-2 text-xs text-ink-500">
+                <p className="mt-1 text-xs text-ink-500">
                   Filled from plan price — edit for discounts or cash rounding.
                 </p>
               ) : null}
@@ -723,7 +724,7 @@ export default function StaffMembershipsPanel() {
                 </p>
               </div>
               <p className="font-mono text-xs text-ink-600">
-                Selected: <span className="font-semibold text-violet-700">{enrollMapSelectedSeat ?? "—"}</span>
+                Selected: <span className="font-semibold text-violet-700">{enrollSeatDisplayLabel}</span>
               </p>
             </div>
             {enrollSeatOccErr ? (
@@ -750,8 +751,8 @@ export default function StaffMembershipsPanel() {
               )}
             </div>
           </div>
-          <div className="flex flex-wrap gap-3">
-            <label className="flex min-w-[160px] flex-col gap-1 text-xs text-ink-600">
+          <div className="flex flex-nowrap items-end gap-3 overflow-x-auto pb-0.5">
+            <label className="flex min-w-[10rem] shrink-0 flex-col gap-1 text-xs text-ink-600">
               Payment method
               <select
                 className="rounded-lg border border-ink-200 bg-white px-3 py-2 text-sm"
@@ -768,7 +769,7 @@ export default function StaffMembershipsPanel() {
                 <option value="other">Other</option>
               </select>
             </label>
-            <label className="flex min-w-[220px] flex-1 flex-col gap-1 text-xs text-ink-600">
+            <label className="flex min-w-[14rem] flex-1 flex-col gap-1 text-xs text-ink-600">
               UPI / bank ref / receipt id <span className="font-normal text-ink-400">(recommended)</span>
               <input
                 className="rounded-lg border border-ink-200 bg-white px-3 py-2 text-sm"

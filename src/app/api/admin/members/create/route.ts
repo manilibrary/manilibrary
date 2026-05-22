@@ -1,6 +1,7 @@
 import { apiError, apiErrorSafe, apiSuccess } from "@/lib/api/json-response";
 import { createMemberAccount, isValidMemberEmail, normalizeMemberEmail } from "@/lib/admin/create-member-account";
 import { formatPersonName } from "@/lib/format-person-name";
+import { profilePhoneFromDb } from "@/lib/profile-phone";
 import { FIELD_LIMITS } from "@/lib/security/field-limits";
 import { readJsonBody } from "@/lib/security/request-guards";
 import { requireLibraryAdmin } from "@/lib/supabase/require-library-admin";
@@ -73,7 +74,7 @@ export async function POST(request: Request) {
     device_user_id: profile.device_user_id,
     full_name: profile.full_name,
     email: profile.email,
-    phone: profile.phone,
+    phone: profilePhoneFromDb(profile.phone) ?? null,
     ...(acc.temporary_password ? { temporary_password: acc.temporary_password } : {}),
   });
 }

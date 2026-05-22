@@ -13,6 +13,7 @@ import MemberProfileSection from "@/components/dashboard/MemberProfileSection";
 import MemberFeedbackCard from "@/components/dashboard/MemberFeedbackCard";
 import { CLIENT_DATA_CACHE_TTL_MS, ddcKey, getClientCache, setClientCache } from "@/lib/client-data-cache";
 import { extrasToDisplayFields } from "@/lib/profiles/profile-extras";
+import { profilePhoneFromDb } from "@/lib/profile-phone";
 import { createClient } from "@/lib/supabase/client";
 import { loadMemberKycForDashboard } from "@/lib/members/member-kyc-client-load";
 import {
@@ -70,9 +71,8 @@ export default function MemberMembershipHome() {
       if (!user || cancelled) return;
 
       const b = bootRef.current;
-      if (useCache && b.ready && !b.skipped && b.memberUserId === user.id && b.membershipRows != null) {
-        setMemberships(b.membershipRows);
-      }
+      const bootMem =
+        useCache && b.ready && !b.skipped && b.memberUserId === user.id ? b.membershipRows : null;
 
       const kProf = ddcKey.profileMemberHome(user.id);
       const kMem = ddcKey.memberships(user.id);
@@ -88,6 +88,7 @@ export default function MemberMembershipHome() {
         const cDocs = getClientCache<Record<string, boolean>>(kDocs);
         if (cProf) setProfile(cProf);
         if (cMem) setMemberships(cMem);
+        if (bootMem) setMemberships(bootMem);
         if (cMyc) {
           setUploadedDocs(cMyc.uploadedDocs);
           setMemberKycSlots(cMyc.memberKycSlots);
@@ -96,18 +97,22 @@ export default function MemberMembershipHome() {
         }
       }
 
-      const [profRes, memRes] = await Promise.all([
-        supabase
-          .from("profiles")
-          .select("full_name, device_user_id, phone, email, is_admin, is_verified, profile_extras, avatar_url")
-          .eq("user_id", user.id)
-          .maybeSingle(),
-        supabase
-          .from("memberships")
-          .select("id, plan_kind, status, seat_number, starts_at, ends_at, valid_from, valid_until, created_at")
-          .eq("user_id", user.id)
-          .order("created_at", { ascending: false }),
-      ]);
+      const profP = supabase
+        .from("profiles")
+        .select("full_name, device_user_id, phone, email, is_admin, is_verified, profile_extras, avatar_url")
+        .eq("user_id", user.id)
+        .maybeSingle();
+
+      const memP =
+        bootMem != null
+          ? Promise.resolve({ data: bootMem, error: null as null })
+          : supabase
+              .from("memberships")
+              .select("id, plan_kind, status, seat_number, starts_at, ends_at, valid_from, valid_until, created_at")
+              .eq("user_id", user.id)
+              .order("created_at", { ascending: false });
+
+      const [profRes, memRes] = await Promise.all([profP, memP]);
 
       if (cancelled) return;
 
@@ -125,7 +130,7 @@ export default function MemberMembershipHome() {
         const mapped: ProfileRow = {
           full_name: String((prof as { full_name?: string }).full_name ?? ""),
           device_user_id: Number((prof as { device_user_id?: number }).device_user_id),
-          phone: (prof as { phone?: string | null }).phone ?? null,
+          phone: profilePhoneFromDb((prof as { phone?: unknown }).phone) ?? null,
           email: (prof as { email?: string | null }).email ?? null,
           verification_status: kyc.verificationUiStatus,
           aadhaar_last_four: x.aadhaar_last_four,

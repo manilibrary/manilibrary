@@ -1,12 +1,13 @@
 "use client";
 
 import { usePathname } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useAuthSession } from "@/components/auth/AuthSessionProvider";
 import { avatarDisplayUrl } from "@/lib/avatars/avatar-display-url";
 import { createClient } from "@/lib/supabase/client";
 import { clearAllUxPreferenceCookies } from "@/lib/ux-cookies";
 import { TopbarUserTextSkeleton } from "@/components/ui/ContentSkeletons";
-import { clearClientCache, CLIENT_DATA_CACHE_TTL_MS, ddcKey, getClientCache, setClientCache } from "@/lib/client-data-cache";
+import { clearClientCache } from "@/lib/client-data-cache";
 
 type BarUser = {
   email: string;
@@ -18,97 +19,41 @@ type BarUser = {
 export default function Topbar({ onMenu }: { onMenu: () => void }) {
   const pathname = usePathname() ?? "";
   const hideMemberSearch = pathname.startsWith("/dashboard/me");
-  const [user, setUser] = useState<BarUser | null>(null);
-  const [ready, setReady] = useState(false);
+  const session = useAuthSession();
   const [menuOpen, setMenuOpen] = useState(false);
   const [avatarCacheBust, setAvatarCacheBust] = useState(0);
 
+  const user = useMemo<BarUser | null>(() => {
+    if (!session.signedIn) return null;
+    const roleLabel: BarUser["roleLabel"] = session.isSuperAdmin
+      ? "Superadmin"
+      : session.isAdmin
+        ? "Admin"
+        : "Member";
+    const initials =
+      session.displayName.trim().length >= 2
+        ? session.displayName
+            .split(/\s+/)
+            .filter(Boolean)
+            .map((p) => p[0])
+            .join("")
+            .slice(0, 2)
+            .toUpperCase()
+        : session.email.slice(0, 2).toUpperCase();
+    return {
+      email: session.email,
+      roleLabel,
+      initials,
+      avatarUrl: session.avatarUrl,
+    };
+  }, [session]);
+
+  const ready = session.ready;
+
   useEffect(() => {
-    const supabase = createClient();
-    let cancelled = false;
-
-    const load = async () => {
-      const {
-        data: { user: authUser },
-      } = await supabase.auth.getUser();
-      if (cancelled) return;
-
-      if (!authUser?.email) {
-        setUser(null);
-        setReady(true);
-        return;
-      }
-
-      const navKey = ddcKey.profileNav(authUser.id);
-      const cachedFlags = getClientCache<{ is_admin?: boolean | null; is_superadmin?: boolean | null; avatar_url?: string | null }>(navKey);
-      if (cachedFlags) {
-        const roleLabel: BarUser["roleLabel"] =
-          cachedFlags.is_superadmin === true
-            ? "Superadmin"
-            : cachedFlags.is_admin
-              ? "Admin"
-              : "Member";
-        setUser({
-          email: authUser.email,
-          roleLabel,
-          initials: authUser.email.slice(0, 2).toUpperCase(),
-          avatarUrl: cachedFlags.avatar_url ?? null,
-        });
-        setReady(true);
-      }
-
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("is_admin, is_superadmin, avatar_url")
-        .eq("user_id", authUser.id)
-        .maybeSingle();
-
-      if (cancelled) return;
-
-      setClientCache(
-        navKey,
-        {
-          is_admin: profile?.is_admin ?? null,
-          is_superadmin: profile?.is_superadmin ?? null,
-          avatar_url: profile?.avatar_url ?? null,
-        },
-        CLIENT_DATA_CACHE_TTL_MS,
-      );
-
-      const roleLabel: BarUser["roleLabel"] =
-        profile?.is_superadmin === true
-          ? "Superadmin"
-          : profile?.is_admin
-            ? "Admin"
-            : "Member";
-
-      setUser({
-        email: authUser.email,
-        roleLabel,
-        initials: authUser.email.slice(0, 2).toUpperCase(),
-        avatarUrl: profile?.avatar_url ?? null,
-      });
-      setReady(true);
-    };
-
-    void load();
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange(() => {
-      void load();
-    });
-    const onAvatarChanged = (e: Event) => {
-      const detail = (e as CustomEvent<{ avatarUrl: string | null }>).detail;
-      setAvatarCacheBust(Date.now());
-      setUser((u) => (u ? { ...u, avatarUrl: detail?.avatarUrl ?? null } : u));
-    };
+    const onAvatarChanged = () => setAvatarCacheBust(Date.now());
     window.addEventListener("manilibrary:avatar-changed", onAvatarChanged);
-
-    return () => {
-      cancelled = true;
-      subscription.unsubscribe();
-      window.removeEventListener("manilibrary:avatar-changed", onAvatarChanged);
-    };
+    return () => window.removeEventListener("manilibrary:avatar-changed", onAvatarChanged);
   }, []);
 
   const signOut = async () => {

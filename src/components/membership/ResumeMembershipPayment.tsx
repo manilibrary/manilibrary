@@ -3,6 +3,8 @@
 import { useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 
+import { useAuthSession } from "@/components/auth/AuthSessionProvider";
+import StaffRazorpayBlockedNotice from "@/components/membership/StaffRazorpayBlockedNotice";
 import { MEMBER_MEMBERSHIP_PATH } from "@/lib/auth-landing";
 import { formatPhoneForRazorpayPrefill } from "@/lib/payments/razorpay-prefill";
 import { createClient } from "@/lib/supabase/client";
@@ -27,9 +29,11 @@ type RazorpayConstructor = new (options: Record<string, unknown>) => {
 
 export default function ResumeMembershipPayment() {
   const searchParams = useSearchParams();
+  const auth = useAuthSession();
   const paymentId = searchParams.get("payment_id")?.trim() ?? "";
   const [msg, setMsg] = useState("Loading checkout…");
   const [err, setErr] = useState<string | null>(null);
+  const isStaff = auth.ready && (auth.isAdmin || auth.isSuperAdmin);
 
   const run = useCallback(async () => {
     if (!paymentId) {
@@ -140,8 +144,20 @@ export default function ResumeMembershipPayment() {
   }, [paymentId]);
 
   useEffect(() => {
+    if (isStaff) return;
     void run();
-  }, [run]);
+  }, [run, isStaff]);
+
+  if (isStaff) {
+    return (
+      <div className="mx-auto max-w-lg px-5 py-16">
+        <h1 className="text-center text-xl font-semibold text-ink-900">Complete payment</h1>
+        <div className="mt-6">
+          <StaffRazorpayBlockedNotice fullWidth />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="mx-auto max-w-lg px-5 py-16 text-center">

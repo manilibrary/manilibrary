@@ -2,15 +2,17 @@
 
 import Link from "next/link";
 
+import { useAuthSession } from "@/components/auth/AuthSessionProvider";
 import { formatMembershipWindow, useActiveMembership } from "@/hooks/useActiveMembership";
 import { resolveMemberSeatDisplayLabel } from "@/lib/membership/seat-label";
 import { MEMBER_MEMBERSHIP_PATH } from "@/lib/auth-landing";
 import { MembershipGreetingSkeleton } from "@/components/ui/ContentSkeletons";
 
 export default function MembershipHubGreeting() {
-  const { loading, membership, error } = useActiveMembership();
+  const auth = useAuthSession();
+  const { loading: memLoading, membership, error } = useActiveMembership();
 
-  if (loading) return <MembershipGreetingSkeleton />;
+  if (!auth.ready || memLoading) return <MembershipGreetingSkeleton />;
 
   if (error) {
     return (
