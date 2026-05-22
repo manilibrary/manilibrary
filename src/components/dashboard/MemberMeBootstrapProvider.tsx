@@ -9,6 +9,8 @@ import React, {
   useState,
 } from "react";
 
+import { useAuthSession } from "@/components/auth/AuthSessionProvider";
+import { AUTH_SESSION_CHANGED_EVENT } from "@/lib/auth-client-sync";
 import type { MemberActivePlanRow } from "@/components/dashboard/MemberActiveMembershipCards";
 import { CLIENT_DATA_CACHE_TTL_MS, ddcKey, getClientCache, setClientCache } from "@/lib/client-data-cache";
 import { createClient } from "@/lib/supabase/client";
@@ -68,7 +70,8 @@ async function fetchMembershipRows(userId: string): Promise<{
       .from("memberships")
       .select("id, plan_kind, status, seat_number, starts_at, ends_at, valid_from, valid_until, created_at")
       .eq("user_id", userId)
-      .order("created_at", { ascending: false });
+      .order("created_at", { ascending: false })
+      .limit(32);
     if (error) {
       return { membershipRows: [], membershipError: error.message };
     }
@@ -103,6 +106,7 @@ async function fetchTodayAttendance(): Promise<{
 }
 
 export function MemberMeBootstrapProvider({ children }: { children: React.ReactNode }) {
+  const auth = useAuthSession();
   const [memberUserId, setMemberUserId] = useState<string | null>(null);
   const [skipped, setSkipped] = useState(false);
   const [phase, setPhase] = useState<Phase>("idle");
@@ -112,81 +116,74 @@ export function MemberMeBootstrapProvider({ children }: { children: React.ReactN
   const [attendance, setAttendance] = useState<MeTodayAttendancePayload | null>(null);
   const [attendanceError, setAttendanceError] = useState<string | null>(null);
 
-  const runBootstrap = useCallback(async (opts?: { silent?: boolean }) => {
-    const silent = opts?.silent === true;
-    const supabase = createClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+  const runBootstrap = useCallback(
+    async (opts?: { silent?: boolean }) => {
+      const silent = opts?.silent === true;
 
-    if (!user) {
-      setMemberUserId(null);
+      if (!auth.ready) return;
+
+      if (!auth.signedIn || !auth.userId) {
+        setMemberUserId(null);
+        setSkipped(false);
+        setPhase("idle");
+        setMembershipRows(null);
+        setMembershipError(null);
+        setAttendanceLoading(false);
+        setAttendance(null);
+        setAttendanceError(null);
+        return;
+      }
+
+      if (auth.isAdmin || auth.isSuperAdmin) {
+        setMemberUserId(null);
+        setSkipped(true);
+        setPhase("ready");
+        setMembershipRows(null);
+        setMembershipError(null);
+        setAttendanceLoading(false);
+        setAttendance(null);
+        setAttendanceError(null);
+        return;
+      }
+
+      const userId = auth.userId;
       setSkipped(false);
-      setPhase("idle");
-      setMembershipRows(null);
+      setMemberUserId(userId);
+
+      const cachedMem = getClientCache<MemberActivePlanRow[]>(ddcKey.memberships(userId));
+      setMembershipRows(cachedMem ?? []);
       setMembershipError(null);
-      setAttendanceLoading(false);
-      setAttendance(null);
-      setAttendanceError(null);
-      return;
-    }
-
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("is_admin")
-      .eq("user_id", user.id)
-      .maybeSingle();
-
-    if (profile?.is_admin) {
-      setMemberUserId(null);
-      setSkipped(true);
       setPhase("ready");
-      setMembershipRows(null);
-      setMembershipError(null);
-      setAttendanceLoading(false);
-      setAttendance(null);
+
+      const memberships = await fetchMembershipRows(userId);
+      setMembershipRows(memberships.membershipRows);
+      setMembershipError(memberships.membershipError);
+
       setAttendanceError(null);
-      return;
-    }
-
-    setSkipped(false);
-    setMemberUserId(user.id);
-    const cachedMem = getClientCache<MemberActivePlanRow[]>(ddcKey.memberships(user.id));
-    if (cachedMem) {
-      setMembershipRows(cachedMem);
-      setMembershipError(null);
-      if (!silent) setPhase("ready");
-    } else if (!silent) {
-      setPhase("loading");
-    }
-    setMembershipError(null);
-    setAttendanceError(null);
-    setAttendanceLoading(true);
-
-    const memberships = await fetchMembershipRows(user.id);
-    setMembershipRows(memberships.membershipRows);
-    setMembershipError(memberships.membershipError);
-    setPhase("ready");
-
-    void fetchTodayAttendance().then((r) => {
-      setAttendance(r.attendance);
-      setAttendanceError(r.attendanceError);
+      setAttendanceLoading(true);
+      const attendanceResult = await fetchTodayAttendance();
+      setAttendance(attendanceResult.attendance);
+      setAttendanceError(attendanceResult.attendanceError);
       setAttendanceLoading(false);
-    });
-  }, []);
+    },
+    [auth.ready, auth.signedIn, auth.userId, auth.isAdmin, auth.isSuperAdmin],
+  );
 
   useEffect(() => {
-    queueMicrotask(() => {
-      void runBootstrap();
-    });
+    void runBootstrap();
     const supabase = createClient();
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((event) => {
       void runBootstrap({ silent: event === "TOKEN_REFRESHED" });
     });
+    const onAuthChanged = () => {
+      void runBootstrap();
+    };
+    window.addEventListener(AUTH_SESSION_CHANGED_EVENT, onAuthChanged);
     return () => {
       subscription.unsubscribe();
+      window.removeEventListener(AUTH_SESSION_CHANGED_EVENT, onAuthChanged);
     };
   }, [runBootstrap]);
 

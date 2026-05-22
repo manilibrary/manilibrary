@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { displayPersonName } from "@/lib/format-person-name";
+import { profilePhoneFromDb } from "@/lib/profile-phone";
 import { extrasToDisplayFields } from "@/lib/profiles/profile-extras";
 import {
   buildMemberKycSlotSummaries,
@@ -102,7 +103,7 @@ export async function buildStudentMemberProfileBody(
       role,
       name: displayPersonName((prof as { full_name?: string }).full_name, "Member"),
       email: ((prof as { email?: string | null }).email as string | null) ?? user.email ?? undefined,
-      phone: ((prof as { phone?: string | null }).phone as string | null) ?? undefined,
+      phone: profilePhoneFromDb((prof as { phone?: unknown }).phone),
       deviceUserId,
       libraryNumber,
       avatarUrl: ((prof as { avatar_url?: string | null }).avatar_url as string | null) ?? null,

@@ -5,6 +5,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { avatarDisplayUrl } from "@/lib/avatars/avatar-display-url";
 import { compressImageUnder } from "@/lib/compress-image";
 import { displayPersonName } from "@/lib/format-person-name";
+import { formatIndianPhoneDisplay } from "@/lib/profile-phone";
 
 type Props = {
   fullName: string;
@@ -23,7 +24,8 @@ type Props = {
 function displayPhone(phone: string | null): string | null {
   const p = phone?.trim();
   if (!p || p.includes("@")) return null;
-  return p;
+  const label = formatIndianPhoneDisplay(p);
+  return label === "—" ? p : label;
 }
 
 function displayEmail(email: string | null, phone: string | null): string | null {

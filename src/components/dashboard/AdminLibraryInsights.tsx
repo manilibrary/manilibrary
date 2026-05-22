@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import {
   Bar,
   BarChart,
@@ -41,8 +41,7 @@ type RecentPayment = {
   amount_rupees: number;
   status: string;
   created_at: string;
-  provider: string | null;
-  provider_payment_id: string | null;
+  plan_kind: string | null;
   member_label: string;
   device_user_id: number | null;
 };
@@ -76,6 +75,17 @@ const TREND_DAYS = 14;
 
 function formatInr(n: number) {
   return `₹${n.toLocaleString("en-IN")}`;
+}
+
+const OVERVIEW_STAT_CARD_CLASS =
+  "block shrink-0 w-[calc(50%-0.5rem)] sm:w-[calc(33.333%-0.67rem)] md:w-[calc(25%-0.75rem)] xl:w-[calc((100%-4*1rem)/5)] rounded-2xl border border-ink-100 bg-white p-5 shadow-sm transition-colors hover:bg-ink-50/60";
+
+function OverviewStatsRow({ children }: { children: ReactNode }) {
+  return (
+    <div className="flex gap-4 overflow-x-auto scroll-smooth pb-0.5 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+      {children}
+    </div>
+  );
 }
 
 function shortDayLabel(isoDay: string) {
@@ -245,11 +255,11 @@ export default function AdminLibraryInsights() {
 
   if (loading && !data) {
     return (
-      <div className="grid grid-cols-2 gap-4 xl:grid-cols-5">
-        {Array.from({ length: 5 }, (_, i) => (
-          <div key={i} className="h-36 animate-pulse rounded-2xl border border-ink-100 bg-white" />
+      <OverviewStatsRow>
+        {Array.from({ length: 6 }, (_, i) => (
+          <div key={i} className={`${OVERVIEW_STAT_CARD_CLASS} h-36 animate-pulse`} />
         ))}
-      </div>
+      </OverviewStatsRow>
     );
   }
 
@@ -264,29 +274,20 @@ export default function AdminLibraryInsights() {
       {revalidating ? (
         <p className="text-right text-[10px] font-medium uppercase tracking-wider text-ink-400">Updating…</p>
       ) : null}
-      <div className="grid grid-cols-2 gap-4 xl:grid-cols-5">
-        <Link
-          href="/dashboard/members"
-          className="block rounded-2xl border border-ink-100 bg-white p-5 shadow-sm transition-colors hover:bg-ink-50/60"
-        >
+      <OverviewStatsRow>
+        <Link href="/dashboard/members" className={OVERVIEW_STAT_CARD_CLASS}>
           <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-ink-500">Registered users</p>
           <p className="mt-2 text-3xl font-semibold tracking-tight text-ink-900 tabular-nums">{registered}</p>
           <p className="mt-1 text-xs text-ink-500">Signed up on the website or app</p>
         </Link>
 
-        <Link
-          href="/dashboard/subscriptions"
-          className="block rounded-2xl border border-ink-100 bg-white p-5 shadow-sm transition-colors hover:bg-ink-50/60"
-        >
+        <Link href="/dashboard/subscriptions" className={OVERVIEW_STAT_CARD_CLASS}>
           <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-ink-500">Active members</p>
           <p className="mt-2 text-3xl font-semibold tracking-tight text-emerald-800 tabular-nums">{activeMembers}</p>
           <p className="mt-1 text-xs text-ink-500">Bought a plan · membership active now</p>
         </Link>
 
-        <Link
-          href="/dashboard/subscriptions"
-          className="block rounded-2xl border border-ink-100 bg-white p-5 shadow-sm transition-colors hover:bg-ink-50/60"
-        >
+        <Link href="/dashboard/subscriptions" className={OVERVIEW_STAT_CARD_CLASS}>
           <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-ink-500">Active plans</p>
             <p className="mt-2 text-3xl font-semibold tracking-tight text-ink-900 tabular-nums">{stats.activeTotal}</p>
             <p className="mt-1 text-xs text-ink-500">
@@ -306,25 +307,26 @@ export default function AdminLibraryInsights() {
             </p>
           </Link>
 
-        <Link
-          href="/dashboard/payments"
-          className="block rounded-2xl border border-ink-100 bg-white p-5 shadow-sm transition-colors hover:bg-ink-50/60"
-        >
+        <Link href="/dashboard/payments" className={OVERVIEW_STAT_CARD_CLASS}>
           <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-ink-500">Income · 30 days</p>
           <p className="mt-2 text-3xl font-semibold tracking-tight text-azure-800 tabular-nums">{formatInr(stats.revenue30dInr)}</p>
           <p className="mt-1 text-xs text-ink-500">{stats.paidCount30d} paid charges</p>
-          <p className="mt-3 text-[11px] text-ink-400">All-time paid {formatInr(stats.totalPaidRevenueInr)}</p>
         </Link>
 
-        <Link
-          href="/dashboard/payments"
-          className="block rounded-2xl border border-ink-100 bg-white p-5 shadow-sm transition-colors hover:bg-ink-50/60 xl:col-span-1"
-        >
+        <Link href="/dashboard/payments" className={OVERVIEW_STAT_CARD_CLASS}>
           <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-ink-500">Income · today</p>
           <p className="mt-2 text-3xl font-semibold tracking-tight text-ink-900 tabular-nums">{formatInr(stats.revenueTodayInr)}</p>
           <p className="mt-1 text-xs text-ink-500">{stats.paidCountToday} payments</p>
         </Link>
-      </div>
+
+        <Link href="/dashboard/payments" className={OVERVIEW_STAT_CARD_CLASS}>
+          <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-ink-500">Total income</p>
+          <p className="mt-2 text-3xl font-semibold tracking-tight text-azure-800 tabular-nums">
+            {formatInr(stats.totalPaidRevenueInr)}
+          </p>
+          <p className="mt-1 text-xs text-ink-500">All-time paid revenue</p>
+        </Link>
+      </OverviewStatsRow>
 
       <div className="rounded-2xl border border-ink-100 bg-white p-5 shadow-sm md:p-6">
         <div className="flex flex-wrap items-start justify-between gap-3">

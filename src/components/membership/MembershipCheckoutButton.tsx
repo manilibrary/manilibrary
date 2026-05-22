@@ -5,6 +5,8 @@ import { useCallback, useState } from "react";
 import { MEMBER_MEMBERSHIP_PATH } from "@/lib/auth-landing";
 import { buildCheckoutFingerprint, type ResumableCheckoutPayload } from "@/lib/membership/resumable-checkout";
 import { flushMembershipIntakeDraftAfterPayment } from "@/lib/membership/membership-intake-draft";
+import { useAuthSession } from "@/components/auth/AuthSessionProvider";
+import StaffRazorpayBlockedNotice from "@/components/membership/StaffRazorpayBlockedNotice";
 import { createClient } from "@/lib/supabase/client";
 import { formatPhoneForRazorpayPrefill } from "@/lib/payments/razorpay-prefill";
 import type { MembershipPlanKind } from "@/lib/payments/pricing";
@@ -65,6 +67,7 @@ export default function MembershipCheckoutButton({
 }) {
   const router = useRouter();
   const pathname = usePathname();
+  const auth = useAuthSession();
   const [phase, setPhase] = useState<"idle" | "creating" | "modal">("idle");
   const [msg, setMsg] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
@@ -72,32 +75,28 @@ export default function MembershipCheckoutButton({
   const displayRupees =
     quotedAmountRupees ?? computeOrderAmountRupees(planKind, durationKey) ?? TEST_AMOUNT_RUPEES[planKind];
   const amountInr = displayRupees.toLocaleString("en-IN", { maximumFractionDigits: 0 });
+  const isStaff = auth.ready && (auth.isAdmin || auth.isSuperAdmin);
 
   const pay = useCallback(async () => {
+    if (phase === "creating") return;
     setErr(null);
     setMsg(null);
     if (seatNumber == null) return;
 
-    const supabase = createClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (!user) {
+    if (!auth.signedIn || !auth.userId) {
       router.push(`/login?next=${encodeURIComponent(pathname ?? "/membership")}`);
       return;
     }
 
+    const supabase = createClient();
     const { data: profile } = await supabase
       .from("profiles")
       .select("phone, email")
-      .eq("user_id", user.id)
+      .eq("user_id", auth.userId)
       .maybeSingle();
 
-    const prefillEmail = user.email ?? profile?.email ?? undefined;
-    const prefillContact =
-      formatPhoneForRazorpayPrefill(profile?.phone) ??
-      formatPhoneForRazorpayPrefill(user.phone) ??
-      formatPhoneForRazorpayPrefill(user.user_metadata?.phone as string | undefined);
+    const prefillEmail = auth.email || profile?.email || undefined;
+    const prefillContact = formatPhoneForRazorpayPrefill(profile?.phone);
 
     setPhase("creating");
     try {
@@ -254,10 +253,7 @@ export default function MembershipCheckoutButton({
           prefill: {
             ...(prefillEmail ? { email: prefillEmail } : {}),
             ...(prefillContact ? { contact: prefillContact } : {}),
-            name:
-              (user.user_metadata?.full_name as string | undefined) ??
-              user.email?.split("@")[0] ??
-              "Member",
+            name: auth.displayName || auth.email.split("@")[0] || "Member",
           },
           theme: { color: "#0ea5e9" },
         };
@@ -301,9 +297,18 @@ export default function MembershipCheckoutButton({
       });
     } catch (e) {
       setErr(e instanceof Error ? e.message : "Payment failed.");
+    } finally {
       setPhase("idle");
     }
-  }, [planKind, seatNumber, router, pathname, membershipStartDate, durationKey, durationLabel, resumeCheckout]);
+  }, [planKind, seatNumber, router, pathname, membershipStartDate, durationKey, durationLabel, resumeCheckout, phase]);
+
+  if (isStaff) {
+    return (
+      <div className={`flex w-full flex-col gap-2 ${fullWidth ? "items-stretch" : "sm:w-auto sm:items-end"}`}>
+        <StaffRazorpayBlockedNotice fullWidth={fullWidth} />
+      </div>
+    );
+  }
 
   return (
     <div
@@ -345,7 +350,7 @@ export default function MembershipCheckoutButton({
       )}
       <button
         type="button"
-        disabled={disabled || seatNumber == null || phase !== "idle"}
+        disabled={disabled || seatNumber == null || phase === "creating"}
         onClick={() => void pay()}
         className={`inline-flex items-center justify-center rounded-full bg-azure-500 px-6 py-3.5 text-sm font-semibold text-white shadow-sm transition hover:bg-azure-600 disabled:cursor-not-allowed disabled:opacity-50 sm:py-3 ${
           fullWidth ? "w-full min-h-12" : ""

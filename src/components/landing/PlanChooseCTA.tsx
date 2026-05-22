@@ -3,8 +3,9 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
+import { useAuthSession } from "@/components/auth/AuthSessionProvider";
 import { useActiveMembership } from "@/hooks/useActiveMembership";
-import { MEMBER_MEMBERSHIP_PATH } from "@/lib/auth-landing";
+import { MEMBER_MEMBERSHIP_PATH, STAFF_LANDING_PATH } from "@/lib/auth-landing";
 import { seatPreviewPathForMarketingPlanId } from "@/lib/membership/marketing-plan-seat-preview";
 import { prefetchMembershipPath } from "@/lib/membership/prefetch-membership";
 
@@ -21,22 +22,28 @@ function membershipHubHref(planId: string): string {
 
 export default function PlanChooseCTA({ planName, planId, popular }: Props) {
   const router = useRouter();
-  const { loading, membership, signedIn } = useActiveMembership();
+  const auth = useAuthSession();
+  const { loading: memLoading, membership } = useActiveMembership();
+  const pending = !auth.ready || memLoading;
+  const signedIn = auth.signedIn;
+  const isStaff = auth.isAdmin || auth.isSuperAdmin;
 
   const baseClasses = popular
     ? "bg-azure-500 text-white hover:bg-azure-600"
     : "border border-ink-200 text-ink-800 hover:border-ink-300 hover:bg-ink-50";
 
-  if (loading) {
+  if (auth.ready && isStaff) {
     return (
-      <span
-        className={`mt-7 block h-[42px] w-full max-w-[14rem] animate-pulse rounded-full ${baseClasses} opacity-70`}
-        aria-label="Checking membership"
-      />
+      <Link
+        href={STAFF_LANDING_PATH}
+        className={`mt-7 inline-flex w-full items-center justify-center rounded-full px-5 py-2.5 text-sm font-semibold transition-colors ${baseClasses}`}
+      >
+        Go to dashboard
+      </Link>
     );
   }
 
-  if (membership) {
+  if (membership && !pending) {
     const seatHref = seatPreviewPathForMarketingPlanId(planId);
     return (
       <div className="mt-7 space-y-2">
@@ -60,7 +67,7 @@ export default function PlanChooseCTA({ planName, planId, popular }: Props) {
   }
 
   const hub = membershipHubHref(planId);
-  const chooseHref = signedIn ? hub : `/login?next=${encodeURIComponent(hub)}`;
+  const chooseHref = pending || signedIn ? hub : `/login?next=${encodeURIComponent(hub)}`;
   const warmChoose = () => prefetchMembershipPath(router, hub);
 
   return (
@@ -68,7 +75,10 @@ export default function PlanChooseCTA({ planName, planId, popular }: Props) {
       href={chooseHref}
       onMouseEnter={warmChoose}
       onFocus={warmChoose}
-      className={`mt-7 inline-flex w-full items-center justify-center rounded-full px-5 py-2.5 text-sm font-semibold transition-colors ${baseClasses}`}
+      aria-busy={pending}
+      className={`mt-7 inline-flex w-full items-center justify-center rounded-full px-5 py-2.5 text-sm font-semibold transition-colors ${baseClasses} ${
+        pending ? "animate-pulse opacity-90" : ""
+      }`}
     >
       Choose {planName}
     </Link>

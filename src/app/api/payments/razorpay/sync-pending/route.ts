@@ -1,7 +1,7 @@
 import { apiError, apiErrorSafe, apiSuccess } from "@/lib/api/json-response";
 import { createRazorpayServerClient } from "@/lib/payments/razorpay-server";
 import { syncPendingRazorpayPaymentRow } from "@/lib/payments/sync-pending-razorpay-payment";
-import { getAuthUserForApiRequest } from "@/lib/supabase/api-route-auth";
+import { requireMemberNotStaffForRazorpay } from "@/lib/payments/require-member-razorpay";
 import { createSupabaseServiceRoleClient } from "@/lib/supabase/service-role";
 
 export const runtime = "nodejs";
@@ -18,13 +18,11 @@ export async function POST(request: Request) {
     return apiError("Expected JSON body.", 400);
   }
 
-  const {
-    data: { user },
-    error: authErr,
-  } = await getAuthUserForApiRequest(request);
-  if (authErr || !user) {
-    return apiError("Sign in required.", 401);
+  const gate = await requireMemberNotStaffForRazorpay(request);
+  if (!gate.ok) {
+    return apiError(gate.message, gate.status);
   }
+  const userId = gate.userId;
 
   const rz = createRazorpayServerClient();
   if (!rz) {
@@ -47,7 +45,7 @@ export async function POST(request: Request) {
   if (payErr || !pay) {
     return apiError("Payment not found.", 404);
   }
-  if (pay.user_id !== user.id) {
+  if (pay.user_id !== userId) {
     return apiError("Forbidden.", 403);
   }
 

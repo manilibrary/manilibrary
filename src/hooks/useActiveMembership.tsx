@@ -4,7 +4,7 @@ import React, { createContext, useContext, useEffect, useMemo, useState } from "
 
 import { formatDateDdMmYyyy } from "@/lib/date-format";
 import { CLIENT_DATA_CACHE_TTL_MS, ddcKey, getClientCache, invalidateClientCachePrefix, setClientCache } from "@/lib/client-data-cache";
-import { createClient } from "@/lib/supabase/client";
+import { useAuthSession } from "@/components/auth/AuthSessionProvider";
 
 export type ActiveMembershipShape = {
   id: string;
@@ -51,52 +51,61 @@ function writeCache(userId: string | undefined, payload: MeActiveCachePayload): 
   setClientCache(cacheKeyForUser(userId), payload, CLIENT_DATA_CACHE_TTL_MS);
 }
 
+function stateFromAuth(
+  ready: boolean,
+  signedIn: boolean,
+  userId: string | null,
+): State | null {
+  if (!ready) return null;
+
+  if (!signedIn || !userId) {
+    const cachedGuest = readCache(undefined);
+    const guest: MeActiveCachePayload = { signedIn: false, membership: null, error: null };
+    if (cachedGuest) return { loading: false, ...cachedGuest };
+    return { loading: false, ...guest };
+  }
+
+  const cached = readCache(userId);
+  return {
+    loading: false,
+    signedIn: true,
+    membership: (cached?.membership as ActiveMembershipShape | null) ?? null,
+    error: cached?.error ?? null,
+  };
+}
+
 export function ActiveMembershipProvider({ children }: { children: React.ReactNode }) {
-  const [state, setState] = useState<State>(() => {
-    const guest = readCache(undefined);
-    if (guest) {
-      return {
-        loading: false,
-        signedIn: guest.signedIn,
-        membership: guest.membership,
-        error: guest.error,
-      };
-    }
-    return initial;
-  });
+  const auth = useAuthSession();
+  const [state, setState] = useState<State>(initial);
 
   useEffect(() => {
     let cancelled = false;
-    void (async () => {
-      const supabase = createClient();
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (cancelled) return;
 
-      if (!user) {
-        const cachedGuest = readCache(undefined);
-        const guest: MeActiveCachePayload = { signedIn: false, membership: null, error: null };
-        if (cachedGuest) {
-          setState({ loading: false, ...cachedGuest });
-        } else {
-          setState({ loading: false, ...guest });
-          writeCache(undefined, guest);
-        }
-        return;
-      }
+    const loadingGuard = window.setTimeout(() => {
+      setState((s) => (s.loading ? { ...s, loading: false } : s));
+    }, 8000);
 
-      const uid = user.id;
-      const cached = readCache(uid);
-      if (cached) {
-        setState({
-          loading: false,
-          signedIn: cached.signedIn,
-          membership: cached.membership,
-          error: cached.error,
+    const applyAuth = () => {
+      const next = stateFromAuth(auth.ready, auth.signedIn, auth.userId);
+      if (!next) return false;
+      if (!auth.signedIn || !auth.userId) {
+        writeCache(undefined, {
+          signedIn: false,
+          membership: null,
+          error: null,
         });
       }
+      setState(next);
+      return auth.signedIn && !!auth.userId;
+    };
 
+    if (!applyAuth()) {
+      return () => window.clearTimeout(loadingGuard);
+    }
+
+    const uid = auth.userId!;
+
+    void (async () => {
       try {
         const res = await fetch("/api/memberships/me-active", { cache: "no-store" });
         if (cancelled) return;
@@ -141,10 +150,12 @@ export function ActiveMembershipProvider({ children }: { children: React.ReactNo
         setState({ loading: false, ...next });
       }
     })();
+
     return () => {
       cancelled = true;
+      window.clearTimeout(loadingGuard);
     };
-  }, []);
+  }, [auth.ready, auth.signedIn, auth.userId]);
 
   const value = useMemo(() => state, [state]);
   return <ActiveMembershipContext.Provider value={value}>{children}</ActiveMembershipContext.Provider>;

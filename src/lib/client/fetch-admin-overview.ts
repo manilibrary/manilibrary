@@ -23,8 +23,7 @@ export type AdminOverviewPayload = {
     amount_rupees: number;
     status: string;
     created_at: string;
-    provider: string | null;
-    provider_payment_id: string | null;
+    plan_kind: string | null;
     member_label: string;
     device_user_id: number | null;
   }>;

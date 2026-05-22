@@ -30,7 +30,6 @@ type PaymentRow = {
   currency: string;
   provider: string | null;
   status: string;
-  provider_payment_id: string | null;
   razorpay_order_id: string | null;
   razorpay_payment_id: string | null;
   created_at: string;
@@ -81,7 +80,6 @@ export async function GET(request: Request) {
       currency: r.currency,
       provider: r.provider,
       status: r.status,
-      provider_payment_id: r.provider_payment_id,
       razorpay_order_id: rz.razorpay_order_id,
       razorpay_payment_id: rz.razorpay_payment_id,
       created_at: r.created_at,

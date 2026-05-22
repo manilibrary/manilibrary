@@ -6,6 +6,7 @@ import { maxPostBodyBytesForPath } from "@/lib/security/field-limits";
 import { applyRateLimit, getClientIp } from "@/lib/security/request-guards";
 import { RATE_WINDOWS } from "@/lib/security/rate-limit";
 import { applySecurityHeaders } from "@/lib/security/security-headers";
+import { clearStaleSupabaseSession, isStaleRefreshTokenError } from "@/lib/supabase/stale-session";
 
 loadEnvConfig(process.cwd());
 
@@ -115,7 +116,19 @@ export async function proxy(request: NextRequest) {
 
   const {
     data: { user },
+    error: authError,
   } = await supabase.auth.getUser();
+
+  if (authError && isStaleRefreshTokenError(authError)) {
+    await clearStaleSupabaseSession(supabase);
+    if (path.startsWith("/dashboard")) {
+      const url = request.nextUrl.clone();
+      url.pathname = "/login";
+      url.searchParams.set("message", "Your session expired. Please sign in again.");
+      return applySecurityHeaders(NextResponse.redirect(url));
+    }
+    return applySecurityHeaders(supabaseResponse);
+  }
 
   let isStaff = false;
   let isSuper = false;

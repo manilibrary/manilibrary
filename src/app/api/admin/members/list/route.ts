@@ -13,6 +13,7 @@ import { requireLibraryAdmin } from "@/lib/supabase/require-library-admin";
 import { createSupabaseServiceRoleClient } from "@/lib/supabase/service-role";
 import { deriveUiVerificationStatus, mapLatestVerificationWithDocsByUserId } from "@/lib/verification/verification-repo";
 import { ADMIN_MEMBERS_LIST_LIMIT } from "@/lib/admin/list-limits";
+import { maskEmailForList } from "@/lib/api/sanitize-client-payload";
 
 export const runtime = "nodejs";
 
@@ -143,7 +144,7 @@ export async function GET(request: Request) {
         user_id: p.user_id,
         full_name: displayPersonName(p.full_name, "Member"),
         device_user_id: p.device_user_id,
-        email: p.email,
+        email: maskEmailForList(p.email),
         verification_status: deriveUiVerificationStatus(p.is_verified === true, bundle?.row ?? null, bundle?.docs ?? []),
         aadhaar_last_four: x.aadhaar_last_four,
         student_roll_number: x.student_roll_number,
@@ -197,7 +198,7 @@ export async function GET(request: Request) {
           user_id: p.user_id,
           full_name: displayPersonName(p.full_name, "Member"),
           device_user_id: p.device_user_id,
-          email: p.email,
+          email: maskEmailForList(p.email),
           verification_status: deriveUiVerificationStatus(p.is_verified === true, bundle?.row ?? null, bundle?.docs ?? []),
           aadhaar_last_four: x.aadhaar_last_four,
           student_roll_number: x.student_roll_number,

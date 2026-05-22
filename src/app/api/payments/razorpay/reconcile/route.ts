@@ -4,7 +4,7 @@ import { apiError, apiErrorSafe, apiSuccess } from "@/lib/api/json-response";
 import { finalizeRazorpayPaymentRow } from "@/lib/payments/finalize-razorpay-payment";
 import { promoteCheckoutKycStaging } from "@/lib/kyc/promote-checkout-kyc-staging";
 import { rupeesToRazorpayPaise } from "@/lib/payments/pricing";
-import { getAuthUserForApiRequest } from "@/lib/supabase/api-route-auth";
+import { requireMemberNotStaffForRazorpay } from "@/lib/payments/require-member-razorpay";
 import { createSupabaseServiceRoleClient } from "@/lib/supabase/service-role";
 
 export const runtime = "nodejs";
@@ -34,13 +34,11 @@ export async function POST(request: Request) {
     return apiError("Expected JSON body.", 400);
   }
 
-  const {
-    data: { user },
-    error: authErr,
-  } = await getAuthUserForApiRequest(request);
-  if (authErr || !user) {
-    return apiError("Sign in required.", 401);
+  const gate = await requireMemberNotStaffForRazorpay(request);
+  if (!gate.ok) {
+    return apiError(gate.message, gate.status);
   }
+  const userId = gate.userId;
 
   let admin;
   try {
@@ -75,7 +73,7 @@ export async function POST(request: Request) {
   const { data: pendingRows, error: qe } = await admin
     .from("payments")
     .select("id, user_id, status, amount_rupees, metadata")
-    .eq("user_id", user.id)
+    .eq("user_id", userId)
     .eq("status", "pending")
     .order("created_at", { ascending: false })
     .limit(50);
@@ -105,7 +103,7 @@ export async function POST(request: Request) {
 
   const fin = await finalizeRazorpayPaymentRow(admin, {
     paymentId: match.id,
-    expectedUserId: user.id,
+    expectedUserId: userId,
     razorpay_payment_id,
   });
 
@@ -113,7 +111,7 @@ export async function POST(request: Request) {
     return apiErrorSafe(fin.error, fin.status, "Could not complete payment.");
   }
 
-  const prom = await promoteCheckoutKycStaging(admin, user.id);
+  const prom = await promoteCheckoutKycStaging(admin, userId);
   const kycPromoteWarning = prom.ok ? undefined : prom.error;
 
   return apiSuccess("Payment reconciled with Razorpay and membership updated if applicable.", {

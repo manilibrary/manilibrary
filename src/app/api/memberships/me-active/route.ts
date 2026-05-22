@@ -62,7 +62,14 @@ export async function GET(request: Request) {
   const membershipSelect =
     "id, plan_kind, status, seat_number, starts_at, ends_at, valid_from, valid_until";
 
-  const { data: current, error } = await admin
+  const profileP = admin
+    .from("profiles")
+    .select("device_user_id")
+    .eq("user_id", user.id)
+    .is("deleted_at", null)
+    .maybeSingle();
+
+  const currentP = admin
     .from("memberships")
     .select(membershipSelect)
     .eq("user_id", user.id)
@@ -74,8 +81,13 @@ export async function GET(request: Request) {
     .limit(1)
     .maybeSingle();
 
+  const [{ data: current, error }, { data: prof, error: pe }] = await Promise.all([currentP, profileP]);
+
   if (error && error.code !== "PGRST116") {
     return apiErrorSafe(error, 500);
+  }
+  if (pe && pe.code !== "PGRST116") {
+    return apiErrorSafe(pe, 500);
   }
 
   let data = current;
@@ -124,15 +136,6 @@ export async function GET(request: Request) {
   }
 
   let deviceUserId: number | null = null;
-  const { data: prof, error: pe } = await admin
-    .from("profiles")
-    .select("device_user_id")
-    .eq("user_id", user.id)
-    .is("deleted_at", null)
-    .maybeSingle();
-  if (pe && pe.code !== "PGRST116") {
-    return apiErrorSafe(pe, 500);
-  }
   const raw = prof?.device_user_id;
   if (typeof raw === "number" && Number.isFinite(raw)) {
     deviceUserId = Math.trunc(raw);

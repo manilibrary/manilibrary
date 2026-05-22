@@ -26,7 +26,7 @@ import {
   formatMemberSeatToken,
   resolveMemberSeatDisplayLabel,
 } from "@/lib/membership/seat-label";
-import { getAuthUserForApiRequest } from "@/lib/supabase/api-route-auth";
+import { requireMemberNotStaffForRazorpay } from "@/lib/payments/require-member-razorpay";
 import { createSupabaseServiceRoleClient } from "@/lib/supabase/service-role";
 
 export const runtime = "nodejs";
@@ -90,13 +90,11 @@ export async function POST(request: Request) {
     return apiError(`Start date cannot be more than ${MAX_ADVANCE_BOOKING_DAYS} days ahead.`, 400);
   }
 
-  const {
-    data: { user },
-    error: authErr,
-  } = await getAuthUserForApiRequest(request);
-  if (authErr || !user) {
-    return apiError("Sign in required.", 401);
+  const gate = await requireMemberNotStaffForRazorpay(request);
+  if (!gate.ok) {
+    return apiError(gate.message, gate.status);
   }
+  const userId = gate.userId;
 
   let admin;
   try {
@@ -116,7 +114,7 @@ export async function POST(request: Request) {
   const { data: existingActive, error: existingErr } = await admin
     .from("memberships")
     .select("id, plan_kind, seat_number, valid_until, ends_at")
-    .eq("user_id", user.id)
+    .eq("user_id", userId)
     .eq("status", "active")
     .or(
       `and(plan_kind.eq.long_term,valid_until.gte.${todayIso}),and(plan_kind.eq.short_term,ends_at.gte.${now.toISOString()})`,
@@ -159,7 +157,7 @@ export async function POST(request: Request) {
     const res = await admin
       .from("memberships")
       .insert({
-        user_id: user.id,
+        user_id: userId,
         plan_kind: "short_term",
         status: "pending_payment",
         seat_number: PENDING_MEMBERSHIP_SEAT_PLACEHOLDER,
@@ -184,7 +182,7 @@ export async function POST(request: Request) {
     const res = await admin
       .from("memberships")
       .insert({
-        user_id: user.id,
+        user_id: userId,
         plan_kind: "long_term",
         status: "pending_payment",
         seat_number: PENDING_MEMBERSHIP_SEAT_PLACEHOLDER,
@@ -216,7 +214,7 @@ export async function POST(request: Request) {
   const { data: payment, error: payErr } = await admin
     .from("payments")
     .insert({
-      user_id: user.id,
+      user_id: userId,
       membership_id: membership.id,
       amount_rupees: amountRupees,
       currency: "INR",
@@ -243,7 +241,7 @@ export async function POST(request: Request) {
       notes: {
         payment_id: payment.id,
         membership_id: membership.id,
-        user_id: user.id,
+        user_id: userId,
       },
     })) as { id: string; amount: number; currency: string };
   } catch (e) {

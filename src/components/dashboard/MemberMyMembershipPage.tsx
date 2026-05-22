@@ -100,16 +100,22 @@ export default function MemberMyMembershipPage() {
         if (!user || cancelled) return;
 
         const b = bootRef.current;
-        if (useCache && b.ready && !b.skipped && b.memberUserId === user.id && b.membershipRows != null) {
-          setRows(b.membershipRows);
-          setLoadError(b.membershipError);
-          setBootstrap(false);
-        }
-
         const kMem = ddcKey.memberships(user.id);
         if (useCache) {
           const hit = getClientCache<MemberActivePlanRow[]>(kMem);
           if (hit) setRows(hit);
+        }
+        if (
+          useCache &&
+          b.ready &&
+          !b.skipped &&
+          b.memberUserId === user.id &&
+          b.membershipRows != null
+        ) {
+          setRows(b.membershipRows);
+          setLoadError(b.membershipError);
+          setBootstrap(false);
+          return;
         }
 
         const { data, error } = await supabase

@@ -15,6 +15,7 @@ import { ProfileIntakePanelSkeleton } from "@/components/ui/ContentSkeletons";
 import { parseFetchJson } from "@/lib/api/parse-fetch-json";
 import { CLIENT_DATA_CACHE_TTL_MS, ddcKey, getClientCache, setClientCache } from "@/lib/client-data-cache";
 import { extrasToDisplayFields } from "@/lib/profiles/profile-extras";
+import { useAuthSession } from "@/components/auth/AuthSessionProvider";
 import { createClient } from "@/lib/supabase/client";
 import { loadMemberKycForDashboard } from "@/lib/members/member-kyc-client-load";
 import type { KycDocType, MemberKycSlotSummary } from "@/lib/verification/verification-repo";
@@ -48,6 +49,7 @@ export default function MembershipIntakeStepPanel({
 }) {
   const pathname = usePathname() ?? "/membership";
   const nextParam = encodeURIComponent(pathname);
+  const auth = useAuthSession();
   const [initialLoading, setInitialLoading] = useState(true);
   const [signedIn, setSignedIn] = useState(false);
   const [profile, setProfile] = useState<ProfileRow | null>(null);
@@ -100,11 +102,8 @@ export default function MembershipIntakeStepPanel({
     let cancelled = false;
     (async () => {
       setErr(null);
-      const supabase = createClient();
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user) {
+      if (!auth.ready) return;
+      if (!auth.signedIn || !auth.userId) {
         if (!cancelled) {
           setSignedIn(false);
           setProfile(null);
@@ -112,13 +111,15 @@ export default function MembershipIntakeStepPanel({
         }
         return;
       }
+      const userId = auth.userId;
+      const supabase = createClient();
       if (!cancelled) setSignedIn(true);
-      userIdRef.current = user.id;
+      userIdRef.current = userId;
 
-      const kProf = ddcKey.profileMemberHome(user.id);
-      const kDocs = ddcKey.verifDocs(user.id);
-      const kMyc = ddcKey.verifMemberKyc(user.id);
-      const kStaged = ddcKey.checkoutStagedDocs(user.id);
+      const kProf = ddcKey.profileMemberHome(userId);
+      const kDocs = ddcKey.verifDocs(userId);
+      const kMyc = ddcKey.verifMemberKyc(userId);
+      const kStaged = ddcKey.checkoutStagedDocs(userId);
       const cProf = getClientCache<ProfileRow>(kProf);
       const cMyc = getClientCache<{ uploadedDocs: Record<string, boolean>; memberKycSlots: Record<KycDocType, MemberKycSlotSummary> }>(
         kMyc,
@@ -147,11 +148,10 @@ export default function MembershipIntakeStepPanel({
       const profPromise = supabase
         .from("profiles")
         .select("is_verified, profile_extras")
-        .eq("user_id", user.id)
+        .eq("user_id", userId)
         .maybeSingle();
 
-      const stagedPromise =
-        deferPersist && user ? refreshCheckoutStagedDocs(user.id) : Promise.resolve();
+      const stagedPromise = deferPersist ? refreshCheckoutStagedDocs(userId) : Promise.resolve();
 
       const { data: prof, error: pe } = await profPromise;
 
@@ -164,7 +164,7 @@ export default function MembershipIntakeStepPanel({
       if (prof) {
         const x = extrasToDisplayFields((prof as { profile_extras?: unknown }).profile_extras);
         const isVerified = (prof as { is_verified?: boolean }).is_verified === true;
-        const kyc = await loadMemberKycForDashboard(supabase, user.id, isVerified);
+        const kyc = await loadMemberKycForDashboard(supabase, userId, isVerified);
         if (cancelled) return;
         const mapped: ProfileRow = {
           verification_status: kyc.verificationUiStatus,
@@ -197,7 +197,7 @@ export default function MembershipIntakeStepPanel({
     return () => {
       cancelled = true;
     };
-  }, [deferPersist, refreshCheckoutStagedDocs]);
+  }, [deferPersist, refreshCheckoutStagedDocs, auth.ready, auth.signedIn, auth.userId]);
 
   if (initialLoading) {
     return <ProfileIntakePanelSkeleton />;

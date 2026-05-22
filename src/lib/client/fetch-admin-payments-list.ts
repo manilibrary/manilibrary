@@ -5,7 +5,6 @@ export type AdminPaymentRow = {
   currency: string;
   provider: string | null;
   status: string;
-  provider_payment_id: string | null;
   razorpay_order_id: string | null;
   razorpay_payment_id: string | null;
   created_at: string;

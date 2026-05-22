@@ -9,6 +9,7 @@ import libraryInfo from "@/data/libraryInfo.json";
 import TurnstileWidget from "@/components/security/TurnstileWidget";
 import { MEMBER_LANDING_PATH, sanitizeInternalNext } from "@/lib/auth-landing";
 import { formatPersonName } from "@/lib/format-person-name";
+import IndianPhoneInput from "@/components/ui/IndianPhoneInput";
 import { FIELD_LIMITS } from "@/lib/security/field-limits";
 import { turnstileRequiredOnClient } from "@/lib/security/turnstile-client";
 
@@ -272,16 +273,7 @@ export default function RegisterForm() {
               >
                 Phone <span className="font-sans normal-case text-ink-400">(optional)</span>
               </label>
-              <input
-                id="phone"
-                type="tel"
-                autoComplete="tel"
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-                placeholder="+919876543210"
-                maxLength={FIELD_LIMITS.phoneMax}
-                className="w-full rounded-xl border border-ink-200 bg-white px-4 py-3 text-sm text-ink-900 outline-none transition placeholder:text-ink-400 focus:border-azure-500 focus:ring-4 focus:ring-azure-500/15"
-              />
+              <IndianPhoneInput id="phone" value={phone} onChange={setPhone} />
             </div>
 
             <div>
