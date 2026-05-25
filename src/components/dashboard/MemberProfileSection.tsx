@@ -21,18 +21,23 @@ type Props = {
   isStaff?: boolean;
 };
 
+function safeTrim(value: string | null | undefined): string {
+  if (value == null) return "";
+  return String(value).trim();
+}
+
 function displayPhone(phone: string | null): string | null {
-  const p = phone?.trim();
+  const p = safeTrim(phone);
   if (!p || p.includes("@")) return null;
   const label = formatIndianPhoneDisplay(p);
   return label === "—" ? p : label;
 }
 
 function displayEmail(email: string | null, phone: string | null): string | null {
-  const e = email?.trim();
+  const e = safeTrim(email);
   if (e) return e;
-  const p = phone?.trim();
-  if (p?.includes("@")) return p;
+  const p = safeTrim(phone);
+  if (p.includes("@")) return p;
   return null;
 }
 
