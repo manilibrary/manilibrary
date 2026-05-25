@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 
 import MemberProfileSection from "@/components/dashboard/MemberProfileSection";
+import { profilePhoneFromDb } from "@/lib/profile-phone";
 import { createClient } from "@/lib/supabase/client";
 
 type ProfileRow = {
@@ -48,8 +49,13 @@ export default function DashboardAccountPhotoCard() {
     setProfile({
       full_name: String(data.full_name ?? ""),
       device_user_id: Number(data.device_user_id),
-      phone: data.phone ?? null,
-      email: data.email ?? user.email ?? null,
+      phone: profilePhoneFromDb(data.phone) ?? null,
+      email:
+        typeof data.email === "string"
+          ? data.email
+          : typeof user.email === "string"
+            ? user.email
+            : null,
       avatar_url: data.avatar_url ?? null,
       is_admin: data.is_admin === true,
     });
