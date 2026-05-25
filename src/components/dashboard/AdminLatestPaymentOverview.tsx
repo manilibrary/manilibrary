@@ -100,7 +100,7 @@ export default function AdminLatestPaymentOverview() {
   const latest = data ? pickLatestPayment(data.recentPayments) : null;
   const more = data ? data.recentPayments.filter((p) => p.id !== latest?.id).slice(0, 3) : [];
   const tone = latest ? latestPaymentTone(latest.status) : latestPaymentTone("");
-  const planMeta = latest ? planKindMeta(latest.plan_kind) : null;
+  const planMeta = planKindMeta(latest?.plan_kind ?? null);
 
   return (
     <section className="rounded-2xl border border-ink-100 bg-white p-5 shadow-sm">
