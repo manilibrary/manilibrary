@@ -13,10 +13,9 @@ import {
   YAxis,
 } from "recharts";
 
-import { useStaleWhileRevalidate } from "@/hooks/useStaleWhileRevalidate";
-import { fetchAdminOverview, type AdminOverviewPayload } from "@/lib/client/fetch-admin-overview";
-import { ddcKey } from "@/lib/client-data-cache";
+import { useAdminOverview } from "@/components/dashboard/AdminOverviewProvider";
 import { resolveMemberSeatDisplayLabel } from "@/lib/membership/seat-label";
+import { formatDateDdMmYyyy, formatDateTimeDdMmYyyy } from "@/lib/date-format";
 
 type Stats = {
   totalMembers: number;
@@ -69,8 +68,6 @@ type ExpiringRow = {
 type ChartDay = { day: string; amountInr: number };
 type ChartMem = { day: string; count: number };
 
-type Payload = AdminOverviewPayload;
-
 const TREND_DAYS = 14;
 
 function formatInr(n: number) {
@@ -115,6 +112,33 @@ function formatAxisInr(n: number) {
 function formatBarValue(mode: "revenue" | "memberships", value: number) {
   if (mode === "revenue") return formatInr(value);
   return String(value);
+}
+
+function formatExpiringEnd(planKind: string, endLabel: string) {
+  if (!endLabel || endLabel === "—") return "—";
+  if (planKind === "short_term") {
+    const iso = endLabel.includes(" ") ? endLabel.replace(" ", "T") : endLabel;
+    return formatDateTimeDdMmYyyy(iso);
+  }
+  return formatDateDdMmYyyy(endLabel);
+}
+
+function daysToExpire(planKind: string, endLabel: string, todayYmd: string): number | null {
+  if (!endLabel || endLabel === "—") return null;
+  if (planKind === "long_term") {
+    const ymd = endLabel.slice(0, 10);
+    return Math.ceil((new Date(ymd).getTime() - new Date(todayYmd).getTime()) / (24 * 60 * 60 * 1000));
+  }
+  const iso = endLabel.includes(" ") ? endLabel.replace(" ", "T") : endLabel;
+  return Math.ceil((new Date(iso).getTime() - Date.now()) / (24 * 60 * 60 * 1000));
+}
+
+function daysToExpireLabel(days: number | null) {
+  if (days == null) return "—";
+  if (days < 0) return "Expired";
+  if (days === 0) return "Today";
+  if (days === 1) return "1 day";
+  return `${days} days`;
 }
 
 type TrendPoint = { day: string; label: string; value: number };
@@ -171,8 +195,8 @@ function TrendChart({
         <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-ink-500">{chartPeriodLabel(source)}</p>
         <p className="font-mono text-[10px] text-ink-400">{peakLabel}</p>
       </div>
-      <div className="h-56 w-full rounded-xl border border-ink-100 bg-gradient-to-b from-white to-ink-50/60 px-1 py-3 sm:px-2">
-        <ResponsiveContainer width="100%" height="100%">
+      <div className="h-56 min-h-56 w-full min-w-0 rounded-xl border border-ink-100 bg-gradient-to-b from-white to-ink-50/60 px-1 py-3 sm:px-2">
+        <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={224}>
           <BarChart data={chartData} margin={{ top: 28, right: 8, left: 4, bottom: 4 }}>
             <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
             <XAxis
@@ -232,10 +256,7 @@ function TrendChart({
 export default function AdminLibraryInsights() {
   const [trendMode, setTrendMode] = useState<"revenue" | "memberships">("revenue");
 
-  const { data, loading, revalidating, error } = useStaleWhileRevalidate<Payload>({
-    cacheKey: ddcKey.adminOverview(),
-    fetcher: fetchAdminOverview,
-  });
+  const { data, error } = useAdminOverview();
 
   const slicedChart = useMemo(() => {
     if (!data) {
@@ -249,80 +270,90 @@ export default function AdminLibraryInsights() {
     return { revenue: rev, memberships: mem };
   }, [data]);
 
+  const stats = data?.stats;
+  const expiringSoon = data?.expiringSoon ?? [];
+  const seatSnapshot = data?.seatSnapshot ?? { longTermDistinctSeats: 0, shortTermDistinctSeats: 0 };
+  const todayYmd = new Date().toISOString().slice(0, 10);
+  const registered = stats ? stats.registeredAccounts || stats.totalMembers : null;
+  const activeMembers = stats ? stats.activeMembersDistinct ?? stats.activeTotal : null;
+
   if (error && !data) {
     return <p className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{error}</p>;
   }
 
-  if (loading && !data) {
-    return (
-      <OverviewStatsRow>
-        {Array.from({ length: 6 }, (_, i) => (
-          <div key={i} className={`${OVERVIEW_STAT_CARD_CLASS} h-36 animate-pulse`} />
-        ))}
-      </OverviewStatsRow>
-    );
-  }
-
-  if (!data) return null;
-
-  const { stats, expiringSoon } = data;
-  const registered = stats.registeredAccounts || stats.totalMembers;
-  const activeMembers = stats.activeMembersDistinct ?? stats.activeTotal;
-
   return (
     <div className="space-y-4">
-      {revalidating ? (
-        <p className="text-right text-[10px] font-medium uppercase tracking-wider text-ink-400">Updating…</p>
-      ) : null}
       <OverviewStatsRow>
         <Link href="/dashboard/members" className={OVERVIEW_STAT_CARD_CLASS}>
           <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-ink-500">Registered users</p>
-          <p className="mt-2 text-3xl font-semibold tracking-tight text-ink-900 tabular-nums">{registered}</p>
+          <p className="mt-2 text-3xl font-semibold tracking-tight text-ink-900 tabular-nums">
+            {registered != null ? registered : "—"}
+          </p>
           <p className="mt-1 text-xs text-ink-500">Signed up on the website or app</p>
         </Link>
 
         <Link href="/dashboard/subscriptions" className={OVERVIEW_STAT_CARD_CLASS}>
           <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-ink-500">Active members</p>
-          <p className="mt-2 text-3xl font-semibold tracking-tight text-emerald-800 tabular-nums">{activeMembers}</p>
+          <p className="mt-2 text-3xl font-semibold tracking-tight text-emerald-800 tabular-nums">
+            {activeMembers != null ? activeMembers : "—"}
+          </p>
           <p className="mt-1 text-xs text-ink-500">Bought a plan · membership active now</p>
         </Link>
 
         <Link href="/dashboard/subscriptions" className={OVERVIEW_STAT_CARD_CLASS}>
           <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-ink-500">Active plans</p>
-            <p className="mt-2 text-3xl font-semibold tracking-tight text-ink-900 tabular-nums">{stats.activeTotal}</p>
+            <p className="mt-2 text-3xl font-semibold tracking-tight text-ink-900 tabular-nums">
+              {stats ? stats.activeTotal : "—"}
+            </p>
             <p className="mt-1 text-xs text-ink-500">
-              {stats.activeLong} long · {stats.activeShort} short
+              {stats ? `${stats.activeLong} long · ${stats.activeShort} short` : "—"}
             </p>
             <p className="mt-2 text-[11px] text-ink-400">
-              Seats in use: {data.seatSnapshot.longTermDistinctSeats} long · {data.seatSnapshot.shortTermDistinctSeats} short
+              {stats
+                ? `Seats in use: ${seatSnapshot.longTermDistinctSeats} long · ${seatSnapshot.shortTermDistinctSeats} short`
+                : "—"}
             </p>
             <p className="mt-2 text-[11px] text-ink-400">
-              Roster {stats.totalMembers}
-              {stats.newMemberships30d > 0 ? (
+              {stats ? (
                 <>
-                  {" "}
-                  · <span className="text-emerald-700">+{stats.newMemberships30d}</span> new (30d)
+                  Roster {stats.totalMembers}
+                  {stats.newMemberships30d > 0 ? (
+                    <>
+                      {" "}
+                      · <span className="text-emerald-700">+{stats.newMemberships30d}</span> new (30d)
+                    </>
+                  ) : null}
                 </>
-              ) : null}
+              ) : (
+                "—"
+              )}
             </p>
           </Link>
 
         <Link href="/dashboard/payments" className={OVERVIEW_STAT_CARD_CLASS}>
           <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-ink-500">Income · 30 days</p>
-          <p className="mt-2 text-3xl font-semibold tracking-tight text-azure-800 tabular-nums">{formatInr(stats.revenue30dInr)}</p>
-          <p className="mt-1 text-xs text-ink-500">{stats.paidCount30d} paid charges</p>
+          <p className="mt-2 text-3xl font-semibold tracking-tight text-azure-800 tabular-nums">
+            {stats ? formatInr(stats.revenue30dInr) : "—"}
+          </p>
+          <p className="mt-1 text-xs text-ink-500">
+            {stats ? `${stats.paidCount30d} paid charges` : "—"}
+          </p>
         </Link>
 
         <Link href="/dashboard/payments" className={OVERVIEW_STAT_CARD_CLASS}>
           <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-ink-500">Income · today</p>
-          <p className="mt-2 text-3xl font-semibold tracking-tight text-ink-900 tabular-nums">{formatInr(stats.revenueTodayInr)}</p>
-          <p className="mt-1 text-xs text-ink-500">{stats.paidCountToday} payments</p>
+          <p className="mt-2 text-3xl font-semibold tracking-tight text-ink-900 tabular-nums">
+            {stats ? formatInr(stats.revenueTodayInr) : "—"}
+          </p>
+          <p className="mt-1 text-xs text-ink-500">
+            {stats ? `${stats.paidCountToday} payments` : "—"}
+          </p>
         </Link>
 
         <Link href="/dashboard/payments" className={OVERVIEW_STAT_CARD_CLASS}>
           <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-ink-500">Total income</p>
           <p className="mt-2 text-3xl font-semibold tracking-tight text-azure-800 tabular-nums">
-            {formatInr(stats.totalPaidRevenueInr)}
+            {stats ? formatInr(stats.totalPaidRevenueInr) : "—"}
           </p>
           <p className="mt-1 text-xs text-ink-500">All-time paid revenue</p>
         </Link>
@@ -355,7 +386,7 @@ export default function AdminLibraryInsights() {
             </button>
           </div>
         </div>
-        <div className="mt-6">
+        <div className="mt-6 min-h-56">
           <TrendChart
             mode={trendMode}
             revenueDays={slicedChart.revenue}
@@ -364,23 +395,49 @@ export default function AdminLibraryInsights() {
         </div>
       </div>
 
-      <section className="rounded-2xl border border-ink-100 bg-white p-5 shadow-sm">
+      <section
+        className={`rounded-2xl border bg-white p-5 shadow-sm ${
+          data && expiringSoon.length > 0 ? "border-amber-100" : "border-ink-100"
+        }`}
+      >
         <div className="flex flex-wrap items-start justify-between gap-2">
-          <div>
-            <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-ink-500">Needs attention</p>
-            <p className="mt-1 text-sm text-ink-600">
-              {expiringSoon.length === 0
-                ? "No memberships in the expiring window."
-                : `${expiringSoon.length} membership${expiringSoon.length === 1 ? "" : "s"} ending soon.`}
+          <div className="flex items-start gap-3">
+            <div
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-amber-100 text-amber-800"
+              aria-hidden
+            >
+              <svg
+                className="h-[18px] w-[18px]"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                strokeWidth={1.8}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <circle cx="12" cy="12" r="9" />
+                <path d="M12 7v5l3.5 3.5" />
+              </svg>
+            </div>
+            <div>
+            <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-amber-700">Needs attention</p>
+            <p className="mt-1 text-sm text-amber-900/80">
+              {!data
+                ? "—"
+                : expiringSoon.length === 0
+                  ? "No memberships in the expiring window."
+                  : `${expiringSoon.length} membership${expiringSoon.length === 1 ? "" : "s"} ending soon.`}
             </p>
+            </div>
           </div>
           <Link href="/dashboard/subscriptions?focus=expiring" className="text-xs font-medium text-azure-600 hover:text-azure-700">
             View all →
           </Link>
         </div>
 
+        <div className="mt-4 min-h-[5.5rem]">
         {expiringSoon.length > 0 ? (
-          <div className="mt-4 overflow-x-auto rounded-lg border border-ink-100">
+          <div className="overflow-x-auto rounded-lg border border-ink-100">
             <table className="min-w-full text-left text-sm">
               <thead className="border-b border-ink-100 bg-ink-50/60 font-mono text-[10px] uppercase tracking-widest text-ink-500">
                 <tr>
@@ -389,6 +446,7 @@ export default function AdminLibraryInsights() {
                   <th className="px-3 py-2">Device user id</th>
                   <th className="px-3 py-2">Seat</th>
                   <th className="px-3 py-2">Ends</th>
+                  <th className="px-3 py-2">Days to expire</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-ink-100 text-ink-800">
@@ -402,7 +460,10 @@ export default function AdminLibraryInsights() {
                     <td className="px-3 py-2 font-mono text-xs">
                       {resolveMemberSeatDisplayLabel({ plan_kind: m.plan_kind, seat_number: m.seat_number })}
                     </td>
-                    <td className="px-3 py-2 font-mono text-xs">{m.end_label}</td>
+                    <td className="px-3 py-2 font-mono text-xs">{formatExpiringEnd(m.plan_kind, m.end_label)}</td>
+                    <td className="px-3 py-2 text-xs font-medium text-amber-800">
+                      {daysToExpireLabel(daysToExpire(m.plan_kind, m.end_label, todayYmd))}
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -413,7 +474,12 @@ export default function AdminLibraryInsights() {
               </p>
             ) : null}
           </div>
+        ) : data ? (
+          <p className="rounded-lg border border-dashed border-ink-200 px-3 py-6 text-center text-xs text-ink-500">
+            No memberships in the expiring window.
+          </p>
         ) : null}
+        </div>
       </section>
     </div>
   );

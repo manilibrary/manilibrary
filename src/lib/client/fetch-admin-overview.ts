@@ -1,3 +1,5 @@
+import { ddcKey, getClientCache, setClientCache } from "@/lib/client-data-cache";
+
 export type AdminOverviewStats = {
   totalMembers: number;
   registeredAccounts: number;
@@ -26,6 +28,7 @@ export type AdminOverviewPayload = {
     plan_kind: string | null;
     member_label: string;
     device_user_id: number | null;
+    payment_how: string;
   }>;
   recentMemberships: Array<{
     id: string;
@@ -54,12 +57,10 @@ export type AdminOverviewPayload = {
   seatSnapshot: { longTermDistinctSeats: number; shortTermDistinctSeats: number };
 };
 
-export async function fetchAdminOverview(): Promise<AdminOverviewPayload> {
-  const res = await fetch("/api/admin/overview", { cache: "no-store" });
-  const j = (await res.json()) as { ok?: boolean; error?: string } & Partial<AdminOverviewPayload>;
-  if (!res.ok || !j.ok || !j.stats) {
-    throw new Error(j.error ?? "Could not load overview.");
-  }
+export function parseAdminOverviewResponse(
+  j: { ok?: boolean; error?: string } & Partial<AdminOverviewPayload>,
+): AdminOverviewPayload | null {
+  if (!j.ok || !j.stats) return null;
   return {
     stats: {
       totalMembers: j.stats.totalMembers ?? 0,
@@ -87,4 +88,35 @@ export async function fetchAdminOverview(): Promise<AdminOverviewPayload> {
     },
     seatSnapshot: j.seatSnapshot ?? { longTermDistinctSeats: 0, shortTermDistinctSeats: 0 },
   };
+}
+
+/** Warm tab cache while staff browses the dashboard (Overview opens with data in place). */
+export function prefetchAdminOverviewCache(): void {
+  if (typeof window === "undefined") return;
+  if (getClientCache<AdminOverviewPayload>(ddcKey.adminOverview())) return;
+
+  void fetch("/api/admin/overview", { cache: "no-store" })
+    .then((res) => res.json())
+    .then((j) => {
+      const payload = parseAdminOverviewResponse(
+        j as { ok?: boolean; error?: string } & Partial<AdminOverviewPayload>,
+      );
+      if (payload) setClientCache(ddcKey.adminOverview(), payload);
+    })
+    .catch(() => {
+      /* ignore */
+    });
+}
+
+export async function fetchAdminOverview(): Promise<AdminOverviewPayload> {
+  const res = await fetch("/api/admin/overview", { cache: "no-store" });
+  const j = (await res.json()) as { ok?: boolean; error?: string } & Partial<AdminOverviewPayload>;
+  if (!res.ok) {
+    throw new Error(j.error ?? "Could not load overview.");
+  }
+  const payload = parseAdminOverviewResponse(j);
+  if (!payload) {
+    throw new Error(j.error ?? "Could not load overview.");
+  }
+  return payload;
 }

@@ -2,6 +2,8 @@ import { apiError, apiSuccess } from "@/lib/api/json-response";
 import { toAdminRecentPaymentClient } from "@/lib/api/sanitize-client-payload";
 import { displayPersonName } from "@/lib/format-person-name";
 import { formatProfileMemberLabel } from "@/lib/membership/profile-label";
+import { resolvePaymentHowLabel } from "@/lib/payments/payment-how-label";
+import { createRazorpayServerClient } from "@/lib/payments/razorpay-server";
 import { parseNumericSeatFromStoredSeat } from "@/lib/membership/seat-label";
 import { requireLibraryAdminOrSuperAdmin } from "@/lib/supabase/require-library-admin";
 import { createSupabaseServiceRoleClient } from "@/lib/supabase/service-role";
@@ -154,6 +156,9 @@ export async function GET(request: Request) {
         membership_id,
         amount_rupees,
         status,
+        provider,
+        provider_payment_id,
+        metadata,
         created_at,
         memberships!payments_membership_id_fkey ( plan_kind )
       `,
@@ -292,36 +297,52 @@ export async function GET(request: Request) {
   ];
   const profs = await profilesMiniByUserIds(admin, [...payUsers, ...memUsers]);
 
-  const recentPayments = (recentPaymentsRaw.data ?? []).map((row) => {
-    const p = row as {
-      id: string;
-      user_id: string;
-      membership_id: string | null;
-      amount_rupees: number;
-      status: string;
-      created_at: string;
-      memberships: { plan_kind: string } | { plan_kind: string }[] | null;
-    };
-    const pr = profs[p.user_id];
-    const mem = p.memberships;
-    const plan_kind =
-      mem == null
-        ? null
-        : Array.isArray(mem)
-          ? (mem[0]?.plan_kind ?? null)
-          : mem.plan_kind ?? null;
-    return toAdminRecentPaymentClient({
-      id: p.id,
-      user_id: p.user_id,
-      membership_id: p.membership_id,
-      amount_rupees: p.amount_rupees,
-      status: p.status,
-      created_at: p.created_at,
-      plan_kind,
-      member_label: pr ? formatProfileMemberLabel(pr) : p.user_id,
-      device_user_id: pr?.device_user_id ?? null,
-    });
-  });
+  const rz = createRazorpayServerClient();
+  const recentPayments = await Promise.all(
+    (recentPaymentsRaw.data ?? []).map(async (row) => {
+      const p = row as {
+        id: string;
+        user_id: string;
+        membership_id: string | null;
+        amount_rupees: number;
+        status: string;
+        provider: string | null;
+        provider_payment_id: string | null;
+        metadata: unknown;
+        created_at: string;
+        memberships: { plan_kind: string } | { plan_kind: string }[] | null;
+      };
+      const pr = profs[p.user_id];
+      const mem = p.memberships;
+      const plan_kind =
+        mem == null
+          ? null
+          : Array.isArray(mem)
+            ? (mem[0]?.plan_kind ?? null)
+            : mem.plan_kind ?? null;
+      const payment_how = await resolvePaymentHowLabel(
+        {
+          provider: p.provider,
+          metadata: p.metadata,
+          provider_payment_id: p.provider_payment_id,
+          status: p.status,
+        },
+        rz,
+      );
+      return toAdminRecentPaymentClient({
+        id: p.id,
+        user_id: p.user_id,
+        membership_id: p.membership_id,
+        amount_rupees: p.amount_rupees,
+        status: p.status,
+        created_at: p.created_at,
+        plan_kind,
+        member_label: pr ? formatProfileMemberLabel(pr) : p.user_id,
+        device_user_id: pr?.device_user_id ?? null,
+        payment_how,
+      });
+    }),
+  );
 
   const recentMemberships = (recentMembershipsRaw.data ?? []).map((row) => {
     const m = row as {

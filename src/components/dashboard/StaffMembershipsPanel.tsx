@@ -17,6 +17,7 @@ import { MembershipSeatTableCell } from "@/components/membership/MembershipSeatT
 import { CLIENT_SEAT_OCC_CACHE_TTL_MS, ddcKey, getClientCache, setClientCache } from "@/lib/client-data-cache";
 import { TableBodySkeleton } from "@/components/ui/ContentSkeletons";
 import { useStaleWhileRevalidate } from "@/hooks/useStaleWhileRevalidate";
+import { useAdminPageLoading } from "@/components/dashboard/AdminPageLoadingProvider";
 import { fetchAdminMembersList, type AdminMembersListCache } from "@/lib/client/fetch-admin-members-list";
 import { formatMemberSeatLabel, resolveMemberSeatDisplayLabel } from "@/lib/membership/seat-label";
 import { addDaysYmd, DEFAULT_LIBRARY_TZ, todayYmdInTz } from "@/lib/membership/windows";
@@ -242,6 +243,8 @@ export default function StaffMembershipsPanel() {
     fetcher: fetchAdminMembersList,
     refreshKey,
   });
+
+  useAdminPageLoading(loading || revalidating);
 
   const rows = membersBundle?.rows ?? [];
   const profiles = membersBundle?.profiles ?? {};
@@ -1026,9 +1029,7 @@ export default function StaffMembershipsPanel() {
                     preparing_for: p?.preparing_for ?? null,
                     device_user_id: p?.device_user_id ?? null,
                   };
-                  const modalTitle = p?.full_name
-                    ? `${p.full_name}${p?.email ? ` — ${p.email}` : ""}`
-                    : (p?.email ?? r.user_id);
+                  const modalTitle = p?.full_name ?? p?.email ?? r.user_id;
                   const hint = windowHint(r);
                   return (
                     <tr key={r.id} className="text-ink-800">

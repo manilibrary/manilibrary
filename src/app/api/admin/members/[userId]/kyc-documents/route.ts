@@ -1,4 +1,6 @@
 import { apiError, apiSuccess, apiErrorSafe } from "@/lib/api/json-response";
+import { displayPersonName } from "@/lib/format-person-name";
+import { profilePhoneFromDb } from "@/lib/profile-phone";
 import { requireLibraryAdminOrSuperAdmin } from "@/lib/supabase/require-library-admin";
 import { createSupabaseServiceRoleClient } from "@/lib/supabase/service-role";
 import { KYC_DOC_TYPES, type KycDocType, type VerificationDocItem } from "@/lib/verification/verification-repo";
@@ -25,6 +27,19 @@ export async function GET(_request: Request, ctx: { params: Promise<{ userId: st
     return apiErrorSafe(e, 503, "Server misconfiguration.");
   }
 
+  const { data: profRow } = await admin
+    .from("profiles")
+    .select("full_name, email, phone")
+    .eq("user_id", userId)
+    .maybeSingle();
+  const contact = {
+    full_name: displayPersonName((profRow as { full_name?: string } | null)?.full_name, "Member"),
+    email: typeof (profRow as { email?: string | null } | null)?.email === "string"
+      ? (profRow as { email: string }).email.trim() || null
+      : null,
+    phone: profilePhoneFromDb((profRow as { phone?: unknown } | null)?.phone) ?? null,
+  };
+
   const { data: verList, error: re } = await admin
     .from("verification")
     .select("id, submitted_at")
@@ -41,6 +56,7 @@ export async function GET(_request: Request, ctx: { params: Promise<{ userId: st
   const verIds = verRows.map((r) => (r as { id: string }).id).filter(Boolean);
   if (verIds.length === 0) {
     return apiSuccess("No submitted KYC documents for this member.", {
+      contact,
       documents: [] as { doc_type: string; content_type: string | null; signedUrl: string }[],
     });
   }
@@ -92,6 +108,7 @@ export async function GET(_request: Request, ctx: { params: Promise<{ userId: st
   const picked = [...byType.values()].map((x) => x.item);
   if (picked.length === 0) {
     return apiSuccess("No submitted KYC documents for this member.", {
+      contact,
       documents: [] as { doc_type: string; content_type: string | null; signedUrl: string }[],
     });
   }
@@ -120,5 +137,5 @@ export async function GET(_request: Request, ctx: { params: Promise<{ userId: st
   const order = ["aadhaar_front", "aadhaar_back", "student_id"];
   out.sort((a, b) => order.indexOf(a.doc_type) - order.indexOf(b.doc_type));
 
-  return apiSuccess(`Loaded ${out.length} KYC document(s) with signed URLs (1h TTL).`, { documents: out });
+  return apiSuccess(`Loaded ${out.length} KYC document(s) with signed URLs (1h TTL).`, { contact, documents: out });
 }

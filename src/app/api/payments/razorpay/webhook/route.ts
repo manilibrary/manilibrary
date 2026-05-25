@@ -20,6 +20,7 @@ type WebhookPaymentEntity = {
   id?: string;
   order_id?: string;
   status?: string;
+  method?: string;
   error_code?: string;
   error_description?: string;
   error_source?: string;
@@ -239,6 +240,7 @@ export async function POST(request: Request) {
     paymentId: pay.id,
     expectedUserId: pay.user_id,
     razorpay_payment_id,
+    razorpay_method: entity?.method,
   });
 
   if (!finalized.ok) {

@@ -1,6 +1,7 @@
 import ExcelJS from "exceljs";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
+import { formatMembershipWindowLabel } from "@/lib/date-format";
 import { parseAttendanceMemberRowsJson } from "@/lib/etime/attendance-history-store";
 import { profilePhoneFromDb } from "@/lib/profile-phone";
 import { resolveMemberSeatDisplayLabel } from "@/lib/membership/seat-label";
@@ -126,13 +127,10 @@ function formatYmdInLibraryTz(iso: string): string {
 }
 
 function membershipWindowLabel(m: MembershipRow): string {
-  if (m.plan_kind === "long_term" && m.valid_from && m.valid_until) {
-    return `${m.valid_from} → ${m.valid_until} (long-term)`;
-  }
-  if (m.plan_kind === "short_term" && m.starts_at && m.ends_at) {
-    return `${formatInLibraryTz(m.starts_at)} → ${formatInLibraryTz(m.ends_at)} (short-term)`;
-  }
-  return m.plan_kind ?? "—";
+  const window = formatMembershipWindowLabel(m);
+  if (window === "—") return m.plan_kind ?? "—";
+  const tag = m.plan_kind === "long_term" ? "long-term" : m.plan_kind === "short_term" ? "short-term" : m.plan_kind;
+  return `${window} (${tag})`;
 }
 
 function pickDirectoryMembership(

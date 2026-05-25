@@ -1,7 +1,6 @@
 import Link from "next/link";
 
-import AdminAttendanceOverview from "@/components/dashboard/AdminAttendanceOverview";
-import AdminLibraryInsights from "@/components/dashboard/AdminLibraryInsights";
+import AdminOverviewSection from "@/components/dashboard/AdminOverviewSection";
 import PageHeader from "@/components/dashboard/PageHeader";
 import { createSupabaseRouteHandlerClient } from "@/lib/supabase/route-handler";
 import { createSupabaseServiceRoleClient } from "@/lib/supabase/service-role";
@@ -60,14 +59,12 @@ export default async function DashboardOverview() {
         title="Staff home"
         description={
           isAdmin
-            ? "Registrations, revenue, and attendance. Open a section below for full lists."
+            ? "Registrations, revenue, and latest payments. Open a section below for full lists."
             : "Sign in as an admin to see the staff overview."
         }
       />
 
-      {isAdmin ? <AdminLibraryInsights /> : null}
-
-      {isAdmin ? <AdminAttendanceOverview /> : null}
+      {isAdmin ? <AdminOverviewSection /> : null}
 
       <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
         {tiles.map((item) => (

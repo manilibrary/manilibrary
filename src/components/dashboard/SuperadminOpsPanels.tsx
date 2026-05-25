@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 
 import MemberKycDocumentsModal, { type MemberKycDetails } from "@/components/dashboard/MemberKycDocumentsModal";
+import { useAdminPageLoading } from "@/components/dashboard/AdminPageLoadingProvider";
 import { SuperadminHealthSkeleton } from "@/components/ui/ContentSkeletons";
 
 function shortUuid(id: string): string {
@@ -251,6 +252,9 @@ export default function SuperadminOpsPanels() {
     }, 0);
     return () => window.clearTimeout(t);
   }, [loadPayments]);
+
+  const healthLoading = health === null && healthErr === null;
+  useAdminPageLoading(healthLoading);
 
   return (
     <div className="space-y-10">

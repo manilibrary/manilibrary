@@ -29,11 +29,7 @@ export default async function AttendancePage() {
 
   return (
     <div className="space-y-8">
-      <PageHeader
-        eyebrow="attendance"
-        title="Attendance"
-        description="Who checked in or out at the gate, by date."
-      />
+      <PageHeader eyebrow="attendance" title="Attendance" />
       {isAdmin ? (
         <AdminAttendancePanel />
       ) : (

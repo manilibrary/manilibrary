@@ -1,3 +1,4 @@
+import { formatMembershipWindowLabel } from "@/lib/date-format";
 import { displayPersonName } from "@/lib/format-person-name";
 
 export type RosterMember = {
@@ -50,13 +51,7 @@ function expiryYmdFromRow(r: MembershipRow): string {
 }
 
 function windowLabelFromRow(r: MembershipRow): string {
-  if (r.plan_kind === "long_term") {
-    const a = r.valid_from?.slice(0, 10) ?? "";
-    const b = r.valid_until?.slice(0, 10) ?? "";
-    return a && b ? `${a} → ${b}` : "—";
-  }
-  if (r.starts_at && r.ends_at) return `${r.starts_at.slice(0, 16)} → ${r.ends_at.slice(0, 16)}`;
-  return "—";
+  return formatMembershipWindowLabel(r);
 }
 
 export function buildRosterMembers(

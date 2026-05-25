@@ -6,7 +6,7 @@ export const FIELD_LIMITS = {
   emailMax: 254,
   phoneMax: 40,
   passwordMin: 8,
-  passwordMax: 128,
+  passwordMax: 50,
   preparingForMax: 200,
   adminMessageMax: 2000,
   searchMax: 120,
