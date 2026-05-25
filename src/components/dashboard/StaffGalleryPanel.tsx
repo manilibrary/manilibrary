@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useAdminPageLoading } from "@/components/dashboard/AdminPageLoadingProvider";
 import { compressImageUnder } from "@/lib/compress-image";
 import { GALLERY_MAX_IMAGES, GALLERY_UPLOAD_MAX_BYTES } from "@/lib/gallery/constants";
 
@@ -45,6 +46,8 @@ export default function StaffGalleryPanel() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  useAdminPageLoading(loading);
 
   const atLimit = images.length >= maxImages;
 

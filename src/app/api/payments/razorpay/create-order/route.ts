@@ -19,6 +19,7 @@ import {
   SHORT_TERM_DURATION_OPTIONS,
   type MembershipPlanKind,
 } from "@/lib/payments/pricing";
+import { formatMembershipEndForDisplay } from "@/lib/date-format";
 import { membershipHostedCheckoutUrl } from "@/lib/payments/hosted-checkout-url";
 import {
   PAYMENT_METADATA_PLANNED_SEAT_KEY,
@@ -126,10 +127,11 @@ export async function POST(request: Request) {
     return apiErrorSafe(existingErr, 500);
   }
   if (existingActive) {
-    const until =
-      existingActive.plan_kind === "long_term"
-        ? existingActive.valid_until
-        : existingActive.ends_at;
+    const until = formatMembershipEndForDisplay(
+      String(existingActive.plan_kind),
+      existingActive.valid_until,
+      existingActive.ends_at,
+    );
     return apiError(
       `You already have an active ${String(existingActive.plan_kind).replace(/_/g, " ")} membership on seat ${resolveMemberSeatDisplayLabel({
         plan_kind: String(existingActive.plan_kind),

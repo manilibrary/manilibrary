@@ -21,6 +21,7 @@ type RazorpayOrderPayment = {
   status?: string;
   order_id?: string;
   amount?: number;
+  method?: string;
   error_code?: string;
   error_description?: string;
   error_source?: string;
@@ -96,6 +97,7 @@ export async function syncPendingRazorpayPaymentRow(
       paymentId: pay.id,
       expectedUserId: pay.user_id,
       razorpay_payment_id: success.id,
+      razorpay_method: success.method,
     });
     if (!fin.ok) {
       return { outcome: "still_pending", paymentId: pay.id };

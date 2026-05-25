@@ -7,6 +7,7 @@ import { MembershipSeatTableCell } from "@/components/membership/MembershipSeatT
 import { resolveMemberSeatDisplayLabel } from "@/lib/membership/seat-label";
 import { TableBodySkeleton } from "@/components/ui/ContentSkeletons";
 import { useStaleWhileRevalidate } from "@/hooks/useStaleWhileRevalidate";
+import { useAdminPageLoading } from "@/components/dashboard/AdminPageLoadingProvider";
 import { ddcKey } from "@/lib/client-data-cache";
 
 function shortUuid(id: string): string {
@@ -99,6 +100,8 @@ export default function SuperadminMembershipsPanel() {
     fetcher: fetchItems,
     refreshKey,
   });
+
+  useAdminPageLoading(loading || revalidating);
 
   const rows = items ?? [];
   const busy = loading && rows.length === 0;

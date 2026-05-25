@@ -5,6 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { Fragment, useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import Logo from "@/components/Logo";
 import { useAuthSession } from "@/components/auth/AuthSessionProvider";
+import { prefetchAdminOverviewCache } from "@/lib/client/fetch-admin-overview";
 import {
   dashboardNavItemIsActive,
   dashboardSecondaryNav,
@@ -15,6 +16,29 @@ import {
 } from "@/components/dashboard/dashboard-nav-config";
 
 type Item = DashboardNavItem;
+
+function isMemberDashboardPath(pathname: string): boolean {
+  return pathname === "/dashboard/me" || pathname.startsWith("/dashboard/me/");
+}
+
+function resolveWorkspaceItems(
+  pathname: string,
+  session: { ready: boolean; signedIn: boolean; isAdmin: boolean; isSuperAdmin: boolean },
+): Item[] {
+  if (!session.ready) {
+    return isMemberDashboardPath(pathname) ? memberWorkspaceItems : staffWorkspaceItems;
+  }
+  if (!session.signedIn) return memberWorkspaceItems;
+  if (session.isAdmin) {
+    const merged = [...staffWorkspaceItems];
+    if (session.isSuperAdmin && !merged.some((i) => i.href === superadminNavItem.href)) {
+      merged.push(superadminNavItem);
+    }
+    return merged;
+  }
+  if (session.isSuperAdmin) return [...memberWorkspaceItems, superadminNavItem];
+  return memberWorkspaceItems;
+}
 
 function SidebarNavLinkBody({
   active,
@@ -79,18 +103,10 @@ export default function Sidebar({
   const router = useRouter();
   const session = useAuthSession();
 
-  const workspaceItems = useMemo(() => {
-    if (!session.ready || !session.signedIn) return memberWorkspaceItems;
-    if (session.isAdmin) {
-      const merged = [...staffWorkspaceItems];
-      if (session.isSuperAdmin && !merged.some((i) => i.href === superadminNavItem.href)) {
-        merged.push(superadminNavItem);
-      }
-      return merged;
-    }
-    if (session.isSuperAdmin) return [...memberWorkspaceItems, superadminNavItem];
-    return memberWorkspaceItems;
-  }, [session]);
+  const workspaceItems = useMemo(
+    () => resolveWorkspaceItems(pathname, session),
+    [pathname, session.ready, session.signedIn, session.isAdmin, session.isSuperAdmin],
+  );
 
   const prefetchPath = useCallback((path: string) => {
     try {
@@ -98,7 +114,10 @@ export default function Sidebar({
     } catch {
       /* noop */
     }
-  }, [router]);
+    if (path === "/dashboard" && session.isAdmin) {
+      prefetchAdminOverviewCache();
+    }
+  }, [router, session.isAdmin]);
 
   useEffect(() => {
     const urls = [...workspaceItems.map((i) => i.href), ...dashboardSecondaryNav.map((i) => i.href)];
@@ -106,6 +125,12 @@ export default function Sidebar({
       prefetchPath(href);
     }
   }, [workspaceItems, prefetchPath]);
+
+  useEffect(() => {
+    if (session.ready && session.isAdmin) {
+      prefetchAdminOverviewCache();
+    }
+  }, [session.ready, session.isAdmin]);
 
   return (
     <>
@@ -118,7 +143,7 @@ export default function Sidebar({
       )}
 
       <aside
-        className={`fixed inset-y-0 left-0 z-50 flex w-[15.5rem] flex-col border-r border-ink-200/70 bg-white shadow-[4px_0_24px_-12px_rgba(15,23,42,0.12)] transition-transform supports-[backdrop-filter]:bg-white/95 lg:sticky lg:top-0 lg:z-10 lg:h-screen lg:w-[13.75rem] lg:max-w-none lg:translate-x-0 lg:border-ink-200/55 lg:bg-white/72 lg:shadow-none xl:w-64 xl:backdrop-blur-xl xl:supports-[backdrop-filter]:bg-white/60 ${
+        className={`fixed inset-y-0 left-0 z-50 flex w-[15.5rem] shrink-0 flex-col border-r border-ink-200/70 bg-white shadow-[4px_0_24px_-12px_rgba(15,23,42,0.12)] transition-transform supports-[backdrop-filter]:bg-white/95 lg:sticky lg:top-0 lg:z-10 lg:h-screen lg:w-64 lg:max-w-none lg:translate-x-0 lg:border-ink-200/55 lg:bg-white/72 lg:shadow-none lg:backdrop-blur-xl lg:supports-[backdrop-filter]:bg-white/60 ${
           open ? "translate-x-0" : "-translate-x-full"
         }`}
       >

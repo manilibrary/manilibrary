@@ -1,6 +1,5 @@
 "use client";
 
-import { usePathname } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { useAuthSession } from "@/components/auth/AuthSessionProvider";
 import { avatarDisplayUrl } from "@/lib/avatars/avatar-display-url";
@@ -17,8 +16,6 @@ type BarUser = {
 };
 
 export default function Topbar({ onMenu }: { onMenu: () => void }) {
-  const pathname = usePathname() ?? "";
-  const hideMemberSearch = pathname.startsWith("/dashboard/me");
   const session = useAuthSession();
   const [menuOpen, setMenuOpen] = useState(false);
   const [avatarCacheBust, setAvatarCacheBust] = useState(0);
@@ -91,32 +88,6 @@ export default function Topbar({ onMenu }: { onMenu: () => void }) {
             <path strokeLinecap="round" strokeLinejoin="round" d="M4 7h16M4 12h16M4 17h16" />
           </svg>
         </button>
-
-        {hideMemberSearch ? (
-          <div className="hidden min-w-0 flex-1 md:block" aria-hidden />
-        ) : (
-          <div className="hidden flex-1 md:block">
-            <label className="relative block max-w-md">
-              <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-ink-400">
-                <svg
-                  className="h-4 w-4"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="1.8"
-                >
-                  <circle cx="11" cy="11" r="7" />
-                  <path strokeLinecap="round" d="m20 20-3.5-3.5" />
-                </svg>
-              </span>
-              <input
-                type="search"
-                placeholder="Search (coming soon)"
-                className="w-full rounded-full border border-ink-200 bg-surface-muted py-2 pl-10 pr-4 text-sm text-ink-800 placeholder-ink-400 outline-none transition focus:border-azure-500 focus:bg-white focus:ring-4 focus:ring-azure-500/15"
-              />
-            </label>
-          </div>
-        )}
 
         <div className="ml-auto flex items-center gap-2">
           <button

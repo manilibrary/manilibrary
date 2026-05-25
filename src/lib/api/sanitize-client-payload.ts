@@ -10,6 +10,7 @@ export type AdminRecentPaymentClient = {
   plan_kind: string | null;
   member_label: string;
   device_user_id: number | null;
+  payment_how: string;
 };
 
 export function toAdminRecentPaymentClient(row: {
@@ -22,6 +23,7 @@ export function toAdminRecentPaymentClient(row: {
   plan_kind: string | null;
   member_label: string;
   device_user_id: number | null;
+  payment_how: string;
 }): AdminRecentPaymentClient {
   return {
     id: row.id,
@@ -33,6 +35,7 @@ export function toAdminRecentPaymentClient(row: {
     plan_kind: row.plan_kind,
     member_label: row.member_label,
     device_user_id: row.device_user_id,
+    payment_how: row.payment_how,
   };
 }
 

@@ -35,6 +35,35 @@ export function formatDateDdMmYyyy(
   return parts ? `${parts.dd}/${parts.mm}/${parts.yyyy}` : "—";
 }
 
+/** Membership end date/time for error messages and labels. */
+export function formatMembershipEndForDisplay(
+  planKind: string,
+  validUntil: string | null | undefined,
+  endsAt: string | null | undefined,
+): string {
+  if (planKind === "long_term") return formatDateDdMmYyyy(validUntil);
+  return formatDateTimeDdMmYyyy(endsAt);
+}
+
+export function formatMembershipWindowLabel(row: {
+  plan_kind: string;
+  valid_from?: string | null;
+  valid_until?: string | null;
+  starts_at?: string | null;
+  ends_at?: string | null;
+}): string {
+  if (row.plan_kind === "long_term") {
+    const a = formatDateDdMmYyyy(row.valid_from);
+    const b = formatDateDdMmYyyy(row.valid_until);
+    if (a !== "—" && b !== "—") return `${a} → ${b}`;
+  } else {
+    const a = formatDateTimeDdMmYyyy(row.starts_at);
+    const b = formatDateTimeDdMmYyyy(row.ends_at);
+    if (a !== "—" && b !== "—") return `${a} → ${b}`;
+  }
+  return "—";
+}
+
 export function formatDateTimeDdMmYyyy(
   input: string | null | undefined,
   timeZone: string = DEFAULT_LIBRARY_TZ,

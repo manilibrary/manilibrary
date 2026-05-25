@@ -5,6 +5,7 @@ import { useMemo, useState } from "react";
 import { MembershipSeatTableCell } from "@/components/membership/MembershipSeatTableCell";
 import { TableBodySkeleton } from "@/components/ui/ContentSkeletons";
 import { useStaleWhileRevalidate } from "@/hooks/useStaleWhileRevalidate";
+import { useAdminPageLoading } from "@/components/dashboard/AdminPageLoadingProvider";
 import { fetchAdminMembersList } from "@/lib/client/fetch-admin-members-list";
 import { ddcKey } from "@/lib/client-data-cache";
 import { formatDateDdMmYyyy, formatDateTimeDdMmYyyy } from "@/lib/date-format";
@@ -146,6 +147,8 @@ export default function StaffSubscriptionsPanel({
     cacheKey: ddcKey.adminMembersList(),
     fetcher: fetchAdminMembersList,
   });
+
+  useAdminPageLoading(loading || revalidating);
 
   const rows = (membersBundle?.rows ?? []) as MembershipRow[];
   const profiles = (membersBundle?.profiles ?? {}) as Record<string, ProfileMini>;

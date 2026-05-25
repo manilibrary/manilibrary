@@ -6,6 +6,7 @@ import { formatDateTimeDdMmYyyy } from "@/lib/date-format";
 import { deviceUserIdInlineLabel } from "@/lib/device-user-id-label";
 import { TableBodySkeleton } from "@/components/ui/ContentSkeletons";
 import { useStaleWhileRevalidate } from "@/hooks/useStaleWhileRevalidate";
+import { useAdminPageLoading } from "@/components/dashboard/AdminPageLoadingProvider";
 import { fetchAdminPaymentsList } from "@/lib/client/fetch-admin-payments-list";
 import { ddcKey } from "@/lib/client-data-cache";
 
@@ -126,6 +127,8 @@ export default function StaffPaymentsPanel() {
     fetcher: fetchAdminPaymentsList,
   });
 
+  useAdminPageLoading(loading || revalidating);
+
   const rows = paymentsBundle?.rows ?? [];
   const profiles = paymentsBundle?.profiles ?? {};
 
@@ -162,20 +165,9 @@ export default function StaffPaymentsPanel() {
     );
   }
 
-  if (loading && rows.length === 0) {
-    return (
-      <div className="overflow-x-auto rounded-2xl border border-ink-100 bg-white shadow-sm" aria-busy="true" aria-label="Loading payments">
-        <table className="min-w-full text-left text-sm">
-          <PaymentsTableHeader />
-          <tbody className="divide-y divide-ink-100">
-            <TableBodySkeleton rows={7} cols={TABLE_COLS} tdClass="px-4 py-3" />
-          </tbody>
-        </table>
-      </div>
-    );
-  }
+  const listLoading = loading && rows.length === 0;
 
-  if (!loading && rows.length === 0) {
+  if (!listLoading && rows.length === 0) {
     return <p className="text-sm text-ink-600">No payment rows yet.</p>;
   }
 
@@ -215,11 +207,17 @@ export default function StaffPaymentsPanel() {
         {revalidating ? " · updating…" : ""}
       </p>
 
-      <div className="overflow-x-auto rounded-2xl border border-ink-100 bg-white shadow-sm">
+      <div
+        className="overflow-x-auto rounded-2xl border border-ink-100 bg-white shadow-sm"
+        aria-busy={listLoading}
+        aria-label={listLoading ? "Loading payments" : undefined}
+      >
         <table className="min-w-full text-left text-sm">
           <PaymentsTableHeader />
           <tbody className="divide-y divide-ink-100">
-            {filtered.length === 0 ? (
+            {listLoading ? (
+              <TableBodySkeleton rows={7} cols={TABLE_COLS} tdClass="px-4 py-3" />
+            ) : filtered.length === 0 ? (
               <tr>
                 <td colSpan={TABLE_COLS} className="px-4 py-10 text-center text-sm text-ink-500">
                   No payments match this filter.

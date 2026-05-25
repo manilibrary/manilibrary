@@ -2,10 +2,10 @@
 
 import { useCallback, useEffect, useState } from "react";
 
+import { useAdminPageLoading } from "@/components/dashboard/AdminPageLoadingProvider";
 import {
   ADMIN_ATTENDANCE_SESSION_TTL_MS,
   adminAttendancePanelDailyKey,
-  adminAttendancePanelPunchesKey,
   readAdminAttendanceSessionCache,
   writeAdminAttendanceSessionCache,
 } from "@/lib/client/admin-attendance-session-cache";
@@ -27,18 +27,6 @@ type DailyItem = {
   status_ui_label?: string;
   remark: string;
   source?: "device-summary" | "derived-from-punches";
-};
-
-type PunchItem = {
-  empcode: string;
-  device_user_id: number | null;
-  full_name: string | null;
-  punch_date: string;
-  flag: string | null;
-  table: string;
-  empcard: string;
-  id: number | null;
-  source?: "device-last-punch" | "device-mcid";
 };
 
 function isDashTime(t: string | null | undefined): boolean {
@@ -98,9 +86,6 @@ const control =
 const btnPrimary =
   "inline-flex h-10 shrink-0 items-center justify-center rounded-lg bg-azure-500 px-5 text-sm font-semibold text-white shadow-sm transition hover:bg-azure-600 disabled:pointer-events-none disabled:opacity-50";
 
-const btnOutline =
-  "inline-flex h-10 shrink-0 items-center justify-center rounded-lg border border-ink-200 bg-white px-5 text-sm font-semibold text-ink-800 shadow-sm transition hover:bg-ink-50 disabled:pointer-events-none disabled:opacity-50";
-
 const fieldLabel = "mb-1.5 block text-xs font-medium text-ink-700";
 
 export default function AdminAttendancePanel() {
@@ -115,15 +100,10 @@ export default function AdminAttendancePanel() {
   const [err, setErr] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
 
-  const [livePunches, setLivePunches] = useState<PunchItem[]>([]);
-  const [liveBusy, setLiveBusy] = useState(false);
-  const [liveErr, setLiveErr] = useState<string | null>(null);
   const [skippedDaily, setSkippedDaily] = useState(0);
-  const [skippedPunches, setSkippedPunches] = useState(0);
 
   useEffect(() => {
     const dKey = adminAttendancePanelDailyKey(fromIso, toIso, empcode);
-    const pKey = adminAttendancePanelPunchesKey(fromIso, toIso);
     const id = window.requestAnimationFrame(() => {
       const cachedDaily = readAdminAttendanceSessionCache<{
         items: DailyItem[];
@@ -139,19 +119,7 @@ export default function AdminAttendancePanel() {
         setSkippedDaily(0);
         setInfo(null);
       }
-      const cachedPunches = readAdminAttendanceSessionCache<{
-        items: PunchItem[];
-        skippedPunches: number;
-      }>(pKey, ADMIN_ATTENDANCE_SESSION_TTL_MS);
-      if (cachedPunches) {
-        setLivePunches(cachedPunches.items);
-        setSkippedPunches(cachedPunches.skippedPunches);
-      } else {
-        setLivePunches([]);
-        setSkippedPunches(0);
-      }
       setErr(null);
-      setLiveErr(null);
     });
     return () => window.cancelAnimationFrame(id);
   }, [fromIso, toIso, empcode]);
@@ -207,57 +175,12 @@ export default function AdminAttendancePanel() {
     }
   }, [fromIso, toIso, empcode]);
 
-  const loadLatest = useCallback(async () => {
-    setLiveBusy(true);
-    setLiveErr(null);
-    try {
-      const params = new URLSearchParams();
-      if (fromIso === toIso && /^\d{4}-\d{2}-\d{2}$/.test(fromIso)) {
-        params.set("forYmd", fromIso);
-      } else if (/^\d{4}-\d{2}-\d{2}$/.test(fromIso) && /^\d{4}-\d{2}-\d{2}$/.test(toIso)) {
-        params.set("fromYmd", fromIso);
-        params.set("toYmd", toIso);
-      }
-      const res = await fetch(`/api/admin/attendance/last-punches?${params.toString()}`, { cache: "no-store" });
-      const j = (await res.json()) as {
-        ok?: boolean;
-        error?: string;
-        items?: PunchItem[];
-        source?: "device-last-punch" | "device-mcid";
-        skipped_unregistered?: number;
-      };
-      if (!res.ok || !j.ok) {
-        setLiveErr(j.error ?? "Could not load latest punches.");
-        setLivePunches((prev) => (prev.length > 0 ? prev : []));
-        return;
-      }
-      const nextPunches = j.items ?? [];
-      const nextSkippedP = j.skipped_unregistered ?? 0;
-      setLivePunches(nextPunches);
-      setSkippedPunches(nextSkippedP);
-      writeAdminAttendanceSessionCache(adminAttendancePanelPunchesKey(fromIso, toIso), {
-        items: nextPunches,
-        skippedPunches: nextSkippedP,
-      });
-    } catch (e) {
-      setLiveErr(e instanceof Error ? e.message : "Network error.");
-      setLivePunches((prev) => (prev.length > 0 ? prev : []));
-    } finally {
-      setLiveBusy(false);
-    }
-  }, [fromIso, toIso]);
-
   useEffect(() => {
-    const boot = window.setTimeout(() => {
-      void loadDaily();
-      void loadLatest();
-    }, 0);
-    const id = window.setInterval(() => void loadLatest(), 30_000);
-    return () => {
-      window.clearTimeout(boot);
-      window.clearInterval(id);
-    };
-  }, [loadDaily, loadLatest]);
+    const boot = window.setTimeout(() => void loadDaily(), 0);
+    return () => window.clearTimeout(boot);
+  }, [loadDaily]);
+
+  useAdminPageLoading(busy && items.length === 0);
 
   return (
     <div className="space-y-6">
@@ -309,10 +232,7 @@ export default function AdminAttendancePanel() {
           <div className="flex shrink-0">
             <button
               type="button"
-              onClick={() => {
-                void loadDaily();
-                void loadLatest();
-              }}
+              onClick={() => void loadDaily()}
               disabled={busy}
               aria-busy={busy}
               className={btnPrimary}
@@ -420,105 +340,6 @@ export default function AdminAttendancePanel() {
                         {statusLabelUi(r)}
                       </span>
                     </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-      </section>
-
-      <section className="rounded-2xl border border-ink-100 bg-white p-6 shadow-card">
-        <div className="flex flex-col gap-4 border-b border-ink-100 pb-4 sm:flex-row sm:items-end sm:justify-between">
-          <header>
-            <h2 className="text-lg font-semibold tracking-tight text-ink-900">Recent check-ins</h2>
-            <p className="mt-1 text-xs text-ink-500">Uses the same dates as above · Auto-refresh about every 30 seconds</p>
-          </header>
-          <button
-            type="button"
-            onClick={() => void loadLatest()}
-            disabled={liveBusy}
-            aria-busy={liveBusy}
-            className={btnOutline}
-          >
-            {liveBusy ? (
-              <span className="inline-flex items-center gap-2">
-                <span
-                  className="h-4 w-4 animate-spin rounded-full border-2 border-ink-200 border-t-ink-700"
-                  aria-hidden
-                />
-                Refreshing
-              </span>
-            ) : (
-              "Refresh list"
-            )}
-          </button>
-        </div>
-
-        {liveErr ? (
-          <p className="mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800" role="alert">
-            {liveErr}
-          </p>
-        ) : null}
-        {skippedPunches > 0 ? (
-          <p className="mt-4 rounded-lg border border-ink-100 bg-ink-50 px-4 py-3 text-xs text-ink-700">
-            Not shown: {skippedPunches} punch{skippedPunches === 1 ? "" : "es"} from people on the gate who are not
-            library members.
-          </p>
-        ) : null}
-        {liveBusy && livePunches.length > 0 ? (
-          <p className="mt-3 text-xs text-ink-500" role="status">
-            Updating check-ins from the server…
-          </p>
-        ) : null}
-
-        <div className="mt-5 overflow-x-auto rounded-lg border border-ink-100">
-          <table className="min-w-full text-left text-sm">
-            <thead className="border-b border-ink-100 bg-surface-muted/90 text-[10px] font-semibold uppercase tracking-wider text-ink-600">
-              <tr>
-                <th className="whitespace-nowrap px-4 py-3">Time</th>
-                <th className="whitespace-nowrap px-4 py-3">Member</th>
-                <th className="whitespace-nowrap px-4 py-3">Device user id</th>
-                <th className="whitespace-nowrap px-4 py-3">On reader</th>
-                <th className="whitespace-nowrap px-4 py-3">Flag</th>
-                <th className="whitespace-nowrap px-4 py-3">Card</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-ink-100">
-              {livePunches.length === 0 ? (
-                <tr>
-                  <td colSpan={6} className="px-4 py-10 text-center text-sm text-ink-500">
-                    {liveBusy ? (
-                      <span className="inline-flex items-center justify-center gap-2">
-                        <span
-                          className="h-5 w-5 animate-spin rounded-full border-2 border-azure-200 border-t-azure-600"
-                          aria-hidden
-                        />
-                        Loading…
-                      </span>
-                    ) : (
-                      "No recent check-ins."
-                    )}
-                  </td>
-                </tr>
-              ) : (
-                livePunches.map((r, i) => (
-                  <tr
-                    key={`${r.empcode}-${r.punch_date}-${r.id ?? i}`}
-                    className="text-ink-800"
-                  >
-                    <td className="whitespace-nowrap px-4 py-3 font-mono text-xs">{r.punch_date}</td>
-                    <td className="max-w-[14rem] truncate px-4 py-3">{r.full_name ?? "—"}</td>
-                    <td className="whitespace-nowrap px-4 py-3 font-mono text-xs">
-                      {r.device_user_id != null ? String(r.device_user_id).padStart(4, "0") : "—"}
-                    </td>
-                    <td className="whitespace-nowrap px-4 py-3 font-mono text-xs">{r.empcode}</td>
-                    <td className="whitespace-nowrap px-4 py-3">
-                      <span className="inline-flex rounded-full bg-ink-100 px-2 py-0.5 text-[11px] font-medium text-ink-700">
-                        {r.flag ?? "—"}
-                      </span>
-                    </td>
-                    <td className="whitespace-nowrap px-4 py-3 font-mono text-xs">{r.empcard || "—"}</td>
                   </tr>
                 ))
               )}

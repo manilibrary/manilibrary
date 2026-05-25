@@ -12,7 +12,12 @@ import {
  */
 export async function finalizeRazorpayPaymentRow(
   admin: SupabaseClient,
-  input: { paymentId: string; expectedUserId: string; razorpay_payment_id: string },
+  input: {
+    paymentId: string;
+    expectedUserId: string;
+    razorpay_payment_id: string;
+    razorpay_method?: string;
+  },
 ): Promise<{ ok: true; alreadyPaid?: boolean } | { ok: false; status: number; error: string }> {
   const { data: pay, error: payErr } = await admin
     .from("payments")
@@ -31,7 +36,12 @@ export async function finalizeRazorpayPaymentRow(
   }
 
   const meta = (pay.metadata ?? {}) as Record<string, unknown>;
-  const nextMeta = { ...meta, razorpay_payment_id: input.razorpay_payment_id };
+  const method = input.razorpay_method?.trim();
+  const nextMeta = {
+    ...meta,
+    razorpay_payment_id: input.razorpay_payment_id,
+    ...(method ? { razorpay_method: method } : {}),
+  };
 
   const { error: upPay } = await admin
     .from("payments")

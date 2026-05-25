@@ -3,6 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useAdminPageLoading } from "@/components/dashboard/AdminPageLoadingProvider";
 import { HERO_TAGLINE_MAX, HERO_TAGLINE_SUB_MAX } from "@/lib/hero/constants";
 import type { HeroSlotPublic, PublicHeroSettings } from "@/lib/hero/hero-settings";
 
@@ -177,6 +178,8 @@ export default function StaffHeroSettingsPanel() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  useAdminPageLoading(loading);
 
   const usedGalleryIds = useMemo(() => {
     const ids = new Set<string>();

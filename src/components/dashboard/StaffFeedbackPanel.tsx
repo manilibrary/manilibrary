@@ -3,6 +3,8 @@
 import Image from "next/image";
 import { useCallback, useEffect, useState } from "react";
 
+import { useAdminPageLoading } from "@/components/dashboard/AdminPageLoadingProvider";
+
 type Row = {
   userId: string;
   fullName: string;
@@ -45,6 +47,8 @@ export default function StaffFeedbackPanel() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  useAdminPageLoading(loading);
 
   const setApproved = async (userId: string, approved: boolean) => {
     setBusyId(userId);

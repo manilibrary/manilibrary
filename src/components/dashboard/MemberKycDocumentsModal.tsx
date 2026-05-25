@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 
 import { KycDocListSkeleton } from "@/components/ui/ContentSkeletons";
+import { formatIndianPhoneDisplay } from "@/lib/profile-phone";
 
 const DOC_ORDER = ["aadhaar_front", "aadhaar_back", "student_id"] as const;
 
@@ -22,6 +23,12 @@ export type MemberKycDetails = {
 };
 
 type DocItem = { doc_type: string; content_type: string | null; signedUrl: string };
+
+type MemberContact = {
+  full_name: string;
+  email: string | null;
+  phone: string | null;
+};
 
 type Props = {
   userId: string;
@@ -46,6 +53,54 @@ function formatInstitution(t: string | null): string {
   return x.charAt(0).toUpperCase() + x.slice(1);
 }
 
+function ContactActionRow({
+  label,
+  value,
+  whatsappHref,
+}: {
+  label: string;
+  value: string;
+  whatsappHref?: string;
+}) {
+  const [copied, setCopied] = useState(false);
+
+  const copy = useCallback(async () => {
+    try {
+      await navigator.clipboard.writeText(value);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 2000);
+    } catch {
+      setCopied(false);
+    }
+  }, [value]);
+
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-2">
+      <dt className="text-ink-500">{label}</dt>
+      <dd className="flex flex-wrap items-center justify-end gap-2 text-right">
+        <span className="break-all font-medium text-ink-900">{value}</span>
+        <button
+          type="button"
+          onClick={() => void copy()}
+          className="rounded-full border border-ink-200 px-2.5 py-0.5 text-xs font-medium text-ink-700 hover:bg-ink-50"
+        >
+          {copied ? "Copied" : "Copy"}
+        </button>
+        {whatsappHref ? (
+          <a
+            href={whatsappHref}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-0.5 text-xs font-semibold text-emerald-800 hover:bg-emerald-100"
+          >
+            WhatsApp
+          </a>
+        ) : null}
+      </dd>
+    </div>
+  );
+}
+
 export default function MemberKycDocumentsModal({
   userId,
   memberTitle,
@@ -56,6 +111,7 @@ export default function MemberKycDocumentsModal({
   const [loading, setLoading] = useState(true);
   const [fetchErr, setFetchErr] = useState<string | null>(null);
   const [documents, setDocuments] = useState<DocItem[]>([]);
+  const [contact, setContact] = useState<MemberContact | null>(null);
   const [openDoc, setOpenDoc] = useState<string | null>(null);
   const [memberNote, setMemberNote] = useState("");
   const [respondBusy, setRespondBusy] = useState(false);
@@ -70,6 +126,7 @@ export default function MemberKycDocumentsModal({
       if (cancelled) return;
       setLoading(true);
       setFetchErr(null);
+      setContact(null);
       setOpenDoc(null);
       setConfirmReviewed(false);
       setMemberNote("");
@@ -83,6 +140,7 @@ export default function MemberKycDocumentsModal({
             ok?: boolean;
             error?: string;
             hint?: string;
+            contact?: MemberContact;
             documents?: DocItem[];
           };
           if (cancelled) return;
@@ -90,8 +148,10 @@ export default function MemberKycDocumentsModal({
             const parts = [j.error, j.hint].filter(Boolean);
             setFetchErr(parts.length ? parts.join(" — ") : "Could not load documents.");
             setDocuments([]);
+            setContact(null);
             return;
           }
+          setContact(j.contact ?? null);
           setDocuments(j.documents ?? []);
         } catch (e) {
           if (!cancelled) setFetchErr(e instanceof Error ? e.message : "Network error.");
@@ -116,6 +176,8 @@ export default function MemberKycDocumentsModal({
 
   const byType = new Map(documents.map((d) => [d.doc_type, d]));
   const missingDocLabels = DOC_ORDER.filter((t) => !byType.get(t)).map((t) => DOC_LABELS[t] ?? t);
+  const phoneDisplay = contact?.phone ? formatIndianPhoneDisplay(contact.phone) : null;
+  const whatsappHref = contact?.phone ? `https://wa.me/91${contact.phone}` : undefined;
 
   const submitRespond = useCallback(
     async (action: "reject" | "request_resubmit") => {
@@ -202,6 +264,22 @@ export default function MemberKycDocumentsModal({
         </div>
 
         <div className="min-h-0 flex-1 space-y-6 overflow-y-auto px-5 py-4">
+          {loading && !contact ? (
+            <KycDocListSkeleton />
+          ) : contact?.email || contact?.phone ? (
+            <section>
+              <h3 className="font-mono text-[10px] uppercase tracking-widest text-ink-500">Contact</h3>
+              <dl className="mt-3 space-y-2.5 text-sm">
+                {contact.email ? (
+                  <ContactActionRow label="Email" value={contact.email} />
+                ) : null}
+                {contact.phone && phoneDisplay && phoneDisplay !== "—" ? (
+                  <ContactActionRow label="Phone" value={phoneDisplay} whatsappHref={whatsappHref} />
+                ) : null}
+              </dl>
+            </section>
+          ) : null}
+
           <section>
             <h3 className="font-mono text-[10px] uppercase tracking-widest text-ink-500">Details on file</h3>
             <dl className="mt-3 space-y-2.5 text-sm">

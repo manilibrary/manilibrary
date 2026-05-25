@@ -1,6 +1,10 @@
 import { apiError, apiSuccess, apiErrorSafe } from "@/lib/api/json-response";
 import { resolveMemberSeatDisplayLabel } from "@/lib/membership/seat-label";
-import { toYmdBoundary } from "@/lib/membership/windows";
+import { formatMembershipWindowLabel } from "@/lib/date-format";
+import {
+  resolveLongTermDuration,
+  resolveShortTermDuration,
+} from "@/lib/payments/pricing";
 import { getAuthUserForApiRequest } from "@/lib/supabase/api-route-auth";
 import { createSupabaseServiceRoleClient } from "@/lib/supabase/service-role";
 
@@ -38,23 +42,31 @@ function asMembership(m: MembershipJoin | MembershipJoin[] | null): MembershipJo
 }
 
 function membershipWindowLabel(mem: MembershipJoin): string {
-  if (mem.plan_kind === "long_term") {
-    const a = toYmdBoundary(mem.valid_from);
-    const b = toYmdBoundary(mem.valid_until);
-    if (a && b) return `${a} → ${b}`;
-  }
-  if (mem.plan_kind === "short_term") {
-    const a = toYmdBoundary(mem.starts_at);
-    const b = toYmdBoundary(mem.ends_at);
-    if (a && b) return `${a} → ${b}`;
-  }
-  return "—";
+  return formatMembershipWindowLabel(mem);
 }
 
 function planTitle(planKind: string): string {
   if (planKind === "short_term") return "Short-term (row hall)";
   if (planKind === "long_term") return "Long-term (main hall)";
   return planKind.replace(/_/g, " ");
+}
+
+function parseDurationKeyFromNotes(notes: string | null): string | null {
+  if (!notes) return null;
+  const m = String(notes).match(/duration:([^\s;]+)/);
+  return m?.[1] ?? null;
+}
+
+function membershipDurationLabel(mem: MembershipJoin): string | null {
+  const key = parseDurationKeyFromNotes(mem.notes);
+  if (!key) return null;
+  if (mem.plan_kind === "long_term") {
+    return resolveLongTermDuration(key)?.label ?? null;
+  }
+  if (mem.plan_kind === "short_term") {
+    return resolveShortTermDuration(key)?.label ?? null;
+  }
+  return null;
 }
 
 export async function GET(request: Request) {
@@ -134,6 +146,7 @@ export async function GET(request: Request) {
             plan_kind: mem.plan_kind,
             seat_number: mem.seat_number,
           }),
+          durationLabel: membershipDurationLabel(mem),
           windowLabel: membershipWindowLabel(mem),
         }
       : null;

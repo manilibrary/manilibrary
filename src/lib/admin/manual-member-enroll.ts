@@ -9,6 +9,7 @@ import {
   membershipDayStartIso,
   todayYmdInTz,
 } from "@/lib/membership/windows";
+import { formatMembershipEndForDisplay } from "@/lib/date-format";
 import { formatMemberSeatToken, resolveMemberSeatDisplayLabel } from "@/lib/membership/seat-label";
 import {
   type MembershipPlanKind,
@@ -151,10 +152,11 @@ export async function manualEnrollMember(
   }
   if (existingActive) {
     if (createdNewAuthUser) await admin.auth.admin.deleteUser(userId);
-    const until =
-      existingActive.plan_kind === "long_term"
-        ? existingActive.valid_until
-        : existingActive.ends_at;
+    const until = formatMembershipEndForDisplay(
+      String(existingActive.plan_kind),
+      existingActive.valid_until as string | null,
+      existingActive.ends_at as string | null,
+    );
     return {
       ok: false,
       status: 409,

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import {
   CLIENT_DATA_CACHE_TTL_MS,
@@ -24,6 +24,7 @@ export function useStaleWhileRevalidate<T>({
   ttlMs = CLIENT_DATA_CACHE_TTL_MS,
   refreshKey = 0,
   enabled = true,
+  initialData = null,
 }: {
   cacheKey: string;
   fetcher: () => Promise<T>;
@@ -31,6 +32,8 @@ export function useStaleWhileRevalidate<T>({
   /** Bump to force a network refresh (e.g. after a mutation). */
   refreshKey?: number;
   enabled?: boolean;
+  /** SSR snapshot — keeps first paint stable and matches hydration. */
+  initialData?: T | null;
 }) {
   const fetcherRef = useRef(fetcher);
 
@@ -38,10 +41,8 @@ export function useStaleWhileRevalidate<T>({
     fetcherRef.current = fetcher;
   }, [fetcher]);
 
-  // Always start empty so SSR and the first client render match (avoids hydration mismatch
-  // when session cache exists). Cache is applied in useEffect after mount.
-  const [data, setData] = useState<T | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [data, setData] = useState<T | null>(initialData ?? null);
+  const [loading, setLoading] = useState(initialData == null);
   const [revalidating, setRevalidating] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -56,25 +57,30 @@ export function useStaleWhileRevalidate<T>({
     [cacheKey, ttlMs],
   );
 
+  useLayoutEffect(() => {
+    if (!enabled || initialData != null) return;
+    const cached = readCache();
+    if (cached == null) return;
+    setData(cached);
+    setLoading(false);
+    setRevalidating(true);
+  }, [enabled, initialData, cacheKey, readCache]);
+
   useEffect(() => {
     if (!enabled) return;
 
     let cancelled = false;
     const cached = readCache();
+    const hasSnapshot = cached != null || initialData != null;
 
-    queueMicrotask(() => {
-      if (cancelled) return;
+    if (!hasSnapshot) {
+      setLoading(true);
+      setRevalidating(false);
+    } else {
+      setRevalidating(true);
+    }
 
-      if (cached != null) {
-        setData(cached);
-        setLoading(false);
-        setRevalidating(true);
-      } else {
-        setLoading(true);
-        setRevalidating(false);
-      }
-
-      void (async () => {
+    void (async () => {
         try {
           const fresh = await fetcherRef.current();
           if (cancelled) return;
@@ -82,20 +88,19 @@ export function useStaleWhileRevalidate<T>({
         } catch (e) {
           if (cancelled) return;
           const message = e instanceof Error ? e.message : "Could not load data.";
-          if (cached == null) setError(message);
+          if (!hasSnapshot) setError(message);
         } finally {
           if (!cancelled) {
             setLoading(false);
             setRevalidating(false);
           }
         }
-      })();
-    });
+    })();
 
     return () => {
       cancelled = true;
     };
-  }, [cacheKey, refreshKey, enabled, readCache, persist]);
+  }, [cacheKey, refreshKey, enabled, initialData, readCache, persist]);
 
   return { data, loading, revalidating, error, setData: persist };
 }
