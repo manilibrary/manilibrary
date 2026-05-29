@@ -2,6 +2,7 @@
 
 import { createContext, useContext, type ReactNode } from "react";
 
+import { useAdminPageLoading } from "@/components/dashboard/AdminPageLoadingProvider";
 import { useStaleWhileRevalidate } from "@/hooks/useStaleWhileRevalidate";
 import { fetchAdminOverview, type AdminOverviewPayload } from "@/lib/client/fetch-admin-overview";
 import { ddcKey } from "@/lib/client-data-cache";
@@ -22,6 +23,8 @@ export function AdminOverviewProvider({
     fetcher: fetchAdminOverview,
     initialData,
   });
+
+  useAdminPageLoading(value.loading || value.revalidating);
 
   return <AdminOverviewContext.Provider value={value}>{children}</AdminOverviewContext.Provider>;
 }
