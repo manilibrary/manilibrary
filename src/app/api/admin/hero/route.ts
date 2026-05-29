@@ -1,3 +1,5 @@
+import { revalidatePath } from "next/cache";
+
 import { apiError, apiSuccess, apiErrorSafe } from "@/lib/api/json-response";
 import {
   HERO_TAGLINE_MAX,
@@ -153,6 +155,7 @@ export async function PATCH(request: Request) {
   try {
     const row = await loadHeroRow(admin);
     const urlMap = await galleryUrlMapForHeroRow(admin, row);
+    revalidatePath("/");
     return apiSuccess("Hero updated.", { hero: resolveHeroImageUrls(row, urlMap) });
   } catch (e) {
     return apiErrorSafe(e, 500);

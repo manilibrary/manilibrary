@@ -1,3 +1,5 @@
+import { revalidatePath } from "next/cache";
+
 import { apiError, apiSuccess, apiErrorSafe } from "@/lib/api/json-response";
 import { GALLERY_STORAGE_BUCKET } from "@/lib/gallery/constants";
 import { heroSlotColumnPrefix } from "@/lib/hero/constants";
@@ -54,5 +56,6 @@ export async function DELETE(request: Request, context: RouteContext) {
 
   await admin.storage.from(GALLERY_STORAGE_BUCKET).remove([row.storage_path]);
 
+  revalidatePath("/");
   return apiSuccess("Image removed from gallery.");
 }

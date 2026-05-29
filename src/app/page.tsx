@@ -12,6 +12,9 @@ import {
   HOME_SECTION_PAD_BOTTOM,
 } from "@/lib/landing/home-section-spacing";
 
+/** Hero images come from Supabase — do not freeze URLs at deploy time. */
+export const revalidate = 60;
+
 export default function HomePage() {
   return (
     <>
