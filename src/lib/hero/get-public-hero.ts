@@ -1,3 +1,5 @@
+import { unstable_noStore as noStore } from "next/cache";
+
 import {
   galleryUrlMapForHeroRow,
   HERO_SETTINGS_SELECT,
@@ -7,6 +9,7 @@ import {
 import { createSupabaseServiceRoleClient } from "@/lib/supabase/service-role";
 
 export async function getPublicHeroSettings() {
+  noStore();
   try {
     const admin = createSupabaseServiceRoleClient();
     const { data, error } = await admin
