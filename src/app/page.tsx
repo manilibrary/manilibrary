@@ -1,495 +1,502 @@
-import Navbar from "@/components/Navbar";
-import Footer from "@/components/Footer";
-import HomeHero from "@/components/landing/HomeHero";
-import PlanChooseCTA from "@/components/landing/PlanChooseCTA";
-import StatsCounter from "@/components/StatsCounter";
-import GallerySection from "@/components/landing/GallerySection";
-import TestimonialsSection from "@/components/landing/TestimonialsSection";
-import libraryInfo from "@/data/libraryInfo.json";
-import {
-  HOME_SECTION_PAD,
-  HOME_SECTION_PAD_TOP_TIGHT,
-  HOME_SECTION_PAD_BOTTOM,
-} from "@/lib/landing/home-section-spacing";
-
-/** Hero images come from Supabase — do not freeze URLs at deploy time. */
-export const revalidate = 60;
-
+import MaintenancePage from "@/app/maintenance/page";
 export default function HomePage() {
   return (
-    <>
-      <Navbar />
-      <main className="flex-1">
-        <HomeHero />
-        <StatsCounter />
-        <TestimonialsSection />
-        <GallerySection />
-        <Facilities />
-        <About />
-        <Plans />
-        <Contact />
-      </main>
-      <Footer />
-    </>
+    <MaintenancePage />
   );
 }
 
-/* ---------------------------------------------------------- */
-/*  Facilities                                                 */
-/* ---------------------------------------------------------- */
+// import Navbar from "@/components/Navbar";
+// import Footer from "@/components/Footer";
+// import HomeHero from "@/components/landing/HomeHero";
+// import PlanChooseCTA from "@/components/landing/PlanChooseCTA";
+// import StatsCounter from "@/components/StatsCounter";
+// import GallerySection from "@/components/landing/GallerySection";
+// import TestimonialsSection from "@/components/landing/TestimonialsSection";
+// import libraryInfo from "@/data/libraryInfo.json";
+// import {
+//   HOME_SECTION_PAD,
+//   HOME_SECTION_PAD_TOP_TIGHT,
+//   HOME_SECTION_PAD_BOTTOM,
+// } from "@/lib/landing/home-section-spacing";
 
-function Facilities() {
-  return (
-    <section id="facilities" className="bg-white">
-      <div className={`mx-auto max-w-7xl ${HOME_SECTION_PAD_TOP_TIGHT} ${HOME_SECTION_PAD_BOTTOM}`}>
-        <div className="mx-auto max-w-2xl text-center">
-          <p className="text-xs font-semibold uppercase tracking-widest text-azure-500">
-            Facilities
-          </p>
-          <h2 className="mt-3 text-3xl font-semibold tracking-tight text-ink-900 md:text-4xl">
-            Everything you need to focus.
-          </h2>
-          <p className="mt-4 text-base text-ink-600">
-            Thoughtfully designed for serious learners — from civil services
-            aspirants to college students.
-          </p>
-        </div>
+// /** Hero images come from Supabase — do not freeze URLs at deploy time. */
+// export const revalidate = 60;
 
-        <div className="mt-10 grid grid-cols-3 gap-2 sm:mt-14 sm:gap-3 md:grid-cols-4 md:gap-4">
-          {libraryInfo.facilities.map((f) => (
-            <article
-              key={f.id}
-              className="group flex flex-col items-center rounded-md border border-ink-100 bg-white p-3 text-center shadow-sm transition-all hover:border-azure-200 hover:shadow-card-hover sm:p-4 md:items-stretch md:p-6 md:text-left"
-            >
-              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-azure-50 text-azure-500 transition-colors group-hover:bg-azure-500 group-hover:text-white sm:h-10 sm:w-10">
-                <FacilityIcon id={f.id} />
-              </div>
-              <h3 className="mt-2 text-[11px] font-semibold leading-tight text-ink-900 sm:mt-3 sm:text-sm md:mt-5 md:text-base">
-                {f.title}
-              </h3>
-              <p className="mt-1 text-[10px] leading-snug text-ink-600 sm:mt-2 sm:text-xs sm:leading-relaxed md:mt-2 md:text-sm md:leading-relaxed">
-                {f.description}
-              </p>
-            </article>
-          ))}
-        </div>
-      </div>
-    </section>
-  );
-}
+// export default function HomePage() {
+//   return (
+//     <>
+//       <Navbar />
+//       <main className="flex-1">
+//         <HomeHero />
+//         <StatsCounter />
+//         <TestimonialsSection />
+//         <GallerySection />
+//         <Facilities />
+//         <About />
+//         <Plans />
+//         <Contact />
+//       </main>
+//       <Footer />
+//     </>
+//   );
+// }
 
-function FacilityIcon({ id }: { id: string }) {
-  const stroke = "currentColor";
-  const common = {
-    viewBox: "0 0 24 24",
-    fill: "none",
-    stroke,
-    strokeWidth: 1.8,
-    strokeLinecap: "round" as const,
-    strokeLinejoin: "round" as const,
-    className: "h-5 w-5",
-  };
+// /* ---------------------------------------------------------- */
+// /*  Facilities                                                 */
+// /* ---------------------------------------------------------- */
 
-  switch (id) {
-    case "ac":
-      return (
-        <svg {...common}>
-          <path d="M3 8h18M3 16h18M12 4v16M7 8l-2 4 2 4M17 8l2 4-2 4" />
-        </svg>
-      );
-    case "247":
-      return (
-        <svg {...common}>
-          <circle cx="12" cy="12" r="9" />
-          <path d="M12 7v5l3 2" />
-        </svg>
-      );
-    case "wifi":
-      return (
-        <svg {...common}>
-          <path d="M5 12.55a11 11 0 0 1 14 0M8.5 16.05a6 6 0 0 1 7 0M12 20h.01" />
-        </svg>
-      );
-    case "power":
-      return (
-        <svg {...common}>
-          <path d="M13 2 4 14h7l-1 8 9-12h-7l1-8Z" />
-        </svg>
-      );
-    case "lockers":
-      return (
-        <svg {...common}>
-          <rect x="4" y="3" width="16" height="18" rx="2" />
-          <path d="M8 8h.01M8 14h.01M16 12h.01" />
-          <path d="M12 3v18" />
-        </svg>
-      );
-    case "water":
-      return (
-        <svg {...common}>
-          <path d="M12 3s6 7 6 12a6 6 0 0 1-12 0c0-5 6-12 6-12Z" />
-        </svg>
-      );
-    case "washrooms":
-      return (
-        <svg {...common}>
-          <path d="M7 3h10a2 2 0 0 1 2 2v16H5V5a2 2 0 0 1 2-2z" />
-          <path d="M10 8h4M10 11h4" />
-          <path d="M12 15v5" />
-          <path d="M9 20h6" />
-        </svg>
-      );
-    case "silent":
-      return (
-        <svg {...common}>
-          <path d="M11 5 6 9H3v6h3l5 4V5Z" />
-          <path d="m22 9-6 6M16 9l6 6" />
-        </svg>
-      );
-    case "discussion":
-      return (
-        <svg {...common}>
-          <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2Z" />
-        </svg>
-      );
-    default:
-      return (
-        <svg {...common}>
-          <circle cx="12" cy="12" r="9" />
-        </svg>
-      );
-  }
-}
+// function Facilities() {
+//   return (
+//     <section id="facilities" className="bg-white">
+//       <div className={`mx-auto max-w-7xl ${HOME_SECTION_PAD_TOP_TIGHT} ${HOME_SECTION_PAD_BOTTOM}`}>
+//         <div className="mx-auto max-w-2xl text-center">
+//           <p className="text-xs font-semibold uppercase tracking-widest text-azure-500">
+//             Facilities
+//           </p>
+//           <h2 className="mt-3 text-3xl font-semibold tracking-tight text-ink-900 md:text-4xl">
+//             Everything you need to focus.
+//           </h2>
+//           <p className="mt-4 text-base text-ink-600">
+//             Thoughtfully designed for serious learners — from civil services
+//             aspirants to college students.
+//           </p>
+//         </div>
 
-/* ---------------------------------------------------------- */
-/*  About                                                      */
-/* ---------------------------------------------------------- */
+//         <div className="mt-10 grid grid-cols-3 gap-2 sm:mt-14 sm:gap-3 md:grid-cols-4 md:gap-4">
+//           {libraryInfo.facilities.map((f) => (
+//             <article
+//               key={f.id}
+//               className="group flex flex-col items-center rounded-md border border-ink-100 bg-white p-3 text-center shadow-sm transition-all hover:border-azure-200 hover:shadow-card-hover sm:p-4 md:items-stretch md:p-6 md:text-left"
+//             >
+//               <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-azure-50 text-azure-500 transition-colors group-hover:bg-azure-500 group-hover:text-white sm:h-10 sm:w-10">
+//                 <FacilityIcon id={f.id} />
+//               </div>
+//               <h3 className="mt-2 text-[11px] font-semibold leading-tight text-ink-900 sm:mt-3 sm:text-sm md:mt-5 md:text-base">
+//                 {f.title}
+//               </h3>
+//               <p className="mt-1 text-[10px] leading-snug text-ink-600 sm:mt-2 sm:text-xs sm:leading-relaxed md:mt-2 md:text-sm md:leading-relaxed">
+//                 {f.description}
+//               </p>
+//             </article>
+//           ))}
+//         </div>
+//       </div>
+//     </section>
+//   );
+// }
 
-function About() {
-  return (
-    <section id="about" className="bg-surface-muted">
-      <div className={`mx-auto grid max-w-7xl gap-12 md:grid-cols-2 md:gap-16 ${HOME_SECTION_PAD}`}>
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-widest text-azure-500">
-            About {libraryInfo.name}
-          </p>
-          <h2 className="mt-3 text-3xl font-semibold tracking-tight text-ink-900 md:text-4xl">
-            A neighbourhood library, built for the next generation.
-          </h2>
-          <p className="mt-5 text-base leading-relaxed text-ink-600">
-            Founded in {libraryInfo.established} by {libraryInfo.owner.name},
-            {" "}
-            {libraryInfo.name} began as a single hall with twenty seats. Today
-            it hosts over a hundred students preparing for competitive exams,
-            board exams and college coursework — all under one quiet roof.
-          </p>
-          <p className="mt-4 text-base leading-relaxed text-ink-600">
-            We focus on the things that matter: clean air, dependable power, a
-            comfortable seat, and a community that takes its goals seriously.
-          </p>
+// function FacilityIcon({ id }: { id: string }) {
+//   const stroke = "currentColor";
+//   const common = {
+//     viewBox: "0 0 24 24",
+//     fill: "none",
+//     stroke,
+//     strokeWidth: 1.8,
+//     strokeLinecap: "round" as const,
+//     strokeLinejoin: "round" as const,
+//     className: "h-5 w-5",
+//   };
 
-          <dl className="mt-8 grid grid-cols-2 gap-4">
-            {[
-              { label: "Founded", value: libraryInfo.established },
-              { label: "Capacity", value: libraryInfo.capacity },
-              { label: "Hours", value: libraryInfo.hours },
-              { label: "Location", value: libraryInfo.address.city },
-            ].map((item) => (
-              <div
-                key={item.label}
-                className="rounded-lg border border-ink-100 bg-white px-4 py-3"
-              >
-                <dt className="font-mono text-[10px] uppercase tracking-widest text-ink-500">
-                  {item.label}
-                </dt>
-                <dd className="mt-1 text-sm font-semibold text-ink-900">
-                  {item.value}
-                </dd>
-              </div>
-            ))}
-          </dl>
-        </div>
+//   switch (id) {
+//     case "ac":
+//       return (
+//         <svg {...common}>
+//           <path d="M3 8h18M3 16h18M12 4v16M7 8l-2 4 2 4M17 8l2 4-2 4" />
+//         </svg>
+//       );
+//     case "247":
+//       return (
+//         <svg {...common}>
+//           <circle cx="12" cy="12" r="9" />
+//           <path d="M12 7v5l3 2" />
+//         </svg>
+//       );
+//     case "wifi":
+//       return (
+//         <svg {...common}>
+//           <path d="M5 12.55a11 11 0 0 1 14 0M8.5 16.05a6 6 0 0 1 7 0M12 20h.01" />
+//         </svg>
+//       );
+//     case "power":
+//       return (
+//         <svg {...common}>
+//           <path d="M13 2 4 14h7l-1 8 9-12h-7l1-8Z" />
+//         </svg>
+//       );
+//     case "lockers":
+//       return (
+//         <svg {...common}>
+//           <rect x="4" y="3" width="16" height="18" rx="2" />
+//           <path d="M8 8h.01M8 14h.01M16 12h.01" />
+//           <path d="M12 3v18" />
+//         </svg>
+//       );
+//     case "water":
+//       return (
+//         <svg {...common}>
+//           <path d="M12 3s6 7 6 12a6 6 0 0 1-12 0c0-5 6-12 6-12Z" />
+//         </svg>
+//       );
+//     case "washrooms":
+//       return (
+//         <svg {...common}>
+//           <path d="M7 3h10a2 2 0 0 1 2 2v16H5V5a2 2 0 0 1 2-2z" />
+//           <path d="M10 8h4M10 11h4" />
+//           <path d="M12 15v5" />
+//           <path d="M9 20h6" />
+//         </svg>
+//       );
+//     case "silent":
+//       return (
+//         <svg {...common}>
+//           <path d="M11 5 6 9H3v6h3l5 4V5Z" />
+//           <path d="m22 9-6 6M16 9l6 6" />
+//         </svg>
+//       );
+//     case "discussion":
+//       return (
+//         <svg {...common}>
+//           <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2Z" />
+//         </svg>
+//       );
+//     default:
+//       return (
+//         <svg {...common}>
+//           <circle cx="12" cy="12" r="9" />
+//         </svg>
+//       );
+//   }
+// }
 
-        <div className="relative">
-          <div className="rounded-lg border border-ink-100 bg-white p-8 shadow-card">
-            <p className="inline-flex items-center gap-1.5 font-mono text-xs uppercase tracking-widest text-azure-500">
-              <svg className="h-3.5 w-3.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M3 21c3 0 7-1 7-8V5c0-1.25-.756-2.017-2-2H4c-1.25 0-2 .75-2 1.972V11c0 1.25.75 2 2 2 1 0 1 0 1 1v1c0 1-1 2-2 2s-1 .008-1 1.031V20c0 1 0 1 1 1z" />
-                <path d="M15 21c3 0 7-1 7-8V5c0-1.25-.757-2.017-2-2h-4c-1.25 0-2 .75-2 1.972V11c0 1.25.75 2 2 2h.75c0 2.25.25 4-2.75 4v3c0 1 0 1 1 1z" />
-              </svg>
-              Owner&apos;s Note
-            </p>
-            <blockquote className="mt-4 text-lg leading-relaxed text-ink-800">
-              &ldquo;We built {libraryInfo.name} because every serious student
-              deserves a quiet seat, a stable power outlet, and a community
-              that respects silence. That promise hasn&rsquo;t changed in five
-              years.&rdquo;
-            </blockquote>
-            <div className="mt-6 flex items-center gap-3 border-t border-ink-100 pt-5">
-              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-azure-500 font-mono text-sm font-semibold text-white">
-                {libraryInfo.owner.name
-                  .split(" ")
-                  .map((p) => p[0])
-                  .join("")}
-              </div>
-              <div>
-                <p className="text-sm font-semibold text-ink-900">
-                  {libraryInfo.owner.name}
-                </p>
-                <p className="text-xs text-ink-500">{libraryInfo.owner.role}</p>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </section>
-  );
-}
+// /* ---------------------------------------------------------- */
+// /*  About                                                      */
+// /* ---------------------------------------------------------- */
 
-/* ---------------------------------------------------------- */
-/*  Plans                                                      */
-/* ---------------------------------------------------------- */
+// function About() {
+//   return (
+//     <section id="about" className="bg-surface-muted">
+//       <div className={`mx-auto grid max-w-7xl gap-12 md:grid-cols-2 md:gap-16 ${HOME_SECTION_PAD}`}>
+//         <div>
+//           <p className="text-xs font-semibold uppercase tracking-widest text-azure-500">
+//             About {libraryInfo.name}
+//           </p>
+//           <h2 className="mt-3 text-3xl font-semibold tracking-tight text-ink-900 md:text-4xl">
+//             A neighbourhood library, built for the next generation.
+//           </h2>
+//           <p className="mt-5 text-base leading-relaxed text-ink-600">
+//             Founded in {libraryInfo.established} by {libraryInfo.owner.name},
+//             {" "}
+//             {libraryInfo.name} began as a single hall with twenty seats. Today
+//             it hosts over a hundred students preparing for competitive exams,
+//             board exams and college coursework — all under one quiet roof.
+//           </p>
+//           <p className="mt-4 text-base leading-relaxed text-ink-600">
+//             We focus on the things that matter: clean air, dependable power, a
+//             comfortable seat, and a community that takes its goals seriously.
+//           </p>
 
-function Plans() {
-  return (
-    <section id="plans" className="bg-white">
-      <div className={`mx-auto max-w-7xl ${HOME_SECTION_PAD}`}>
-        <div className="mx-auto max-w-2xl text-center">
-          <p className="text-xs font-semibold uppercase tracking-widest text-azure-500">
-            Membership
-          </p>
-          <h2 className="mt-3 text-3xl font-semibold tracking-tight text-ink-900 md:text-4xl">
-            Simple plans, no surprises.
-          </h2>
-          <p className="mt-4 text-base text-ink-600">
-            Pick the shift that fits your schedule. Upgrade or downgrade any
-            time.
-          </p>
-        </div>
+//           <dl className="mt-8 grid grid-cols-2 gap-4">
+//             {[
+//               { label: "Founded", value: libraryInfo.established },
+//               { label: "Capacity", value: libraryInfo.capacity },
+//               { label: "Hours", value: libraryInfo.hours },
+//               { label: "Location", value: libraryInfo.address.city },
+//             ].map((item) => (
+//               <div
+//                 key={item.label}
+//                 className="rounded-lg border border-ink-100 bg-white px-4 py-3"
+//               >
+//                 <dt className="font-mono text-[10px] uppercase tracking-widest text-ink-500">
+//                   {item.label}
+//                 </dt>
+//                 <dd className="mt-1 text-sm font-semibold text-ink-900">
+//                   {item.value}
+//                 </dd>
+//               </div>
+//             ))}
+//           </dl>
+//         </div>
 
-        <div className="mt-14 mx-auto grid max-w-4xl gap-6 md:grid-cols-2">
-          {libraryInfo.plans.map((plan) => {
-            const popular = "popular" in plan && plan.popular;
-            return (
-              <article
-                key={plan.id}
-                className={`relative flex flex-col rounded-lg border bg-white p-7 ${
-                  popular
-                    ? "border-azure-500 shadow-card-hover ring-1 ring-azure-500"
-                    : "border-ink-100 shadow-card"
-                }`}
-              >
-                {popular && (
-                  <span className="absolute -top-3 left-7 inline-flex items-center rounded-full bg-azure-500 px-3 py-1 text-[10px] font-semibold uppercase tracking-widest text-white">
-                    Most popular
-                  </span>
-                )}
-                <header>
-                  <p className="inline-flex items-center gap-1.5 font-mono text-xs uppercase tracking-widest text-ink-500">
-                    <svg className="h-3.5 w-3.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" />
-                    </svg>
-                    {plan.hours}
-                  </p>
-                  <h3 className="mt-2 text-xl font-semibold text-ink-900">
-                    {plan.name}
-                  </h3>
-                  <p className="mt-4 flex items-baseline gap-1.5">
-                    <span className="text-4xl font-semibold tracking-tight text-ink-900">
-                      {libraryInfo.currencySymbol}
-                      {plan.price.toLocaleString("en-IN")}
-                    </span>
-                    <span className="text-sm text-ink-500">
-                      / {plan.duration.replace("per ", "")}
-                    </span>
-                  </p>
-                </header>
-                <ul className="mt-6 flex-1 space-y-3 border-t border-ink-100 pt-6">
-                  {plan.features.map((f) => (
-                    <li key={f} className="flex items-start gap-2.5 text-sm">
-                      <svg
-                        className="mt-0.5 h-4 w-4 shrink-0 text-azure-500"
-                        viewBox="0 0 20 20"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2.4"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          d="m4.5 10.5 3.5 3.5 7.5-8"
-                        />
-                      </svg>
-                      <span className="text-ink-700">{f}</span>
-                    </li>
-                  ))}
-                </ul>
-                <PlanChooseCTA planName={plan.name} planId={plan.id} popular={Boolean(popular)} />
-              </article>
-            );
-          })}
-        </div>
-      </div>
-    </section>
-  );
-}
+//         <div className="relative">
+//           <div className="rounded-lg border border-ink-100 bg-white p-8 shadow-card">
+//             <p className="inline-flex items-center gap-1.5 font-mono text-xs uppercase tracking-widest text-azure-500">
+//               <svg className="h-3.5 w-3.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+//                 <path d="M3 21c3 0 7-1 7-8V5c0-1.25-.756-2.017-2-2H4c-1.25 0-2 .75-2 1.972V11c0 1.25.75 2 2 2 1 0 1 0 1 1v1c0 1-1 2-2 2s-1 .008-1 1.031V20c0 1 0 1 1 1z" />
+//                 <path d="M15 21c3 0 7-1 7-8V5c0-1.25-.757-2.017-2-2h-4c-1.25 0-2 .75-2 1.972V11c0 1.25.75 2 2 2h.75c0 2.25.25 4-2.75 4v3c0 1 0 1 1 1z" />
+//               </svg>
+//               Owner&apos;s Note
+//             </p>
+//             <blockquote className="mt-4 text-lg leading-relaxed text-ink-800">
+//               &ldquo;We built {libraryInfo.name} because every serious student
+//               deserves a quiet seat, a stable power outlet, and a community
+//               that respects silence. That promise hasn&rsquo;t changed in five
+//               years.&rdquo;
+//             </blockquote>
+//             <div className="mt-6 flex items-center gap-3 border-t border-ink-100 pt-5">
+//               <div className="flex h-10 w-10 items-center justify-center rounded-full bg-azure-500 font-mono text-sm font-semibold text-white">
+//                 {libraryInfo.owner.name
+//                   .split(" ")
+//                   .map((p) => p[0])
+//                   .join("")}
+//               </div>
+//               <div>
+//                 <p className="text-sm font-semibold text-ink-900">
+//                   {libraryInfo.owner.name}
+//                 </p>
+//                 <p className="text-xs text-ink-500">{libraryInfo.owner.role}</p>
+//               </div>
+//             </div>
+//           </div>
+//         </div>
+//       </div>
+//     </section>
+//   );
+// }
 
-/* ---------------------------------------------------------- */
-/*  Contact                                                    */
-/* ---------------------------------------------------------- */
+// /* ---------------------------------------------------------- */
+// /*  Plans                                                      */
+// /* ---------------------------------------------------------- */
 
-function Contact() {
-  const phoneHref = `tel:${libraryInfo.contact.primaryPhone.replace(/\s/g, "")}`;
-  const mailHref = `mailto:${libraryInfo.contact.supportEmail}`;
-  const addr = libraryInfo.address;
+// function Plans() {
+//   return (
+//     <section id="plans" className="bg-white">
+//       <div className={`mx-auto max-w-7xl ${HOME_SECTION_PAD}`}>
+//         <div className="mx-auto max-w-2xl text-center">
+//           <p className="text-xs font-semibold uppercase tracking-widest text-azure-500">
+//             Membership
+//           </p>
+//           <h2 className="mt-3 text-3xl font-semibold tracking-tight text-ink-900 md:text-4xl">
+//             Simple plans, no surprises.
+//           </h2>
+//           <p className="mt-4 text-base text-ink-600">
+//             Pick the shift that fits your schedule. Upgrade or downgrade any
+//             time.
+//           </p>
+//         </div>
 
-  return (
-    <section id="contact" className="bg-surface-muted">
-      <div className={`mx-auto max-w-7xl ${HOME_SECTION_PAD}`}>
-        <div className="grid gap-12 md:grid-cols-2">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-widest text-azure-500">
-              Get in touch
-            </p>
-            <h2 className="mt-3 text-3xl font-semibold tracking-tight text-ink-900 md:text-4xl">
-              Visit us, or just say hello.
-            </h2>
-            <p className="mt-4 max-w-md text-base text-ink-600">
-              Drop by for a tour, or call us for any membership question. We
-              reply quickly.
-            </p>
+//         <div className="mt-14 mx-auto grid max-w-4xl gap-6 md:grid-cols-2">
+//           {libraryInfo.plans.map((plan) => {
+//             const popular = "popular" in plan && plan.popular;
+//             return (
+//               <article
+//                 key={plan.id}
+//                 className={`relative flex flex-col rounded-lg border bg-white p-7 ${
+//                   popular
+//                     ? "border-azure-500 shadow-card-hover ring-1 ring-azure-500"
+//                     : "border-ink-100 shadow-card"
+//                 }`}
+//               >
+//                 {popular && (
+//                   <span className="absolute -top-3 left-7 inline-flex items-center rounded-full bg-azure-500 px-3 py-1 text-[10px] font-semibold uppercase tracking-widest text-white">
+//                     Most popular
+//                   </span>
+//                 )}
+//                 <header>
+//                   <p className="inline-flex items-center gap-1.5 font-mono text-xs uppercase tracking-widest text-ink-500">
+//                     <svg className="h-3.5 w-3.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+//                       <circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" />
+//                     </svg>
+//                     {plan.hours}
+//                   </p>
+//                   <h3 className="mt-2 text-xl font-semibold text-ink-900">
+//                     {plan.name}
+//                   </h3>
+//                   <p className="mt-4 flex items-baseline gap-1.5">
+//                     <span className="text-4xl font-semibold tracking-tight text-ink-900">
+//                       {libraryInfo.currencySymbol}
+//                       {plan.price.toLocaleString("en-IN")}
+//                     </span>
+//                     <span className="text-sm text-ink-500">
+//                       / {plan.duration.replace("per ", "")}
+//                     </span>
+//                   </p>
+//                 </header>
+//                 <ul className="mt-6 flex-1 space-y-3 border-t border-ink-100 pt-6">
+//                   {plan.features.map((f) => (
+//                     <li key={f} className="flex items-start gap-2.5 text-sm">
+//                       <svg
+//                         className="mt-0.5 h-4 w-4 shrink-0 text-azure-500"
+//                         viewBox="0 0 20 20"
+//                         fill="none"
+//                         stroke="currentColor"
+//                         strokeWidth="2.4"
+//                       >
+//                         <path
+//                           strokeLinecap="round"
+//                           strokeLinejoin="round"
+//                           d="m4.5 10.5 3.5 3.5 7.5-8"
+//                         />
+//                       </svg>
+//                       <span className="text-ink-700">{f}</span>
+//                     </li>
+//                   ))}
+//                 </ul>
+//                 <PlanChooseCTA planName={plan.name} planId={plan.id} popular={Boolean(popular)} />
+//               </article>
+//             );
+//           })}
+//         </div>
+//       </div>
+//     </section>
+//   );
+// }
 
-            <div className="mt-8 space-y-4">
-              <ContactRow
-                title="Address"
-                value={`${addr.line1}, ${addr.city}, ${addr.state} ${addr.pincode}`}
-                href={addr.mapsUrl}
-              />
-              <ContactRow
-                title="Phone"
-                value={libraryInfo.contact.primaryPhone}
-                href={phoneHref}
-              />
-              <ContactRow
-                title="Email"
-                value={libraryInfo.contact.supportEmail}
-                href={mailHref}
-              />
-              <ContactRow
-                title="Hours"
-                value={libraryInfo.hours}
-              />
-            </div>
-          </div>
+// /* ---------------------------------------------------------- */
+// /*  Contact                                                    */
+// /* ---------------------------------------------------------- */
 
-          <div className="rounded-lg border border-ink-100 bg-white p-7 shadow-card">
-            <h3 className="text-lg font-semibold text-ink-900">
-              Quick enquiry
-            </h3>
-            <p className="mt-1 text-sm text-ink-600">
-              Send us a note and we&rsquo;ll get back the same day.
-            </p>
-            <form
-              className="mt-6 space-y-4"
-              action={mailHref}
-              method="post"
-              encType="text/plain"
-            >
-              <Field name="name" label="Name" placeholder="Your name" />
-              <Field
-                name="email"
-                label="Email"
-                type="email"
-                placeholder="you@email.com"
-              />
-              <Field
-                name="phone"
-                label="Phone"
-                type="tel"
-                placeholder="+91 ..."
-              />
-              <div>
-                <label className="mb-1.5 block font-mono text-[10px] uppercase tracking-widest text-ink-500">
-                  Message
-                </label>
-                <textarea
-                  name="message"
-                  rows={4}
-                  placeholder="How can we help?"
-                  className="w-full resize-none rounded-md border border-ink-200 bg-white px-4 py-3 text-sm text-ink-900 placeholder-ink-400 outline-none transition focus:border-azure-500 focus:ring-4 focus:ring-azure-500/15"
-                />
-              </div>
-              <button
-                type="submit"
-                className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-azure-500 px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-azure-600"
-              >
-                Send message
-              </button>
-            </form>
-          </div>
-        </div>
-      </div>
-    </section>
-  );
-}
+// function Contact() {
+//   const phoneHref = `tel:${libraryInfo.contact.primaryPhone.replace(/\s/g, "")}`;
+//   const mailHref = `mailto:${libraryInfo.contact.supportEmail}`;
+//   const addr = libraryInfo.address;
 
-function ContactRow({
-  title,
-  value,
-  href,
-}: {
-  title: string;
-  value: string;
-  href?: string;
-}) {
-  const inner = (
-    <>
-      <p className="font-mono text-[10px] uppercase tracking-widest text-ink-500">
-        {title}
-      </p>
-      <p className="mt-1 text-sm font-medium text-ink-800">{value}</p>
-    </>
-  );
+//   return (
+//     <section id="contact" className="bg-surface-muted">
+//       <div className={`mx-auto max-w-7xl ${HOME_SECTION_PAD}`}>
+//         <div className="grid gap-12 md:grid-cols-2">
+//           <div>
+//             <p className="text-xs font-semibold uppercase tracking-widest text-azure-500">
+//               Get in touch
+//             </p>
+//             <h2 className="mt-3 text-3xl font-semibold tracking-tight text-ink-900 md:text-4xl">
+//               Visit us, or just say hello.
+//             </h2>
+//             <p className="mt-4 max-w-md text-base text-ink-600">
+//               Drop by for a tour, or call us for any membership question. We
+//               reply quickly.
+//             </p>
 
-  return (
-    <div className="rounded-md border border-ink-100 bg-white px-4 py-3 transition-colors hover:border-azure-200">
-      {href ? (
-        <a href={href} target={href.startsWith("http") ? "_blank" : undefined} rel="noopener noreferrer">
-          {inner}
-        </a>
-      ) : (
-        inner
-      )}
-    </div>
-  );
-}
+//             <div className="mt-8 space-y-4">
+//               <ContactRow
+//                 title="Address"
+//                 value={`${addr.line1}, ${addr.city}, ${addr.state} ${addr.pincode}`}
+//                 href={addr.mapsUrl}
+//               />
+//               <ContactRow
+//                 title="Phone"
+//                 value={libraryInfo.contact.primaryPhone}
+//                 href={phoneHref}
+//               />
+//               <ContactRow
+//                 title="Email"
+//                 value={libraryInfo.contact.supportEmail}
+//                 href={mailHref}
+//               />
+//               <ContactRow
+//                 title="Hours"
+//                 value={libraryInfo.hours}
+//               />
+//             </div>
+//           </div>
 
-function Field({
-  name,
-  label,
-  type = "text",
-  placeholder,
-}: {
-  name: string;
-  label: string;
-  type?: string;
-  placeholder?: string;
-}) {
-  return (
-    <div>
-      <label
-        htmlFor={name}
-        className="mb-1.5 block font-mono text-[10px] uppercase tracking-widest text-ink-500"
-      >
-        {label}
-      </label>
-      <input
-        id={name}
-        name={name}
-        type={type}
-        placeholder={placeholder}
-        className="w-full rounded-md border border-ink-200 bg-white px-4 py-3 text-sm text-ink-900 placeholder-ink-400 outline-none transition focus:border-azure-500 focus:ring-4 focus:ring-azure-500/15"
-      />
-    </div>
-  );
-}
+//           <div className="rounded-lg border border-ink-100 bg-white p-7 shadow-card">
+//             <h3 className="text-lg font-semibold text-ink-900">
+//               Quick enquiry
+//             </h3>
+//             <p className="mt-1 text-sm text-ink-600">
+//               Send us a note and we&rsquo;ll get back the same day.
+//             </p>
+//             <form
+//               className="mt-6 space-y-4"
+//               action={mailHref}
+//               method="post"
+//               encType="text/plain"
+//             >
+//               <Field name="name" label="Name" placeholder="Your name" />
+//               <Field
+//                 name="email"
+//                 label="Email"
+//                 type="email"
+//                 placeholder="you@email.com"
+//               />
+//               <Field
+//                 name="phone"
+//                 label="Phone"
+//                 type="tel"
+//                 placeholder="+91 ..."
+//               />
+//               <div>
+//                 <label className="mb-1.5 block font-mono text-[10px] uppercase tracking-widest text-ink-500">
+//                   Message
+//                 </label>
+//                 <textarea
+//                   name="message"
+//                   rows={4}
+//                   placeholder="How can we help?"
+//                   className="w-full resize-none rounded-md border border-ink-200 bg-white px-4 py-3 text-sm text-ink-900 placeholder-ink-400 outline-none transition focus:border-azure-500 focus:ring-4 focus:ring-azure-500/15"
+//                 />
+//               </div>
+//               <button
+//                 type="submit"
+//                 className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-azure-500 px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-azure-600"
+//               >
+//                 Send message
+//               </button>
+//             </form>
+//           </div>
+//         </div>
+//       </div>
+//     </section>
+//   );
+// }
+
+// function ContactRow({
+//   title,
+//   value,
+//   href,
+// }: {
+//   title: string;
+//   value: string;
+//   href?: string;
+// }) {
+//   const inner = (
+//     <>
+//       <p className="font-mono text-[10px] uppercase tracking-widest text-ink-500">
+//         {title}
+//       </p>
+//       <p className="mt-1 text-sm font-medium text-ink-800">{value}</p>
+//     </>
+//   );
+
+//   return (
+//     <div className="rounded-md border border-ink-100 bg-white px-4 py-3 transition-colors hover:border-azure-200">
+//       {href ? (
+//         <a href={href} target={href.startsWith("http") ? "_blank" : undefined} rel="noopener noreferrer">
+//           {inner}
+//         </a>
+//       ) : (
+//         inner
+//       )}
+//     </div>
+//   );
+// }
+
+// function Field({
+//   name,
+//   label,
+//   type = "text",
+//   placeholder,
+// }: {
+//   name: string;
+//   label: string;
+//   type?: string;
+//   placeholder?: string;
+// }) {
+//   return (
+//     <div>
+//       <label
+//         htmlFor={name}
+//         className="mb-1.5 block font-mono text-[10px] uppercase tracking-widest text-ink-500"
+//       >
+//         {label}
+//       </label>
+//       <input
+//         id={name}
+//         name={name}
+//         type={type}
+//         placeholder={placeholder}
+//         className="w-full rounded-md border border-ink-200 bg-white px-4 py-3 text-sm text-ink-900 placeholder-ink-400 outline-none transition focus:border-azure-500 focus:ring-4 focus:ring-azure-500/15"
+//       />
+//     </div>
+//   );
+// }
