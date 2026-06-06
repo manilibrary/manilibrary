@@ -1,7 +1,7 @@
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import HomeHero from "@/components/landing/HomeHero";
-import PlanChooseCTA from "@/components/landing/PlanChooseCTA";
+import PlansSection from "@/components/landing/PlansSection";
 import StatsCounter from "@/components/StatsCounter";
 import GallerySection from "@/components/landing/GallerySection";
 import TestimonialsSection from "@/components/landing/TestimonialsSection";
@@ -26,7 +26,7 @@ export default function HomePage() {
         <GallerySection />
         <Facilities />
         <About />
-        <Plans />
+        <PlansSection />
         <Contact />
       </main>
       <Footer />
@@ -247,94 +247,6 @@ function About() {
 }
 
 /* ---------------------------------------------------------- */
-/*  Plans                                                      */
-/* ---------------------------------------------------------- */
-
-function Plans() {
-  return (
-    <section id="plans" className="bg-white">
-      <div className={`mx-auto max-w-7xl ${HOME_SECTION_PAD}`}>
-        <div className="mx-auto max-w-2xl text-center">
-          <p className="text-xs font-semibold uppercase tracking-widest text-azure-500">
-            Membership
-          </p>
-          <h2 className="mt-3 text-3xl font-semibold tracking-tight text-ink-900 md:text-4xl">
-            Simple plans, no surprises.
-          </h2>
-          <p className="mt-4 text-base text-ink-600">
-            Pick the shift that fits your schedule. Upgrade or downgrade any
-            time.
-          </p>
-        </div>
-
-        <div className="mt-14 mx-auto grid max-w-4xl gap-6 md:grid-cols-2">
-          {libraryInfo.plans.map((plan) => {
-            const popular = "popular" in plan && plan.popular;
-            return (
-              <article
-                key={plan.id}
-                className={`relative flex flex-col rounded-lg border bg-white p-7 ${
-                  popular
-                    ? "border-azure-500 shadow-card-hover ring-1 ring-azure-500"
-                    : "border-ink-100 shadow-card"
-                }`}
-              >
-                {popular && (
-                  <span className="absolute -top-3 left-7 inline-flex items-center rounded-full bg-azure-500 px-3 py-1 text-[10px] font-semibold uppercase tracking-widest text-white">
-                    Most popular
-                  </span>
-                )}
-                <header>
-                  <p className="inline-flex items-center gap-1.5 font-mono text-xs uppercase tracking-widest text-ink-500">
-                    <svg className="h-3.5 w-3.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" />
-                    </svg>
-                    {plan.hours}
-                  </p>
-                  <h3 className="mt-2 text-xl font-semibold text-ink-900">
-                    {plan.name}
-                  </h3>
-                  <p className="mt-4 flex items-baseline gap-1.5">
-                    <span className="text-4xl font-semibold tracking-tight text-ink-900">
-                      {libraryInfo.currencySymbol}
-                      {plan.price.toLocaleString("en-IN")}
-                    </span>
-                    <span className="text-sm text-ink-500">
-                      / {plan.duration.replace("per ", "")}
-                    </span>
-                  </p>
-                </header>
-                <ul className="mt-6 flex-1 space-y-3 border-t border-ink-100 pt-6">
-                  {plan.features.map((f) => (
-                    <li key={f} className="flex items-start gap-2.5 text-sm">
-                      <svg
-                        className="mt-0.5 h-4 w-4 shrink-0 text-azure-500"
-                        viewBox="0 0 20 20"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2.4"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          d="m4.5 10.5 3.5 3.5 7.5-8"
-                        />
-                      </svg>
-                      <span className="text-ink-700">{f}</span>
-                    </li>
-                  ))}
-                </ul>
-                <PlanChooseCTA planName={plan.name} planId={plan.id} popular={Boolean(popular)} />
-              </article>
-            );
-          })}
-        </div>
-      </div>
-    </section>
-  );
-}
-
-/* ---------------------------------------------------------- */
 /*  Contact                                                    */
 /* ---------------------------------------------------------- */
 
@@ -494,6 +406,7 @@ function Field({
   );
 }
 
+//Maintenance Page, don't remove this code ↓
 // import MaintenancePage from "@/app/maintenance/page";
 // export default function HomePage() {
 //   return (

@@ -6,21 +6,20 @@ import { useRouter } from "next/navigation";
 import { useAuthSession } from "@/components/auth/AuthSessionProvider";
 import { useActiveMembership } from "@/hooks/useActiveMembership";
 import { MEMBER_MEMBERSHIP_PATH, STAFF_LANDING_PATH } from "@/lib/auth-landing";
-import { seatPreviewPathForMarketingPlanId } from "@/lib/membership/marketing-plan-seat-preview";
-import { prefetchMembershipPath } from "@/lib/membership/prefetch-membership";
 
 type Props = {
   planName: string;
-  planId: string;
+  planCode: string;
+  months: number;
   popular: boolean;
 };
 
-function membershipHubHref(planId: string): string {
-  if (planId === "row-hall" || planId === "half-day") return "/membership?focus=row";
-  return "/membership?focus=main";
+function planFlowHref(planCode: string, months: number): string {
+  const params = new URLSearchParams({ code: planCode, months: String(months) });
+  return `/membership/plan?${params.toString()}`;
 }
 
-export default function PlanChooseCTA({ planName, planId, popular }: Props) {
+export default function PlanChooseCTA({ planName, planCode, months, popular }: Props) {
   const router = useRouter();
   const auth = useAuthSession();
   const { loading: memLoading, membership } = useActiveMembership();
@@ -44,31 +43,24 @@ export default function PlanChooseCTA({ planName, planId, popular }: Props) {
   }
 
   if (membership && !pending) {
-    const seatHref = seatPreviewPathForMarketingPlanId(planId);
     return (
       <div className="mt-7 space-y-2">
         <Link
-          href={seatHref}
+          href={MEMBER_MEMBERSHIP_PATH}
           className="inline-flex w-full items-center justify-center rounded-full bg-emerald-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-emerald-700"
         >
-          View available seats
+          View my membership
         </Link>
         <p className="text-center text-[11px] text-ink-500">
-          Opens the live hall map (empty vs taken). Payment is hidden while your plan is active.
+          Payment is hidden while your plan is active.
         </p>
-        <Link
-          href={MEMBER_MEMBERSHIP_PATH}
-          className="block text-center text-[11px] font-medium text-azure-600 hover:text-azure-700"
-        >
-          Membership details →
-        </Link>
       </div>
     );
   }
 
-  const hub = membershipHubHref(planId);
-  const chooseHref = pending || signedIn ? hub : `/login?next=${encodeURIComponent(hub)}`;
-  const warmChoose = () => prefetchMembershipPath(router, hub);
+  const flow = planFlowHref(planCode, months);
+  const chooseHref = pending || signedIn ? flow : `/login?next=${encodeURIComponent(flow)}`;
+  const warmChoose = () => router.prefetch(flow);
 
   return (
     <Link

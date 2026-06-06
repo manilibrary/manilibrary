@@ -268,7 +268,7 @@ export default function MembershipPaymentComplete() {
               Your membership
             </Link>
             <div className="hidden md:block">
-              <Link href="/membership/long-term" className="text-sm text-azure-600 hover:text-azure-700">
+              <Link href="/#plans" className="text-sm text-azure-600 hover:text-azure-700">
                 ← Back to membership
               </Link>
             </div>

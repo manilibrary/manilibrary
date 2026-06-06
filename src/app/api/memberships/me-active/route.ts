@@ -8,6 +8,8 @@ export const runtime = "nodejs";
 type MembershipRow = {
   id: string;
   plan_kind: string;
+  plan_code: string | null;
+  shift: string | null;
   status: string;
   seat_number: string | number | null;
   starts_at: string | null;
@@ -29,12 +31,13 @@ function membershipEndMs(row: {
   ends_at?: string | null;
   valid_until?: string | null;
 }): number | null {
-  if (row.plan_kind === "short_term" && row.ends_at) {
-    const t = Date.parse(row.ends_at);
+  // Calendar-month plans (long-term + shift plans) use valid_until; legacy passes use ends_at.
+  if (row.valid_until) {
+    const t = Date.parse(`${row.valid_until}T23:59:59.999Z`);
     return Number.isFinite(t) ? t : null;
   }
-  if (row.plan_kind === "long_term" && row.valid_until) {
-    const t = Date.parse(`${row.valid_until}T23:59:59.999Z`);
+  if (row.ends_at) {
+    const t = Date.parse(row.ends_at);
     return Number.isFinite(t) ? t : null;
   }
   return null;
@@ -60,7 +63,7 @@ export async function GET(request: Request) {
   const nowIso = now.toISOString();
 
   const membershipSelect =
-    "id, plan_kind, status, seat_number, starts_at, ends_at, valid_from, valid_until";
+    "id, plan_kind, plan_code, shift, status, seat_number, starts_at, ends_at, valid_from, valid_until";
 
   const profileP = admin
     .from("profiles")
@@ -74,9 +77,7 @@ export async function GET(request: Request) {
     .select(membershipSelect)
     .eq("user_id", user.id)
     .eq("status", "active")
-    .or(
-      `and(plan_kind.eq.long_term,valid_until.gte.${today}),and(plan_kind.eq.short_term,ends_at.gte.${nowIso})`,
-    )
+    .or(`valid_until.gte.${today},ends_at.gte.${nowIso}`)
     .order("created_at", { ascending: false })
     .limit(1)
     .maybeSingle();
@@ -99,9 +100,7 @@ export async function GET(request: Request) {
       .select(membershipSelect)
       .eq("user_id", user.id)
       .eq("status", "active")
-      .or(
-        `and(plan_kind.eq.long_term,valid_from.gt.${today}),and(plan_kind.eq.short_term,starts_at.gt.${nowIso})`,
-      )
+      .or(`valid_from.gt.${today},starts_at.gt.${nowIso}`)
       .order("valid_from", { ascending: true })
       .order("starts_at", { ascending: true })
       .limit(1)

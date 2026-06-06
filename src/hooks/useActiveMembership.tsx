@@ -9,6 +9,8 @@ import { useAuthSession } from "@/components/auth/AuthSessionProvider";
 export type ActiveMembershipShape = {
   id: string;
   plan_kind: string;
+  plan_code?: string | null;
+  shift?: string | null;
   status: string;
   seat_number: string | number | null;
   starts_at: string | null;
@@ -171,11 +173,11 @@ export function useActiveMembership(): State {
 }
 
 export function formatMembershipWindow(m: ActiveMembershipShape): string {
-  if (m.plan_kind === "short_term" && m.starts_at && m.ends_at) {
-    return `${formatDateDdMmYyyy(m.starts_at)} → ${formatDateDdMmYyyy(m.ends_at)}`;
-  }
-  if (m.plan_kind === "long_term" && m.valid_from && m.valid_until) {
+  if (m.valid_from && m.valid_until) {
     return `${formatDateDdMmYyyy(m.valid_from)} → ${formatDateDdMmYyyy(m.valid_until)}`;
+  }
+  if (m.starts_at && m.ends_at) {
+    return `${formatDateDdMmYyyy(m.starts_at)} → ${formatDateDdMmYyyy(m.ends_at)}`;
   }
   return "—";
 }

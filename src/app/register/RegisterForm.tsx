@@ -4,11 +4,16 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import AuthMarketingAside from "@/components/auth/AuthMarketingAside";
+import { useAuthSession } from "@/components/auth/AuthSessionProvider";
 import Logo from "@/components/Logo";
 import libraryInfo from "@/data/libraryInfo.json";
 import TurnstileWidget from "@/components/security/TurnstileWidget";
+import { notifyAuthSessionChanged, syncBrowserAuthSession } from "@/lib/auth-client-sync";
 import { MEMBER_LANDING_PATH, sanitizeInternalNext } from "@/lib/auth-landing";
+import { CLIENT_DATA_CACHE_TTL_MS, ddcKey, setClientCache } from "@/lib/client-data-cache";
 import { formatPersonName } from "@/lib/format-person-name";
+import { warmMemberClientCache } from "@/lib/member/warm-member-client-cache";
+import { createClient } from "@/lib/supabase/client";
 import IndianPhoneInput from "@/components/ui/IndianPhoneInput";
 import { FIELD_LIMITS } from "@/lib/security/field-limits";
 import { turnstileRequiredOnClient } from "@/lib/security/turnstile-client";
@@ -34,6 +39,7 @@ function startSignupEmailCooldown() {
 export default function RegisterForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { refresh: refreshAuthSession } = useAuthSession();
   const captchaRequired = turnstileRequiredOnClient();
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
@@ -115,9 +121,28 @@ export default function RegisterForm() {
       }
 
       if (!json.needsEmailConfirmation) {
+        await syncBrowserAuthSession();
+        const supabase = createClient();
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
+        if (user) {
+          setClientCache(
+            ddcKey.profileNav(user.id),
+            {
+              full_name: formattedName,
+              is_admin: false,
+              is_superadmin: false,
+              avatar_url: null,
+            },
+            CLIENT_DATA_CACHE_TTL_MS,
+          );
+          await warmMemberClientCache(user.id);
+        }
+        await refreshAuthSession();
+        notifyAuthSessionChanged();
         const next = sanitizeInternalNext(searchParams.get("next"));
         router.replace(next ?? MEMBER_LANDING_PATH);
-        router.refresh();
         return;
       }
 

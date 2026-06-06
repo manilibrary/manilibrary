@@ -1,10 +1,6 @@
 import type { AppRouterInstance } from "next/dist/shared/lib/app-router-context.shared-runtime";
 
-export const MEMBERSHIP_FLOW_ROUTES = [
-  "/membership",
-  "/membership/short-term",
-  "/membership/long-term",
-] as const;
+export const MEMBERSHIP_FLOW_ROUTES = ["/membership/plan"] as const;
 
 export function prefetchMembershipRoutes(router: AppRouterInstance): void {
   for (const path of MEMBERSHIP_FLOW_ROUTES) {

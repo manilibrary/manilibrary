@@ -28,22 +28,27 @@ import {
   resolveMemberSeatDisplayLabel,
 } from "@/lib/membership/seat-label";
 import { requireMemberNotStaffForRazorpay } from "@/lib/payments/require-member-razorpay";
+import {
+  isPlanMonths,
+  resolvePlanCheckout,
+  type PlanShift,
+} from "@/lib/plans/plan-checkout";
 import { createSupabaseServiceRoleClient } from "@/lib/supabase/service-role";
 
 export const runtime = "nodejs";
 
 const MAX_ADVANCE_BOOKING_DAYS = 120;
 
-type Body = {
-  planKind: MembershipPlanKind;
-  seatNumber: number;
-  membershipStartDate: string;
-  durationKey: string;
-};
-
 function isPlanKind(v: unknown): v is MembershipPlanKind {
   return v === "short_term" || v === "long_term";
 }
+
+type PreparedMembership = {
+  planKind: MembershipPlanKind;
+  amountRupees: number;
+  insert: Record<string, unknown>;
+  plannedSeatToken: string;
+};
 
 export async function POST(request: Request) {
   const keyId = process.env.RAZORPAY_KEY_ID;
@@ -55,39 +60,33 @@ export async function POST(request: Request) {
   const tz = DEFAULT_LIBRARY_TZ;
   const today = todayYmdInTz(tz);
 
-  let body: Body;
+  let raw: Record<string, unknown>;
   try {
-    const raw = (await request.json()) as Record<string, unknown>;
-    if (
-      !isPlanKind(raw.planKind) ||
-      typeof raw.seatNumber !== "number" ||
-      !Number.isFinite(raw.seatNumber) ||
-      typeof raw.membershipStartDate !== "string" ||
-      typeof raw.durationKey !== "string"
-    ) {
-      return apiError(
-        "Invalid body: planKind, seatNumber, membershipStartDate (YYYY-MM-DD), durationKey required.",
-        400,
-      );
-    }
-    body = {
-      planKind: raw.planKind,
-      seatNumber: Math.round(raw.seatNumber),
-      membershipStartDate: raw.membershipStartDate.trim(),
-      durationKey: raw.durationKey.trim(),
-    };
+    raw = (await request.json()) as Record<string, unknown>;
   } catch {
     return apiError("Expected JSON body.", 400);
   }
 
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(body.membershipStartDate)) {
+  const usePlanCode = typeof raw.planCode === "string";
+
+  if (
+    typeof raw.seatNumber !== "number" ||
+    !Number.isFinite(raw.seatNumber) ||
+    typeof raw.membershipStartDate !== "string"
+  ) {
+    return apiError("Invalid body: seatNumber and membershipStartDate (YYYY-MM-DD) required.", 400);
+  }
+  const seatNumber = Math.round(raw.seatNumber);
+  const membershipStartDate = raw.membershipStartDate.trim();
+
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(membershipStartDate)) {
     return apiError("membershipStartDate must be YYYY-MM-DD.", 400);
   }
-  if (!isOnOrAfterYmd(body.membershipStartDate, today)) {
+  if (!isOnOrAfterYmd(membershipStartDate, today)) {
     return apiError(`Membership must start on or after today (${today} in ${tz}).`, 400);
   }
   const maxStart = addDaysYmd(today, MAX_ADVANCE_BOOKING_DAYS);
-  if (body.membershipStartDate > maxStart) {
+  if (membershipStartDate > maxStart) {
     return apiError(`Start date cannot be more than ${MAX_ADVANCE_BOOKING_DAYS} days ahead.`, 400);
   }
 
@@ -104,22 +103,14 @@ export async function POST(request: Request) {
     return apiErrorSafe(e, 503, "Could not create Supabase admin client.");
   }
 
-  const amountRupees = computeOrderAmountRupees(body.planKind, body.durationKey);
-  if (amountRupees == null || !Number.isFinite(amountRupees) || amountRupees <= 0) {
-    return apiError("Invalid plan duration for checkout.", 400);
-  }
-  const amountPaise = rupeesToRazorpayPaise(amountRupees);
   const now = new Date();
-
   const todayIso = now.toISOString().slice(0, 10);
   const { data: existingActive, error: existingErr } = await admin
     .from("memberships")
     .select("id, plan_kind, seat_number, valid_until, ends_at")
     .eq("user_id", userId)
     .eq("status", "active")
-    .or(
-      `and(plan_kind.eq.long_term,valid_until.gte.${todayIso}),and(plan_kind.eq.short_term,ends_at.gte.${now.toISOString()})`,
-    )
+    .or(`valid_until.gte.${todayIso},ends_at.gte.${now.toISOString()}`)
     .limit(1)
     .maybeSingle();
 
@@ -141,68 +132,108 @@ export async function POST(request: Request) {
     );
   }
 
-  let membership: { id: string } | null = null;
-  let memErr: { message: string } | null = null;
+  let prepared: PreparedMembership;
 
-  const plannedSeatToken = formatMemberSeatToken(body.planKind, body.seatNumber);
-
-  if (body.planKind === "short_term") {
-    const dur = resolveShortTermDuration(body.durationKey);
-    if (!dur) {
-      return apiError(
-        `Invalid durationKey for short-term. Use one of: ${SHORT_TERM_DURATION_OPTIONS.map((o) => o.key).join(", ")}.`,
-        400,
-      );
+  if (usePlanCode) {
+    const months = typeof raw.months === "number" ? raw.months : Number(raw.months);
+    if (!isPlanMonths(months)) {
+      return apiError("months must be 1, 3, or 6.", 400);
     }
-    const startsIso = membershipDayStartIso(body.membershipStartDate, tz);
-    const endsIso = addWallClockHours(startsIso, dur.durationHours);
-    const res = await admin
-      .from("memberships")
-      .insert({
+    const resolved = await resolvePlanCheckout(admin, (raw.planCode as string).trim(), months);
+    if (!resolved) {
+      return apiError("Unknown or inactive plan.", 400);
+    }
+    const validUntil = longTermInclusiveUntil(membershipStartDate, resolved.months);
+    const shift: PlanShift | null = resolved.shift;
+    prepared = {
+      planKind: resolved.planKind,
+      amountRupees: resolved.priceRupees,
+      plannedSeatToken: formatMemberSeatToken(resolved.planKind, seatNumber),
+      insert: {
         user_id: userId,
-        plan_kind: "short_term",
+        plan_kind: resolved.planKind,
+        plan_code: resolved.code,
+        shift,
         status: "pending_payment",
         seat_number: PENDING_MEMBERSHIP_SEAT_PLACEHOLDER,
-        starts_at: startsIso,
-        ends_at: endsIso,
-        notes: `duration:${dur.key}`,
-      })
-      .select("id")
-      .single();
-    membership = res.data;
-    memErr = res.error;
-  } else {
-    const dur = resolveLongTermDuration(body.durationKey);
-    if (!dur) {
-      return apiError(
-        `Invalid durationKey for long-term. Use one of: ${LONG_TERM_DURATION_OPTIONS.map((o) => o.key).join(", ")}.`,
-        400,
-      );
-    }
-    const validFrom = body.membershipStartDate;
-    const validUntil = longTermInclusiveUntil(validFrom, dur.calendarMonths);
-    const res = await admin
-      .from("memberships")
-      .insert({
-        user_id: userId,
-        plan_kind: "long_term",
-        status: "pending_payment",
-        seat_number: PENDING_MEMBERSHIP_SEAT_PLACEHOLDER,
-        valid_from: validFrom,
+        valid_from: membershipStartDate,
         valid_until: validUntil,
-        notes: `duration:${dur.key}`,
-      })
-      .select("id")
-      .single();
-    membership = res.data;
-    memErr = res.error;
+        notes: `plan:${resolved.code} duration:${resolved.months}m`,
+      },
+    };
+  } else {
+    if (!isPlanKind(raw.planKind) || typeof raw.durationKey !== "string") {
+      return apiError("Invalid body: planKind and durationKey required.", 400);
+    }
+    const planKind = raw.planKind;
+    const durationKey = raw.durationKey.trim();
+    const amountRupees = computeOrderAmountRupees(planKind, durationKey);
+    if (amountRupees == null || !Number.isFinite(amountRupees) || amountRupees <= 0) {
+      return apiError("Invalid plan duration for checkout.", 400);
+    }
+    if (planKind === "short_term") {
+      const dur = resolveShortTermDuration(durationKey);
+      if (!dur) {
+        return apiError(
+          `Invalid durationKey for short-term. Use one of: ${SHORT_TERM_DURATION_OPTIONS.map((o) => o.key).join(", ")}.`,
+          400,
+        );
+      }
+      const startsIso = membershipDayStartIso(membershipStartDate, tz);
+      const endsIso = addWallClockHours(startsIso, dur.durationHours);
+      prepared = {
+        planKind,
+        amountRupees,
+        plannedSeatToken: formatMemberSeatToken("short_term", seatNumber),
+        insert: {
+          user_id: userId,
+          plan_kind: "short_term",
+          status: "pending_payment",
+          seat_number: PENDING_MEMBERSHIP_SEAT_PLACEHOLDER,
+          starts_at: startsIso,
+          ends_at: endsIso,
+          notes: `duration:${dur.key}`,
+        },
+      };
+    } else {
+      const dur = resolveLongTermDuration(durationKey);
+      if (!dur) {
+        return apiError(
+          `Invalid durationKey for long-term. Use one of: ${LONG_TERM_DURATION_OPTIONS.map((o) => o.key).join(", ")}.`,
+          400,
+        );
+      }
+      const validUntil = longTermInclusiveUntil(membershipStartDate, dur.calendarMonths);
+      prepared = {
+        planKind,
+        amountRupees,
+        plannedSeatToken: formatMemberSeatToken("long_term", seatNumber),
+        insert: {
+          user_id: userId,
+          plan_kind: "long_term",
+          status: "pending_payment",
+          seat_number: PENDING_MEMBERSHIP_SEAT_PLACEHOLDER,
+          valid_from: membershipStartDate,
+          valid_until: validUntil,
+          notes: `duration:${dur.key}`,
+        },
+      };
+    }
   }
+
+  const amountRupees = prepared.amountRupees;
+  const amountPaise = rupeesToRazorpayPaise(amountRupees);
+  const plannedSeatToken = prepared.plannedSeatToken;
+
+  const memRes = await admin.from("memberships").insert(prepared.insert).select("id").single();
+  const membership = memRes.data;
+  const memErr = memRes.error;
 
   if (memErr || !membership) {
     const maybeCode = (memErr as unknown as { code?: string } | null)?.code;
     if (maybeCode === "23P01") {
       return apiError(
-        `Seat ${body.seatNumber} is already taken for overlapping dates. Please pick another seat or dates.`,
+        `Seat ${seatNumber} is already taken for these dates/shift. Please pick another seat or dates.`,
         409,
       );
     }

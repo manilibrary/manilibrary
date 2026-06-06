@@ -5,12 +5,13 @@ import Link from "next/link";
 import { formatMembershipWindow, useActiveMembership } from "@/hooks/useActiveMembership";
 import { resolveMemberSeatDisplayLabel } from "@/lib/membership/seat-label";
 import { MEMBER_MEMBERSHIP_PATH } from "@/lib/auth-landing";
+import { planDisplayName } from "@/lib/plans/library-plans";
 
 export default function ActiveMembershipHeroNote() {
   const { loading, membership } = useActiveMembership();
   if (loading || !membership) return null;
 
-  const plan = membership.plan_kind === "short_term" ? "Short-term" : "Long-term";
+  const plan = planDisplayName(membership.plan_code, membership.plan_kind);
 
   return (
     <div
@@ -40,7 +41,7 @@ export default function ActiveMembershipHeroNote() {
           Your membership
         </Link>
         <Link
-          href="/membership"
+          href="/#plans"
           className="rounded-full border border-emerald-300 bg-white px-3 py-1.5 text-xs font-semibold text-emerald-800 hover:bg-emerald-50"
         >
           Browse plans &amp; seats

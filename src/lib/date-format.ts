@@ -52,13 +52,15 @@ export function formatMembershipWindowLabel(row: {
   starts_at?: string | null;
   ends_at?: string | null;
 }): string {
-  if (row.plan_kind === "long_term") {
+  if (row.valid_from && row.valid_until) {
     const a = formatDateDdMmYyyy(row.valid_from);
     const b = formatDateDdMmYyyy(row.valid_until);
     if (a !== "—" && b !== "—") return `${a} → ${b}`;
-  } else {
-    const a = formatDateTimeDdMmYyyy(row.starts_at);
-    const b = formatDateTimeDdMmYyyy(row.ends_at);
+  }
+  if (row.starts_at && row.ends_at) {
+    const fmt = row.plan_kind === "short_term" ? formatDateTimeDdMmYyyy : formatDateDdMmYyyy;
+    const a = fmt(row.starts_at);
+    const b = fmt(row.ends_at);
     if (a !== "—" && b !== "—") return `${a} → ${b}`;
   }
   return "—";

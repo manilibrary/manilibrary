@@ -40,6 +40,7 @@ export function AuthSessionProvider({ children }: { children: React.ReactNode })
   const [session, setSession] = useState<AuthSessionState>(empty);
 
   const refresh = useCallback(async () => {
+    await syncBrowserAuthSession();
     const supabase = createClient();
     const {
       data: { session: localSession },
@@ -72,9 +73,15 @@ export function AuthSessionProvider({ children }: { children: React.ReactNode })
       });
     }
 
-    const user = await getBrowserUser();
+    let user = await getBrowserUser();
+    if (!user?.email && sessionUser?.email) {
+      await new Promise((r) => setTimeout(r, 300));
+      user = await getBrowserUser();
+    }
     if (!user?.email) {
-      setSession({ ...empty, ready: true });
+      if (!sessionUser?.email) {
+        setSession({ ...empty, ready: true });
+      }
       return;
     }
 
