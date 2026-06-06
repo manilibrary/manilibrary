@@ -47,12 +47,15 @@ export default function MembershipCheckoutButton({
   fullWidth,
   quietFooter,
   quotedAmountRupees,
+  couponCode,
   resumeCheckout = null,
 }: {
   planKind: MembershipPlanKind;
   /** New plan model: when set, checkout prices/validates from library_plans by (planCode, months). */
   planCode?: string;
   months?: number;
+  /** Single-use coupon code applied to this order (validated server-side at create-order). */
+  couponCode?: string;
   seatNumber: number | null;
   disabled?: boolean;
   membershipStartDate: string;
@@ -132,7 +135,7 @@ export default function MembershipCheckoutButton({
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(
             planCode
-              ? { planCode, months, seatNumber, membershipStartDate }
+              ? { planCode, months, seatNumber, membershipStartDate, ...(couponCode ? { couponCode } : {}) }
               : { planKind, seatNumber, membershipStartDate, durationKey },
           ),
         });
@@ -304,7 +307,7 @@ export default function MembershipCheckoutButton({
     } finally {
       setPhase("idle");
     }
-  }, [planKind, planCode, months, seatNumber, router, pathname, membershipStartDate, durationKey, durationLabel, resumeCheckout, phase]);
+  }, [planKind, planCode, months, couponCode, seatNumber, router, pathname, membershipStartDate, durationKey, durationLabel, resumeCheckout, phase]);
 
   if (isStaff) {
     return (

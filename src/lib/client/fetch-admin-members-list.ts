@@ -6,6 +6,8 @@ export type AdminMembershipRow = {
   id: string;
   user_id: string;
   plan_kind: string;
+  plan_code: string | null;
+  shift: string | null;
   status: string;
   seat_number: string | number | null;
   starts_at: string | null;

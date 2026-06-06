@@ -9,6 +9,7 @@ import { useActiveMembership } from "@/hooks/useActiveMembership";
 import { MEMBER_MEMBERSHIP_PATH } from "@/lib/auth-landing";
 import { resolveMemberSeatDisplayLabel } from "@/lib/membership/seat-label";
 import { DEFAULT_LIBRARY_TZ, todayYmdInTz } from "@/lib/membership/windows";
+import { applyCouponDiscount } from "@/lib/coupons/library-coupons";
 import { floorLabel, type LibraryPlan, type PlanDurationKey } from "@/lib/plans/library-plans";
 import { isPlanMonths, planCodeToKind } from "@/lib/plans/plan-checkout";
 import ActiveMembershipBanner, { type ActiveMembership } from "./ActiveMembershipBanner";
@@ -56,6 +57,11 @@ export default function MembershipPlanFlow() {
     return isPlanMonths(m) ? m : 1;
   });
   const [membershipStartDate, setMembershipStartDate] = useState(() => todayYmdInTz(DEFAULT_LIBRARY_TZ));
+
+  const [couponInput, setCouponInput] = useState("");
+  const [appliedCoupon, setAppliedCoupon] = useState<{ code: string; discountPercent: number } | null>(null);
+  const [couponBusy, setCouponBusy] = useState(false);
+  const [couponErr, setCouponErr] = useState<string | null>(null);
 
   const { membership: hookMembership } = useActiveMembership();
   const [activeMembership, setActiveMembership] = useState<ActiveMembership | null>(null);
@@ -135,6 +141,41 @@ export default function MembershipPlanFlow() {
     selected != null && planKind
       ? resolveMemberSeatDisplayLabel({ plan_kind: planKind, seat_number: selected })
       : "—";
+
+  const basePrice = duration?.price ?? 0;
+  const payable = appliedCoupon ? applyCouponDiscount(basePrice, appliedCoupon.discountPercent) : basePrice;
+
+  const applyCoupon = async () => {
+    const code = couponInput.trim().toUpperCase();
+    if (!code || !plan) return;
+    setCouponBusy(true);
+    setCouponErr(null);
+    try {
+      const res = await fetch("/api/coupons/validate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "same-origin",
+        body: JSON.stringify({ code, planCode: plan.code }),
+      });
+      const j = (await res.json()) as { ok?: boolean; error?: string; code?: string; discountPercent?: number };
+      if (!res.ok || !j.ok || typeof j.discountPercent !== "number") {
+        throw new Error(j.error ?? "Could not apply coupon.");
+      }
+      setAppliedCoupon({ code: j.code ?? code, discountPercent: j.discountPercent });
+      setCouponInput(j.code ?? code);
+    } catch (e) {
+      setAppliedCoupon(null);
+      setCouponErr(e instanceof Error ? e.message : "Could not apply coupon.");
+    } finally {
+      setCouponBusy(false);
+    }
+  };
+
+  const removeCoupon = () => {
+    setAppliedCoupon(null);
+    setCouponErr(null);
+    setCouponInput("");
+  };
 
   if (!loaded) {
     return <p className="mx-auto max-w-6xl px-4 py-12 text-sm text-ink-500">Loading plan…</p>;
@@ -310,16 +351,69 @@ export default function MembershipPlanFlow() {
                         <dt className="text-ink-500">Duration</dt>
                         <dd className="text-ink-900">{duration?.label ?? `${months} months`}</dd>
                       </div>
+                      {appliedCoupon ? (
+                        <div className="flex justify-between gap-4 border-b border-ink-100 pb-3">
+                          <dt className="text-ink-500">
+                            Coupon <span className="font-mono font-semibold text-ink-800">{appliedCoupon.code}</span>
+                          </dt>
+                          <dd className="font-semibold text-emerald-700">−{appliedCoupon.discountPercent}%</dd>
+                        </div>
+                      ) : null}
                       <div className="flex items-baseline justify-between gap-4 pt-1">
                         <dt className="text-ink-500">Total</dt>
                         <dd className="text-right">
-                          <span className="font-semibold text-ink-900">₹{inr(duration?.price ?? 0)}</span>
-                          {duration && duration.discountPercent > 0 ? (
+                          <span className="font-semibold text-ink-900">₹{inr(payable)}</span>
+                          {appliedCoupon ? (
+                            <span className="ml-2 text-xs text-ink-400 line-through">₹{inr(basePrice)}</span>
+                          ) : duration && duration.discountPercent > 0 ? (
                             <span className="ml-2 text-xs text-ink-400 line-through">₹{inr(duration.mrp)}</span>
                           ) : null}
                         </dd>
                       </div>
                     </dl>
+
+                    <div className="mt-4 border-t border-ink-100 pt-4">
+                      <label
+                        htmlFor="coupon-code"
+                        className="font-mono text-[10px] uppercase tracking-widest text-ink-500"
+                      >
+                        Have a coupon?
+                      </label>
+                      <div className="mt-2 flex flex-col gap-2 sm:flex-row">
+                        <input
+                          id="coupon-code"
+                          value={couponInput}
+                          disabled={couponBusy || appliedCoupon != null}
+                          onChange={(e) => setCouponInput(e.target.value.toUpperCase())}
+                          placeholder="MANI…"
+                          className="min-w-0 flex-1 rounded-lg border border-ink-200 px-3 py-2 font-mono text-sm text-ink-900 outline-none focus:border-azure-500 focus:ring-2 focus:ring-azure-500/15 disabled:bg-ink-50 disabled:text-ink-500"
+                        />
+                        {appliedCoupon ? (
+                          <button
+                            type="button"
+                            onClick={removeCoupon}
+                            className="rounded-full border border-ink-200 bg-white px-4 py-2 text-sm font-semibold text-ink-700 hover:bg-ink-50"
+                          >
+                            Remove
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            disabled={couponBusy || !couponInput.trim()}
+                            onClick={() => void applyCoupon()}
+                            className="rounded-full bg-ink-900 px-4 py-2 text-sm font-semibold text-white hover:bg-ink-800 disabled:opacity-50"
+                          >
+                            {couponBusy ? "Checking…" : "Apply"}
+                          </button>
+                        )}
+                      </div>
+                      {couponErr ? <p className="mt-2 text-xs text-red-600">{couponErr}</p> : null}
+                      {appliedCoupon ? (
+                        <p className="mt-2 text-xs text-emerald-700">
+                          {appliedCoupon.discountPercent}% off applied.
+                        </p>
+                      ) : null}
+                    </div>
                   </div>
 
                   <MembershipPayTipsDisclosure />
@@ -332,7 +426,8 @@ export default function MembershipPlanFlow() {
                     membershipStartDate={membershipStartDate}
                     durationKey={`${months}m`}
                     durationLabel={duration?.label ?? `${months} months`}
-                    quotedAmountRupees={duration?.price}
+                    quotedAmountRupees={payable}
+                    couponCode={appliedCoupon?.code}
                     fullWidth
                     quietFooter
                   />

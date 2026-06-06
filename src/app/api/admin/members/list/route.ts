@@ -23,6 +23,8 @@ type MembershipRow = {
   id: string;
   user_id: string;
   plan_kind: string;
+  plan_code: string | null;
+  shift: string | null;
   status: string;
   seat_number: string | number | null;
   starts_at: string | null;
@@ -100,7 +102,7 @@ export async function GET(request: Request) {
   const { data: mem, error: me } = await admin
     .from("memberships")
     .select(
-      "id, user_id, plan_kind, status, seat_number, starts_at, ends_at, valid_from, valid_until, created_at",
+      "id, user_id, plan_kind, plan_code, shift, status, seat_number, starts_at, ends_at, valid_from, valid_until, created_at",
     )
     .order("created_at", { ascending: false })
     .limit(ADMIN_MEMBERS_LIST_LIMIT);

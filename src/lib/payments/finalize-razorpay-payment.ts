@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { safeClientErrorMessage } from "@/lib/api/json-response";
+import { PAYMENT_METADATA_COUPON_KEY } from "@/lib/coupons/library-coupons";
 import {
   PAYMENT_METADATA_PLANNED_SEAT_KEY,
   isPendingMembershipSeatPlaceholder,
@@ -121,6 +122,22 @@ export async function finalizeRazorpayPaymentRow(
         ),
       };
     }
+  }
+
+  // Best-effort: redeem a coupon if one was attached at checkout (single use).
+  const couponMeta = (pay.metadata ?? {}) as Record<string, unknown>;
+  const coupon = couponMeta[PAYMENT_METADATA_COUPON_KEY] as { id?: unknown } | undefined;
+  if (coupon && typeof coupon.id === "string") {
+    await admin
+      .from("library_coupons")
+      .update({
+        status: "used",
+        used_at: new Date().toISOString(),
+        used_by_user_id: input.expectedUserId,
+        membership_id: pay.membership_id ?? null,
+      })
+      .eq("id", coupon.id)
+      .eq("status", "active");
   }
 
   return { ok: true };
