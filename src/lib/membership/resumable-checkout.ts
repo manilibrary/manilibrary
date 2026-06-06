@@ -26,13 +26,3 @@ export type ResumableCheckoutPayload = {
   seatLabel: string;
 };
 
-export async function fetchResumableCheckout(planKind?: MembershipPlanKind): Promise<ResumableCheckoutPayload | null> {
-  const q = planKind ? `?planKind=${encodeURIComponent(planKind)}` : "";
-  const res = await fetch(`/api/payments/razorpay/resumable-checkout${q}`, {
-    credentials: "same-origin",
-    cache: "no-store",
-  });
-  const j = (await res.json()) as { ok?: boolean; resume?: ResumableCheckoutPayload | null };
-  if (!res.ok || !j.ok || !j.resume) return null;
-  return j.resume;
-}

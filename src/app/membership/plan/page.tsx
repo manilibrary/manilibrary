@@ -2,17 +2,17 @@ import dynamic from "next/dynamic";
 import { Suspense } from "react";
 import { MembershipFlowPageSkeleton } from "@/components/ui/ContentSkeletons";
 
-const MembershipShortTermPage = dynamic(
-  () => import("@/components/membership/MembershipShortTermPage"),
+const MembershipPlanFlow = dynamic(
+  () => import("@/components/membership/MembershipPlanFlow"),
   { loading: () => <MembershipFlowPageSkeleton /> },
 );
 
-export const metadata = { title: "Short-term seats" };
+export const metadata = { title: "Choose your plan" };
 
 export default function Page() {
   return (
     <Suspense fallback={<MembershipFlowPageSkeleton />}>
-      <MembershipShortTermPage />
+      <MembershipPlanFlow />
     </Suspense>
   );
 }

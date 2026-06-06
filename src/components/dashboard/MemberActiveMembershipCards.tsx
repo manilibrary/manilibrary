@@ -2,12 +2,15 @@ import Link from "next/link";
 
 import { formatDateDdMmYyyy } from "@/lib/date-format";
 import { resolveMemberSeatDisplayLabel } from "@/lib/membership/seat-label";
+import { planDisplayName } from "@/lib/plans/library-plans";
 
 export { formatMemberSeatLabel, resolveMemberSeatDisplayLabel } from "@/lib/membership/seat-label";
 
 export type MemberActivePlanRow = {
   id: string;
   plan_kind: string;
+  plan_code?: string | null;
+  shift?: string | null;
   status: string;
   /** Text token F(n)/S(n) in DB after migration; may still be a number from older cached rows. */
   seat_number: string | number | null;
@@ -20,18 +23,18 @@ export type MemberActivePlanRow = {
 
 /** Validity range for tables and cards (dd/mm/yyyy → dd/mm/yyyy). */
 export function formatMemberPlanWindow(m: MemberActivePlanRow): string {
-  if (m.plan_kind === "short_term" && m.starts_at && m.ends_at) {
-    return `${formatDateDdMmYyyy(m.starts_at)} → ${formatDateDdMmYyyy(m.ends_at)}`;
-  }
-  if (m.plan_kind === "long_term" && m.valid_from && m.valid_until) {
+  if (m.valid_from && m.valid_until) {
     return `${formatDateDdMmYyyy(m.valid_from)} → ${formatDateDdMmYyyy(m.valid_until)}`;
+  }
+  if (m.starts_at && m.ends_at) {
+    return `${formatDateDdMmYyyy(m.starts_at)} → ${formatDateDdMmYyyy(m.ends_at)}`;
   }
   return "—";
 }
 
 /** Calendar days from start of today to end date (local). Negative if already ended. */
 export function memberMembershipDaysLeft(m: MemberActivePlanRow): number | null {
-  const endRaw = m.plan_kind === "short_term" ? m.ends_at : m.valid_until;
+  const endRaw = m.valid_until ?? m.ends_at;
   if (!endRaw) return null;
   const end = new Date(endRaw.includes("T") ? endRaw : `${endRaw.trim()}T23:59:59`);
   if (Number.isNaN(end.getTime())) return null;
@@ -64,7 +67,7 @@ export function memberMembershipEffectiveStatus(m: MemberActivePlanRow): string 
 
 /** End of validity (local end-of-day), for sorting. Missing dates sort as 0. */
 export function memberMembershipEndMs(m: MemberActivePlanRow): number {
-  const endRaw = m.plan_kind === "short_term" ? m.ends_at : m.valid_until;
+  const endRaw = m.valid_until ?? m.ends_at;
   if (!endRaw) return 0;
   const end = new Date(endRaw.includes("T") ? endRaw : `${endRaw.trim()}T23:59:59`);
   const t = end.getTime();
@@ -121,7 +124,7 @@ function ActiveMembershipCardContent({
       <div className="flex items-start justify-between gap-3 sm:gap-4">
         <div className="min-w-0 flex-1 space-y-1.5 sm:space-y-2">
           <p className="text-[10px] font-semibold uppercase tracking-wider text-ink-500">
-            {memberPlanLabel(m.plan_kind)}
+            {planDisplayName(m.plan_code, m.plan_kind)}
           </p>
           <p className={seatClass} title="F = long-term seat, S = short-term seat">
             {resolveMemberSeatDisplayLabel({

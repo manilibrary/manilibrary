@@ -8,7 +8,7 @@ import { useStaleWhileRevalidate } from "@/hooks/useStaleWhileRevalidate";
 import { useAdminPageLoading } from "@/components/dashboard/AdminPageLoadingProvider";
 import { fetchAdminMembersList } from "@/lib/client/fetch-admin-members-list";
 import { ddcKey } from "@/lib/client-data-cache";
-import { formatDateDdMmYyyy, formatDateTimeDdMmYyyy } from "@/lib/date-format";
+import { formatMembershipWindowLabel } from "@/lib/date-format";
 
 type MembershipWindowState = "current" | "starts_future" | "ended_past" | "unknown" | "inactive";
 
@@ -44,8 +44,7 @@ type PlanFilter = "all" | "long_term" | "short_term";
 type EligibleSlice = "all" | "active_expiring" | "cancelled";
 
 function endDateOf(r: MembershipRow): string | null {
-  if (r.plan_kind === "long_term") return r.valid_until;
-  return r.ends_at;
+  return r.valid_until ?? r.ends_at;
 }
 
 function classify(r: MembershipRow, today: string, nowIso: string): Group {
@@ -56,7 +55,7 @@ function classify(r: MembershipRow, today: string, nowIso: string): Group {
     if (r.window_state === "ended_past") return "expired";
     const end = endDateOf(r);
     if (!end) return "active";
-    if (r.plan_kind === "long_term") {
+    if (r.plan_kind === "long_term" || (r.valid_from && r.valid_until)) {
       if (end < today) return "expired";
       const days = Math.ceil(
         (new Date(end).getTime() - new Date(today).getTime()) / (24 * 60 * 60 * 1000),
@@ -86,13 +85,7 @@ function rowMatchesPlan(r: MembershipRow, plan: PlanFilter): boolean {
 }
 
 function formatWindow(r: MembershipRow): string {
-  if (r.plan_kind === "long_term") {
-    return `${formatDateDdMmYyyy(r.valid_from)} → ${formatDateDdMmYyyy(r.valid_until)}`;
-  }
-  if (r.plan_kind === "short_term") {
-    return `${formatDateTimeDdMmYyyy(r.starts_at)} → ${formatDateTimeDdMmYyyy(r.ends_at)}`;
-  }
-  return "—";
+  return formatMembershipWindowLabel(r);
 }
 
 function GroupBadge({ g }: { g: Group }) {

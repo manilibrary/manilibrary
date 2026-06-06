@@ -8,7 +8,7 @@ import { useActiveMembership } from "@/hooks/useActiveMembership";
 import { MEMBER_MEMBERSHIP_PATH, STAFF_LANDING_PATH } from "@/lib/auth-landing";
 import { prefetchMembershipPath } from "@/lib/membership/prefetch-membership";
 
-const MEMBERSHIP_ENTRY = "/membership";
+const MEMBERSHIP_ENTRY = "/#plans";
 
 export default function HeroCTAs({ align = "center" }: { align?: "center" | "start" }) {
   const router = useRouter();

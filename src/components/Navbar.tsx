@@ -16,8 +16,7 @@ const links = [
   { href: "/gallery", label: "Gallery", lockDuringCheckout: true },
   { href: "/#facilities", label: "Facilities", lockDuringCheckout: true },
   { href: "/#about", label: "About", lockDuringCheckout: true },
-  { href: "/#plans", label: "Plans", lockDuringCheckout: true },
-  { href: "/membership", label: "Membership", lockDuringCheckout: false },
+  { href: "/#plans", label: "Plans", lockDuringCheckout: false },
   { href: "/#contact", label: "Contact", lockDuringCheckout: true },
 ] as const;
 
@@ -26,8 +25,7 @@ const CHECKOUT_NAV_HINT = "Finish membership checkout first";
 function isMembershipCheckoutPath(pathname: string | null): boolean {
   if (!pathname) return false;
   return (
-    pathname === "/membership/long-term" ||
-    pathname === "/membership/short-term" ||
+    pathname === "/membership/plan" ||
     pathname === "/membership/resume-payment"
   );
 }
@@ -146,7 +144,7 @@ export default function Navbar() {
   return (
     <header className="sticky top-0 z-50 border-b border-ink-100 bg-white/85 backdrop-blur supports-[backdrop-filter]:bg-white/70">
       <div className="mx-auto flex h-16 max-w-7xl items-center justify-between gap-3 px-5 md:px-8">
-        <Logo priority height={36} href={checkoutNavLocked ? "/membership" : "/"} />
+        <Logo priority height={36} href={checkoutNavLocked ? "/#plans" : "/"} />
 
         <nav className="hidden flex-1 items-center justify-center gap-8 md:flex" aria-label="Main">
           {links.map((l) => (
@@ -155,7 +153,7 @@ export default function Navbar() {
               href={l.href}
               label={l.label}
               locked={checkoutNavLocked && l.lockDuringCheckout}
-              onWarm={l.href === "/membership" ? warmMembershipNav : undefined}
+              onWarm={l.href === "/#plans" ? warmMembershipNav : undefined}
               className={
                 checkoutNavLocked && l.lockDuringCheckout
                   ? "cursor-not-allowed text-sm font-medium text-ink-400"
@@ -367,7 +365,7 @@ export default function Navbar() {
                 href={l.href}
                 label={l.label}
                 locked={checkoutNavLocked && l.lockDuringCheckout}
-                onWarm={l.href === "/membership" ? warmMembershipNav : undefined}
+                onWarm={l.href === "/#plans" ? warmMembershipNav : undefined}
                 className={
                   checkoutNavLocked && l.lockDuringCheckout
                     ? "cursor-not-allowed rounded-lg px-3 py-2 text-sm font-medium text-ink-400"

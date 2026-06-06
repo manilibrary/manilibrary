@@ -1,17 +1,44 @@
 import DashboardAccountPhotoCard from "@/components/dashboard/DashboardAccountPhotoCard";
 import PageHeader from "@/components/dashboard/PageHeader";
 import StaffHeroSettingsPanel from "@/components/dashboard/StaffHeroSettingsPanel";
+import StaffPlanPricingPanel from "@/components/dashboard/StaffPlanPricingPanel";
 import libraryInfo from "@/data/libraryInfo.json";
+import { createSupabaseRouteHandlerClient } from "@/lib/supabase/route-handler";
+import { createSupabaseServiceRoleClient } from "@/lib/supabase/service-role";
 
 export const metadata = { title: "Settings" };
 
-export default function SettingsPage() {
+export default async function SettingsPage() {
+  const supabase = await createSupabaseRouteHandlerClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  let isAdmin = false;
+  if (user) {
+    try {
+      const admin = createSupabaseServiceRoleClient();
+      const { data } = await admin
+        .from("profiles")
+        .select("is_admin")
+        .eq("user_id", user.id)
+        .maybeSingle();
+      isAdmin = data?.is_admin === true;
+    } catch {
+      isAdmin = false;
+    }
+  }
+
   return (
     <div className="space-y-8">
       <PageHeader
         eyebrow="settings"
-        title="Library settings"
-        description="Manage details that appear across the website and dashboard."
+        title={isAdmin ? "Library settings" : "Settings"}
+        description={
+          isAdmin
+            ? "Manage details that appear across the website and dashboard."
+            : "Update your profile photo and account details."
+        }
       />
 
       <div className="space-y-3">
@@ -19,15 +46,30 @@ export default function SettingsPage() {
         <DashboardAccountPhotoCard />
       </div>
 
-      <div className="space-y-3">
-        <h2 className="font-mono text-[10px] uppercase tracking-widest text-ink-500">Homepage hero</h2>
-        <p className="text-sm text-ink-600">
-          Choose three photos from Gallery for the landing page collage. Hero 2 is the largest (center). No two
-          heroes can share the same image.
-        </p>
-        <StaffHeroSettingsPanel />
-      </div>
+      {isAdmin ? (
+        <>
+          <div className="space-y-3">
+            <h2 className="font-mono text-[10px] uppercase tracking-widest text-ink-500">Homepage hero</h2>
+            <p className="text-sm text-ink-600">
+              Choose three photos from Gallery for the landing page collage. Hero 2 is the largest (center). No two
+              heroes can share the same image.
+            </p>
+            <StaffHeroSettingsPanel />
+          </div>
 
+          <div className="space-y-3">
+            <h2 className="font-mono text-[10px] uppercase tracking-widest text-ink-500">Membership plan pricing</h2>
+            <p className="text-sm text-ink-600">
+              Edit selling price and MRP (strikethrough) per duration. MRP must be ≥ selling price; the discount %
+              updates automatically on the homepage.
+            </p>
+            <StaffPlanPricingPanel />
+          </div>
+        </>
+      ) : null}
+
+      {isAdmin ? (
+        <>
       <div className="grid gap-6 lg:grid-cols-3">
         <Card title="Library">
           <Field label="Name" value={libraryInfo.name} />
@@ -112,6 +154,8 @@ export default function SettingsPage() {
         <span className="text-ink-700">src/data/libraryInfo.json</span>. Edit that file to update the
         website and dashboard simultaneously.
       </p>
+        </>
+      ) : null}
     </div>
   );
 }

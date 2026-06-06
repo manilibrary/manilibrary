@@ -37,6 +37,8 @@ type RazorpayConstructor = new (options: Record<string, unknown>) => {
 
 export default function MembershipCheckoutButton({
   planKind,
+  planCode,
+  months,
   seatNumber,
   disabled,
   membershipStartDate,
@@ -48,6 +50,9 @@ export default function MembershipCheckoutButton({
   resumeCheckout = null,
 }: {
   planKind: MembershipPlanKind;
+  /** New plan model: when set, checkout prices/validates from library_plans by (planCode, months). */
+  planCode?: string;
+  months?: number;
   seatNumber: number | null;
   disabled?: boolean;
   membershipStartDate: string;
@@ -125,12 +130,11 @@ export default function MembershipCheckoutButton({
         const res = await fetch("/api/payments/razorpay/create-order", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            planKind,
-            seatNumber,
-            membershipStartDate,
-            durationKey,
-          }),
+          body: JSON.stringify(
+            planCode
+              ? { planCode, months, seatNumber, membershipStartDate }
+              : { planKind, seatNumber, membershipStartDate, durationKey },
+          ),
         });
         const data = (await res.json()) as Record<string, unknown>;
         if (!res.ok) {
@@ -300,7 +304,7 @@ export default function MembershipCheckoutButton({
     } finally {
       setPhase("idle");
     }
-  }, [planKind, seatNumber, router, pathname, membershipStartDate, durationKey, durationLabel, resumeCheckout, phase]);
+  }, [planKind, planCode, months, seatNumber, router, pathname, membershipStartDate, durationKey, durationLabel, resumeCheckout, phase]);
 
   if (isStaff) {
     return (

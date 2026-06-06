@@ -108,7 +108,7 @@ export default function MemberMembershipHome() {
           ? Promise.resolve({ data: bootMem, error: null as null })
           : supabase
               .from("memberships")
-              .select("id, plan_kind, status, seat_number, starts_at, ends_at, valid_from, valid_until, created_at")
+              .select("id, plan_kind, plan_code, shift, status, seat_number, starts_at, ends_at, valid_from, valid_until, created_at")
               .eq("user_id", user.id)
               .order("created_at", { ascending: false });
 

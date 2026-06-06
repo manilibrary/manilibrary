@@ -5,10 +5,13 @@ import Link from "next/link";
 import { formatDateDdMmYyyy } from "@/lib/date-format";
 import { resolveMemberSeatDisplayLabel } from "@/lib/membership/seat-label";
 import { MEMBER_MEMBERSHIP_PATH } from "@/lib/auth-landing";
+import { planDisplayName } from "@/lib/plans/library-plans";
 
 export type ActiveMembership = {
   id: string;
   plan_kind: string;
+  plan_code?: string | null;
+  shift?: string | null;
   status: string;
   seat_number: string | number | null;
   starts_at: string | null;
@@ -18,11 +21,11 @@ export type ActiveMembership = {
 };
 
 function formatWindow(m: ActiveMembership): string {
-  if (m.plan_kind === "short_term" && m.starts_at && m.ends_at) {
-    return `${formatDateDdMmYyyy(m.starts_at)} → ${formatDateDdMmYyyy(m.ends_at)}`;
-  }
-  if (m.plan_kind === "long_term" && m.valid_from && m.valid_until) {
+  if (m.valid_from && m.valid_until) {
     return `${formatDateDdMmYyyy(m.valid_from)} → ${formatDateDdMmYyyy(m.valid_until)}`;
+  }
+  if (m.starts_at && m.ends_at) {
+    return `${formatDateDdMmYyyy(m.starts_at)} → ${formatDateDdMmYyyy(m.ends_at)}`;
   }
   return "—";
 }
@@ -35,8 +38,8 @@ export default function ActiveMembershipBanner({ membership }: { membership: Act
       </p>
       <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div className="text-emerald-900">
-          <span className="font-semibold capitalize">
-            {membership.plan_kind.replace(/_/g, " ")}
+          <span className="font-semibold">
+            {planDisplayName(membership.plan_code, membership.plan_kind)}
           </span>
           {" · "}
           Seat{" "}

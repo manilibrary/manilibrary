@@ -7,7 +7,9 @@ import {
   shortTermIntervalsOverlap,
 } from "@/lib/membership/seat-occupancy-window";
 import { parseNumericSeatFromStoredSeat } from "@/lib/membership/seat-label";
+import { longTermInclusiveUntil } from "@/lib/membership/windows";
 import type { MembershipPlanKind } from "@/lib/payments/pricing";
+import { isPlanMonths, planCodeShift, planCodeToKind } from "@/lib/plans/plan-checkout";
 import { getAuthUserForApiRequest } from "@/lib/supabase/api-route-auth";
 import { createSupabaseServiceRoleClient } from "@/lib/supabase/service-role";
 
@@ -20,10 +22,21 @@ type PlanRow = {
   starts_at: string | null;
   ends_at: string | null;
   plan_kind: string | null;
+  shift: string | null;
 };
 
 function isPlanKind(v: string | null): v is MembershipPlanKind {
   return v === "short_term" || v === "long_term";
+}
+
+function seatNumbersFrom(rows: PlanRow[]): number[] {
+  return Array.from(
+    new Set(
+      rows
+        .map((r) => parseNumericSeatFromStoredSeat(r.seat_number))
+        .filter((n): n is number => n != null),
+    ),
+  ).sort((a, b) => a - b);
 }
 
 export async function GET(request: Request) {
@@ -35,15 +48,7 @@ export async function GET(request: Request) {
   }
 
   const url = new URL(request.url);
-  const planKindRaw = url.searchParams.get("planKind");
-  if (!isPlanKind(planKindRaw)) {
-    return apiError("Query param planKind must be short_term | long_term.", 400);
-  }
-  const planKind = planKindRaw;
-
-  const startDate = url.searchParams.get("startDate")?.trim() ?? "";
-  const durationKey = url.searchParams.get("durationKey")?.trim() ?? "";
-  const useProposedWindow = startDate.length > 0 && durationKey.length > 0;
+  const planCode = url.searchParams.get("planCode")?.trim() ?? "";
 
   let admin;
   try {
@@ -56,11 +61,64 @@ export async function GET(request: Request) {
   const nowIso = now.toISOString();
   const today = nowIso.slice(0, 10);
 
+  // --- New plan-code model (library_plans). Calendar-month windows; shift-aware. ---
+  if (planCode) {
+    const planKind = planCodeToKind(planCode);
+    if (!planKind) {
+      return apiError("Unknown planCode.", 400);
+    }
+    const shift = planCodeShift(planCode);
+
+    const startDate = url.searchParams.get("startDate")?.trim() ?? "";
+    const monthsRaw = url.searchParams.get("months")?.trim() ?? "";
+    const months = Number(monthsRaw);
+    const useWindow = /^\d{4}-\d{2}-\d{2}$/.test(startDate) && isPlanMonths(months);
+
+    let query = admin
+      .from("memberships")
+      .select("seat_number, valid_from, valid_until, starts_at, ends_at, plan_kind, shift")
+      .eq("status", "active")
+      .eq("plan_kind", planKind)
+      .not("seat_number", "is", null);
+    if (shift) query = query.eq("shift", shift);
+
+    const { data: rows, error } = await query;
+    if (error) return apiErrorSafe(error, 500);
+
+    const list = (rows ?? []) as PlanRow[];
+    const overlapping = useWindow
+      ? list.filter((r) =>
+          longTermWindowsOverlap(r, startDate, longTermInclusiveUntil(startDate, months)),
+        )
+      : list.filter((r) => longTermCoversToday(r, today));
+
+    const seats = seatNumbersFrom(overlapping);
+    return apiSuccess(`Active seats for ${planCode} (${seats.length}).`, {
+      planCode,
+      planKind,
+      shift,
+      seats,
+      window: useWindow ? { startDate, months } : { mode: "now" as const },
+    });
+  }
+
+  // --- Legacy model (planKind + durationKey). ---
+  const planKindRaw = url.searchParams.get("planKind");
+  if (!isPlanKind(planKindRaw)) {
+    return apiError("Query param planKind must be short_term | long_term (or pass planCode).", 400);
+  }
+  const planKind = planKindRaw;
+
+  const startDate = url.searchParams.get("startDate")?.trim() ?? "";
+  const durationKey = url.searchParams.get("durationKey")?.trim() ?? "";
+  const useProposedWindow = startDate.length > 0 && durationKey.length > 0;
+
   const { data: rows, error } = await admin
     .from("memberships")
-    .select("seat_number, valid_from, valid_until, starts_at, ends_at, plan_kind")
+    .select("seat_number, valid_from, valid_until, starts_at, ends_at, plan_kind, shift")
     .eq("status", "active")
     .eq("plan_kind", planKind)
+    .is("shift", null)
     .not("seat_number", "is", null);
 
   if (error) {
@@ -68,7 +126,6 @@ export async function GET(request: Request) {
   }
 
   const list = (rows ?? []) as PlanRow[];
-
   let overlapping: PlanRow[];
 
   if (useProposedWindow) {
@@ -87,14 +144,7 @@ export async function GET(request: Request) {
     overlapping = list.filter((r) => shortTermActiveNow(r, nowIso));
   }
 
-  const seats = Array.from(
-    new Set(
-      overlapping
-        .map((r) => parseNumericSeatFromStoredSeat(r.seat_number))
-        .filter((n): n is number => n != null),
-    ),
-  ).sort((a, b) => a - b);
-
+  const seats = seatNumbersFrom(overlapping);
   const label = planKind === "long_term" ? "long-term" : "short-term";
   return apiSuccess(`Active ${label} seat numbers loaded (${seats.length} seats).`, {
     planKind,

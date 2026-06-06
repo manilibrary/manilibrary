@@ -26,7 +26,7 @@ export default function NotFound() {
           Go home
         </Link>
         <Link
-          href="/membership"
+          href="/#plans"
           className="rounded-full border border-ink-200 bg-white px-5 py-2.5 text-sm font-semibold text-ink-700 hover:bg-ink-50"
         >
           Explore membership

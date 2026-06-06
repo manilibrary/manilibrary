@@ -49,10 +49,10 @@ export default function MembershipError({
           Try again
         </button>
         <Link
-          href="/membership"
+          href="/#plans"
           className="rounded-full border border-ink-200 bg-white px-5 py-2.5 text-sm font-semibold text-ink-700 hover:bg-ink-50"
         >
-          Membership home
+          Membership plans
         </Link>
         <Link
           href={MEMBER_MEMBERSHIP_PATH}

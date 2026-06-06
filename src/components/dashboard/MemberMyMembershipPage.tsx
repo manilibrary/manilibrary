@@ -11,7 +11,13 @@ import {
 } from "@/components/dashboard/MemberActiveMembershipCards";
 import { useMemberMeBootstrap } from "@/components/dashboard/MemberMeBootstrapProvider";
 import { MemberMembershipCardsSkeleton } from "@/components/ui/ContentSkeletons";
-import { CLIENT_DATA_CACHE_TTL_MS, ddcKey, getClientCache, setClientCache } from "@/lib/client-data-cache";
+import {
+  CLIENT_DATA_CACHE_TTL_MS,
+  ddcKey,
+  getClientCache,
+  invalidateClientCachePrefix,
+  setClientCache,
+} from "@/lib/client-data-cache";
 import { createClient } from "@/lib/supabase/client";
 
 function RecoverPaymentBlock(props: {
@@ -88,8 +94,27 @@ export default function MemberMyMembershipPage() {
   const [recoverErr, setRecoverErr] = useState<string | null>(null);
 
   useEffect(() => {
+    if (!paid) return;
     let cancelled = false;
-    const useCache = refreshKey === 0;
+    void (async () => {
+      const supabase = createClient();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user || cancelled) return;
+      invalidateClientCachePrefix(ddcKey.memberships(user.id));
+      invalidateClientCachePrefix(ddcKey.meActive(user.id));
+      await bootRef.current.refetch();
+      setRefreshKey((k) => k + 1);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [paid]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const useCache = refreshKey === 0 && !paid;
 
     (async () => {
       try {
@@ -140,7 +165,7 @@ export default function MemberMyMembershipPage() {
     return () => {
       cancelled = true;
     };
-  }, [refreshKey]);
+  }, [refreshKey, paid]);
 
   useEffect(() => {
     if (!paid) return;
@@ -238,7 +263,7 @@ export default function MemberMyMembershipPage() {
                 If you saw “payment successful” only on Razorpay&apos;s site, use{" "}
                 <strong className="font-medium text-ink-800">Recover payment</strong> with your{" "}
                 <span className="font-mono text-xs">pay_…</span> id, or start checkout again from{" "}
-                <Link href="/membership/long-term" className="font-medium text-azure-600 hover:text-azure-700">
+                <Link href="/#plans" className="font-medium text-azure-600 hover:text-azure-700">
                   membership
                 </Link>
                 .
