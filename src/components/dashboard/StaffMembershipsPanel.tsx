@@ -7,7 +7,7 @@ import StaffRenewMemberPanel from "@/components/dashboard/StaffRenewMemberPanel"
 import LongTermSeatMap from "@/components/membership/LongTermSeatMap";
 import MembershipLegend from "@/components/membership/MembershipLegend";
 import ShortTermSeatMap from "@/components/membership/ShortTermSeatMap";
-import { formatDateDdMmYyyy, formatDateTimeDdMmYyyy } from "@/lib/date-format";
+import { formatDateDdMmYyyy, formatDateTimeDdMmYyyy, formatMembershipWindowLabel } from "@/lib/date-format";
 import { formatPersonName } from "@/lib/format-person-name";
 import IndianPhoneInput from "@/components/ui/IndianPhoneInput";
 import { FIELD_LIMITS } from "@/lib/security/field-limits";
@@ -59,12 +59,18 @@ type ProfileMini = {
 };
 
 function formatMembershipPeriod(r: MembershipRow): string {
-  if (r.plan_kind === "long_term") {
-    return `${formatDateDdMmYyyy(r.valid_from)} → ${formatDateDdMmYyyy(r.valid_until)}`;
-  }
-  if (r.plan_kind === "short_term") {
-    return `${formatDateTimeDdMmYyyy(r.starts_at)} → ${formatDateTimeDdMmYyyy(r.ends_at)}`;
-  }
+  return formatMembershipWindowLabel(r);
+}
+
+function formatWindowEnd(r: MembershipRow): string {
+  if (r.valid_until) return formatDateDdMmYyyy(r.valid_until);
+  if (r.ends_at) return formatDateTimeDdMmYyyy(r.ends_at);
+  return "—";
+}
+
+function formatWindowStart(r: MembershipRow): string {
+  if (r.valid_from) return formatDateDdMmYyyy(r.valid_from);
+  if (r.starts_at) return formatDateTimeDdMmYyyy(r.starts_at);
   return "—";
 }
 
@@ -78,14 +84,14 @@ function isPendingPaymentMembership(r: MembershipRow): boolean {
 
 function windowHint(r: MembershipRow): string | null {
   if (isMembershipWindowExpired(r)) {
-    const ended = r.plan_kind === "short_term" ? formatDateTimeDdMmYyyy(r.ends_at) : formatDateDdMmYyyy(r.valid_until);
-    return ended ? `Ended ${ended}` : "Period ended";
+    const ended = formatWindowEnd(r);
+    return ended !== "—" ? `Ended ${ended}` : "Period ended";
   }
   if (r.status !== "active") return null;
   if (r.window_state === "current") return "Current today";
   if (r.window_state === "starts_future") {
-    const starts = r.plan_kind === "short_term" ? formatDateTimeDdMmYyyy(r.starts_at) : formatDateDdMmYyyy(r.valid_from);
-    return `Starts ${starts}`;
+    const starts = formatWindowStart(r);
+    return starts !== "—" ? `Starts ${starts}` : "Starts later";
   }
   if (r.window_state === "unknown") return "Window missing";
   return null;
