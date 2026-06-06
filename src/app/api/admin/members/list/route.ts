@@ -74,12 +74,12 @@ function membershipWindowState(row: MembershipRow, todayYmd: string): Membership
   if (row.status !== "active") return "inactive";
   if (membershipCoversLibraryDay(row, todayYmd, DEFAULT_LIBRARY_TZ)) return "current";
 
-  if (row.plan_kind === "long_term") {
-    const validFrom = toYmdBoundary(row.valid_from);
-    const validUntil = toYmdBoundary(row.valid_until);
-    if (!validFrom || !validUntil) return "unknown";
+  const validFrom = toYmdBoundary(row.valid_from);
+  const validUntil = toYmdBoundary(row.valid_until);
+  if (validFrom && validUntil) {
     if (validFrom > todayYmd) return "starts_future";
     if (validUntil < todayYmd) return "ended_past";
+    return "unknown";
   }
 
   if (row.plan_kind === "short_term") {

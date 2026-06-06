@@ -98,10 +98,9 @@ export function membershipCoversLibraryDay(
   attendanceYmd: string,
   timeZone: string,
 ): boolean {
-  if (m.plan_kind === "long_term") {
-    const vf = toYmdBoundary(m.valid_from);
-    const vu = toYmdBoundary(m.valid_until);
-    if (!vf || !vu) return false;
+  const vf = toYmdBoundary(m.valid_from);
+  const vu = toYmdBoundary(m.valid_until);
+  if (vf && vu) {
     return vf <= attendanceYmd && vu >= attendanceYmd;
   }
   if (m.plan_kind === "short_term") {
