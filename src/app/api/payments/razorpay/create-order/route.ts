@@ -19,6 +19,11 @@ import {
   SHORT_TERM_DURATION_OPTIONS,
   type MembershipPlanKind,
 } from "@/lib/payments/pricing";
+import {
+  PAYMENT_METADATA_COUPON_KEY,
+  applyCouponDiscount,
+  fetchActiveCouponForPlan,
+} from "@/lib/coupons/library-coupons";
 import { formatMembershipEndForDisplay } from "@/lib/date-format";
 import { membershipHostedCheckoutUrl } from "@/lib/payments/hosted-checkout-url";
 import {
@@ -133,6 +138,7 @@ export async function POST(request: Request) {
   }
 
   let prepared: PreparedMembership;
+  let couponMeta: { id: string; code: string; discount_percent: number } | null = null;
 
   if (usePlanCode) {
     const months = typeof raw.months === "number" ? raw.months : Number(raw.months);
@@ -143,11 +149,24 @@ export async function POST(request: Request) {
     if (!resolved) {
       return apiError("Unknown or inactive plan.", 400);
     }
+
+    let amountRupees = resolved.priceRupees;
+    if (typeof raw.couponCode === "string" && raw.couponCode.trim()) {
+      const check = await fetchActiveCouponForPlan(admin, raw.couponCode, resolved.code);
+      if (!check.ok) return apiError(check.error, 400);
+      amountRupees = applyCouponDiscount(resolved.priceRupees, check.coupon.discount_percent);
+      couponMeta = {
+        id: check.coupon.id,
+        code: check.coupon.code,
+        discount_percent: check.coupon.discount_percent,
+      };
+    }
+
     const validUntil = longTermInclusiveUntil(membershipStartDate, resolved.months);
     const shift: PlanShift | null = resolved.shift;
     prepared = {
       planKind: resolved.planKind,
-      amountRupees: resolved.priceRupees,
+      amountRupees,
       plannedSeatToken: formatMemberSeatToken(resolved.planKind, seatNumber),
       insert: {
         user_id: userId,
@@ -253,7 +272,10 @@ export async function POST(request: Request) {
       currency: "INR",
       provider: "razorpay",
       status: "pending",
-      metadata: { [PAYMENT_METADATA_PLANNED_SEAT_KEY]: plannedSeatToken },
+      metadata: {
+        [PAYMENT_METADATA_PLANNED_SEAT_KEY]: plannedSeatToken,
+        ...(couponMeta ? { [PAYMENT_METADATA_COUPON_KEY]: couponMeta } : {}),
+      },
     })
     .select("id")
     .single();
@@ -286,6 +308,7 @@ export async function POST(request: Request) {
     .update({
       metadata: {
         [PAYMENT_METADATA_PLANNED_SEAT_KEY]: plannedSeatToken,
+        ...(couponMeta ? { [PAYMENT_METADATA_COUPON_KEY]: couponMeta } : {}),
         razorpay_order_id: order.id,
       },
       provider_payment_id: order.id,

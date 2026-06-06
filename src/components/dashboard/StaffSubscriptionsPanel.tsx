@@ -9,6 +9,7 @@ import { useAdminPageLoading } from "@/components/dashboard/AdminPageLoadingProv
 import { fetchAdminMembersList } from "@/lib/client/fetch-admin-members-list";
 import { ddcKey } from "@/lib/client-data-cache";
 import { formatMembershipWindowLabel } from "@/lib/date-format";
+import { planDisplayName } from "@/lib/plans/library-plans";
 
 type MembershipWindowState = "current" | "starts_future" | "ended_past" | "unknown" | "inactive";
 
@@ -16,6 +17,8 @@ type MembershipRow = {
   id: string;
   user_id: string;
   plan_kind: string;
+  plan_code: string | null;
+  shift: string | null;
   status: string;
   seat_number: string | number | null;
   starts_at: string | null;
@@ -352,7 +355,7 @@ export default function StaffSubscriptionsPanel({
                 return (
                   <tr key={r.id} className="text-ink-800">
                     <td className="px-4 py-3">{p?.full_name ?? "—"}</td>
-                    <td className="px-4 py-3 capitalize">{r.plan_kind.replace(/_/g, " ")}</td>
+                    <td className="px-4 py-3">{planDisplayName(r.plan_code, r.plan_kind)}</td>
                     <td className="px-4 py-3 font-mono">
                       {p ? String(p.device_user_id).padStart(4, "0") : "—"}
                     </td>

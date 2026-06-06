@@ -1,5 +1,6 @@
 import DashboardAccountPhotoCard from "@/components/dashboard/DashboardAccountPhotoCard";
 import PageHeader from "@/components/dashboard/PageHeader";
+import StaffCouponsPanel from "@/components/dashboard/StaffCouponsPanel";
 import StaffHeroSettingsPanel from "@/components/dashboard/StaffHeroSettingsPanel";
 import StaffPlanPricingPanel from "@/components/dashboard/StaffPlanPricingPanel";
 import libraryInfo from "@/data/libraryInfo.json";
@@ -64,6 +65,15 @@ export default async function SettingsPage() {
               updates automatically on the homepage.
             </p>
             <StaffPlanPricingPanel />
+          </div>
+
+          <div className="space-y-3">
+            <h2 className="font-mono text-[10px] uppercase tracking-widest text-ink-500">Discount coupons</h2>
+            <p className="text-sm text-ink-600">
+              Generate single-use coupons (10%–90%) for a specific plan. Codes start with MANI followed by 4 hex
+              characters. Track active and used coupons below.
+            </p>
+            <StaffCouponsPanel />
           </div>
         </>
       ) : null}

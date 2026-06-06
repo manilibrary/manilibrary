@@ -20,6 +20,7 @@ import { useStaleWhileRevalidate } from "@/hooks/useStaleWhileRevalidate";
 import { useAdminPageLoading } from "@/components/dashboard/AdminPageLoadingProvider";
 import { fetchAdminMembersList, type AdminMembersListCache } from "@/lib/client/fetch-admin-members-list";
 import { formatMemberSeatLabel, resolveMemberSeatDisplayLabel } from "@/lib/membership/seat-label";
+import { planDisplayName } from "@/lib/plans/library-plans";
 import { addDaysYmd, DEFAULT_LIBRARY_TZ, todayYmdInTz } from "@/lib/membership/windows";
 import {
   computeOrderAmountRupees,
@@ -34,6 +35,8 @@ type MembershipRow = {
   id: string;
   user_id: string;
   plan_kind: string;
+  plan_code: string | null;
+  shift: string | null;
   status: string;
   seat_number: string | number | null;
   starts_at: string | null;
@@ -1064,7 +1067,7 @@ export default function StaffMembershipsPanel() {
                       <td className="px-4 py-3 font-mono">
                         {p ? String(p.device_user_id).padStart(4, "0") : "—"}
                       </td>
-                      <td className="px-4 py-3 capitalize">{r.plan_kind.replace(/_/g, " ")}</td>
+                      <td className="px-4 py-3">{planDisplayName(r.plan_code, r.plan_kind)}</td>
                       <td className="px-4 py-3" title={r.plan_kind === "long_term" ? "Long-term" : "Short-term"}>
                         <MembershipSeatTableCell
                           plan_kind={r.plan_kind}
