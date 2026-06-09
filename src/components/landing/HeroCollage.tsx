@@ -1,5 +1,9 @@
+"use client";
+
 import Image from "next/image";
+import { useEffect, useState } from "react";
 import type { PublicHeroSettings } from "@/lib/hero/hero-settings";
+import { HERO_PLACEHOLDER_BY_KEY, heroPlaceholderForSlot, isHeroPlaceholderUrl } from "@/lib/hero/hero-placeholders";
 
 function SlotIcon({ slot }: { slot: 1 | 2 | 3 }) {
   const cls = "h-4 w-4 text-azure-500";
@@ -22,9 +26,9 @@ function SlotIcon({ slot }: { slot: 1 | 2 | 3 }) {
   }
   return (
     <svg className={cls} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
-      <path d="M5 12.55a11 11 0 0 1 14.08 0" />
-      <path d="M8.53 16.11a6 6 0 0 1 6.95 0" />
-      <circle cx="12" cy="20" r="1" />
+      <rect x="4" y="11" width="16" height="10" rx="2" />
+      <path d="M8 11V7a4 4 0 0 1 8 0v4" />
+      <circle cx="12" cy="16" r="1" />
     </svg>
   );
 }
@@ -49,25 +53,46 @@ function HeroImageCard({
   imageClassName: string;
   priority?: boolean;
 }) {
-  const showCaption = Boolean(tagline?.trim() || taglineSub?.trim());
-  const hasSub = Boolean(taglineSub?.trim());
+  const [errored, setErrored] = useState(false);
+  useEffect(() => setErrored(false), [imageUrl]);
+
+  const placeholderKey = isHeroPlaceholderUrl(imageUrl);
+  const placeholder = placeholderKey
+    ? HERO_PLACEHOLDER_BY_KEY[placeholderKey]
+    : heroPlaceholderForSlot(slot);
+  const usingPlaceholder = !imageUrl || errored;
+  const effectiveSrc = usingPlaceholder ? placeholder.src : (imageUrl as string);
+
+  const effectiveTagline = placeholderKey
+    ? placeholder.tagline
+    : tagline?.trim()
+      ? tagline
+      : usingPlaceholder
+        ? placeholder.tagline
+        : null;
+  const effectiveTaglineSub = placeholderKey
+    ? placeholder.taglineSub
+    : taglineSub?.trim()
+      ? taglineSub
+      : usingPlaceholder
+        ? placeholder.taglineSub
+        : null;
+  const showCaption = Boolean(effectiveTagline?.trim() || effectiveTaglineSub?.trim());
+  const hasSub = Boolean(effectiveTaglineSub?.trim());
 
   return (
     <div className={`absolute overflow-hidden rounded-2xl border border-white/80 bg-ink-100 shadow-card-hover ${className}`}>
       <div className={`relative w-full ${imageClassName}`}>
-        {imageUrl ? (
-          <Image
-            src={imageUrl}
-            alt=""
-            fill
-            priority={priority}
-            unoptimized
-            className="object-cover"
-            sizes="(max-width: 1024px) 70vw, 420px"
-          />
-        ) : (
-          <div className="absolute inset-0 bg-gradient-to-br from-ink-100 via-azure-50 to-ink-200" />
-        )}
+        <Image
+          src={effectiveSrc}
+          alt=""
+          fill
+          priority={priority}
+          unoptimized
+          onError={() => setErrored(true)}
+          className="object-cover"
+          sizes="(max-width: 1024px) 70vw, 420px"
+        />
         {showCaption ? (
           <div
             className={`absolute ${HERO_TAG_INSET} z-10 w-max max-w-[calc(100%-1.5rem)] rounded-xl border border-ink-100/90 bg-white/95 shadow-md backdrop-blur-sm`}
@@ -81,11 +106,11 @@ function HeroImageCard({
                 <SlotIcon slot={slot} />
               </span>
               <div className="min-w-0 pr-0.5">
-                {tagline?.trim() ? (
-                  <p className="text-sm font-semibold leading-tight text-ink-900">{tagline}</p>
+                {effectiveTagline?.trim() ? (
+                  <p className="text-sm font-semibold leading-tight text-ink-900">{effectiveTagline}</p>
                 ) : null}
                 {hasSub ? (
-                  <p className="mt-0.5 text-xs leading-snug text-ink-500">{taglineSub}</p>
+                  <p className="mt-0.5 text-xs leading-snug text-ink-500">{effectiveTaglineSub}</p>
                 ) : null}
               </div>
             </div>

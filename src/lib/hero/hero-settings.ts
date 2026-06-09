@@ -1,5 +1,6 @@
 import type { HeroSlot } from "@/lib/hero/constants";
 import { heroGalleryIdColumn, type HeroGalleryRow } from "@/lib/hero/hero-gallery";
+import { HERO_PLACEHOLDER_BY_KEY, isHeroPlaceholderUrl } from "@/lib/hero/hero-placeholders";
 import type { createSupabaseServiceRoleClient } from "@/lib/supabase/service-role";
 
 export type HeroSlotPublic = {
@@ -50,41 +51,55 @@ export async function galleryUrlMapForHeroRow(
   return new Map((data ?? []).map((g) => [g.id, g.public_url]));
 }
 
+function heroSlotPrefix(slot: HeroSlot): "hero_1" | "hero_2" | "hero_3" {
+  return slot === 1 ? "hero_1" : slot === 2 ? "hero_2" : "hero_3";
+}
+
+function resolveHeroSlotTaglines(
+  row: HeroRow | null,
+  slot: HeroSlot,
+  imageUrl: string | null,
+): { tagline: string | null; taglineSub: string | null } {
+  const prefix = heroSlotPrefix(slot);
+  const storedUrl = (row?.[`${prefix}_image_url` as keyof HeroRow] as string | null) ?? null;
+  const phKey = isHeroPlaceholderUrl(imageUrl) ?? isHeroPlaceholderUrl(storedUrl);
+  if (phKey) {
+    const ph = HERO_PLACEHOLDER_BY_KEY[phKey];
+    return { tagline: ph.tagline, taglineSub: ph.taglineSub };
+  }
+  return {
+    tagline: (row?.[`${prefix}_tagline` as keyof HeroRow] as string | null) ?? null,
+    taglineSub: (row?.[`${prefix}_tagline_sub` as keyof HeroRow] as string | null) ?? null,
+  };
+}
+
 export function resolveHeroImageUrls(
   row: HeroRow | null,
   galleryUrlById: Map<string, string>,
 ): PublicHeroSettings {
   const urlFor = (slot: HeroSlot): string | null => {
     if (!row) return null;
+    const prefix = heroSlotPrefix(slot);
+    const stored = (row[`${prefix}_image_url` as keyof HeroRow] as string | null) ?? null;
     const id = row[heroGalleryIdColumn(slot)];
-    if (id) return galleryUrlById.get(id) ?? null;
-    const prefix = slot === 1 ? "hero_1" : slot === 2 ? "hero_2" : "hero_3";
-    return row[`${prefix}_image_url` as keyof HeroRow] as string | null;
+    if (id) return galleryUrlById.get(id) ?? stored;
+    return stored;
+  };
+
+  const slotPublic = (slot: HeroSlot): HeroSlotPublic => {
+    const imageUrl = urlFor(slot);
+    const { tagline, taglineSub } = resolveHeroSlotTaglines(row, slot, imageUrl);
+    const prefix = heroSlotPrefix(slot);
+    return {
+      slot,
+      galleryImageId: (row?.[`${prefix}_gallery_image_id` as keyof HeroRow] as string | null) ?? null,
+      imageUrl,
+      tagline,
+      taglineSub,
+    };
   };
 
   return {
-    slots: [
-      {
-        slot: 1,
-        galleryImageId: row?.hero_1_gallery_image_id ?? null,
-        imageUrl: urlFor(1),
-        tagline: row?.hero_1_tagline ?? null,
-        taglineSub: row?.hero_1_tagline_sub ?? null,
-      },
-      {
-        slot: 2,
-        galleryImageId: row?.hero_2_gallery_image_id ?? null,
-        imageUrl: urlFor(2),
-        tagline: row?.hero_2_tagline ?? null,
-        taglineSub: row?.hero_2_tagline_sub ?? null,
-      },
-      {
-        slot: 3,
-        galleryImageId: row?.hero_3_gallery_image_id ?? null,
-        imageUrl: urlFor(3),
-        tagline: row?.hero_3_tagline ?? null,
-        taglineSub: row?.hero_3_tagline_sub ?? null,
-      },
-    ],
+    slots: [slotPublic(1), slotPublic(2), slotPublic(3)],
   };
 }

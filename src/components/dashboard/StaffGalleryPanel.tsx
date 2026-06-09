@@ -26,7 +26,7 @@ export default function StaffGalleryPanel() {
     setLoading(true);
     setErr(null);
     try {
-      const res = await fetch("/api/admin/gallery/list", { credentials: "include" });
+      const res = await fetch("/api/admin/gallery", { credentials: "include" });
       const j = (await res.json()) as {
         ok?: boolean;
         error?: string;
