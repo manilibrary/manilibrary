@@ -8,9 +8,11 @@ export default async function HomeHero() {
   const hero = await getPublicHeroSettings();
 
   return (
-    <section className="relative overflow-hidden bg-white">
-      <div className="absolute inset-0 bg-grid-azure [mask-image:linear-gradient(to_bottom,white,transparent_90%)]" />
-      <div className="absolute inset-0 bg-azure-glow" />
+    <section className="relative bg-white">
+      <div className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden>
+        <div className="absolute inset-0 bg-grid-azure [mask-image:linear-gradient(to_bottom,white,transparent_90%)]" />
+        <div className="absolute inset-0 bg-azure-glow" />
+      </div>
 
       <div className="relative mx-auto max-w-7xl px-5 pb-20 pt-16 md:px-8 md:pb-28 md:pt-24">
         <div className="grid items-center gap-12 lg:grid-cols-2 lg:gap-16">
