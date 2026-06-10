@@ -2,7 +2,13 @@ import { apiError, apiSuccess, apiErrorSafe } from "@/lib/api/json-response";
 import { createSupabaseRouteHandlerClient } from "@/lib/supabase/route-handler";
 import { guardAuthEmail, guardPublicAuthPost } from "@/lib/security/request-guards";
 import { signupEmailRedirectTo } from "@/lib/auth/signup-email-redirect";
+import {
+  attachReferralOnSignup,
+  lookupReferrerForSignup,
+  normalizeReferralCode,
+} from "@/lib/referrals/library-referrals";
 import { validateRegisterFields } from "@/lib/security/validate-fields";
+import { createSupabaseServiceRoleClient } from "@/lib/supabase/service-role";
 
 export const runtime = "nodejs";
 
@@ -42,8 +48,33 @@ export async function POST(request: Request) {
       ? body.origin.replace(/\/$/, "")
       : process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, "") ?? "";
 
+  const referralCodeRaw =
+    typeof body.referralCode === "string" && body.referralCode.trim()
+      ? normalizeReferralCode(body.referralCode)
+      : null;
+
+  let admin;
+  try {
+    admin = createSupabaseServiceRoleClient();
+  } catch (e) {
+    return apiErrorSafe(e, 503, "Server misconfiguration.");
+  }
+
+  if (referralCodeRaw) {
+    const lookup = await lookupReferrerForSignup(admin, referralCodeRaw);
+    if (!lookup.ok) {
+      return apiError(lookup.error, 400);
+    }
+  }
+
   try {
     const supabase = await createSupabaseRouteHandlerClient();
+
+    const rollbackSignup = async (userId: string) => {
+      await admin.auth.admin.deleteUser(userId).catch(() => {});
+      await supabase.auth.signOut();
+    };
+
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
@@ -54,6 +85,7 @@ export async function POST(request: Request) {
         data: {
           full_name: name,
           ...(phone ? { phone } : {}),
+          ...(referralCodeRaw ? { referral_code: referralCodeRaw } : {}),
         },
       },
     });
@@ -72,9 +104,22 @@ export async function POST(request: Request) {
       return apiError("No user returned from sign up.", 500);
     }
 
+    if (referralCodeRaw) {
+      try {
+        const attached = await attachReferralOnSignup(admin, data.user.id, referralCodeRaw);
+        if (!attached.ok) {
+          await rollbackSignup(data.user.id);
+          return apiError(attached.error, 400);
+        }
+      } catch {
+        await rollbackSignup(data.user.id);
+        return apiError("Could not apply referral code. Try again without it or use a different code.", 400);
+      }
+    }
+
     const createdEmail = (data.user.email ?? "").trim().toLowerCase();
     if (createdEmail !== email) {
-      await supabase.auth.signOut();
+      await rollbackSignup(data.user.id);
       return apiError("Account email mismatch. Please try again.", 400);
     }
 
@@ -87,7 +132,7 @@ export async function POST(request: Request) {
         .maybeSingle();
 
       if (profErr || !profileRow) {
-        await supabase.auth.signOut();
+        await rollbackSignup(data.user.id);
         return apiError(
           "Your sign-up did not finish linking a library profile (required for this app). Ask staff to check the database trigger, or try again in a moment.",
           503,

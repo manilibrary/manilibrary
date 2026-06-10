@@ -48,6 +48,8 @@ export default function MembershipCheckoutButton({
   quietFooter,
   quotedAmountRupees,
   couponCode,
+  creditsToApply,
+  applyReferral,
   resumeCheckout = null,
 }: {
   planKind: MembershipPlanKind;
@@ -56,6 +58,10 @@ export default function MembershipCheckoutButton({
   months?: number;
   /** Single-use coupon code applied to this order (validated server-side at create-order). */
   couponCode?: string;
+  /** Referral credits to redeem (₹1 per credit; validated server-side at create-order). */
+  creditsToApply?: number;
+  /** Keep signup referral on this order (false voids it so a coupon can be used). */
+  applyReferral?: boolean;
   seatNumber: number | null;
   disabled?: boolean;
   membershipStartDate: string;
@@ -135,7 +141,15 @@ export default function MembershipCheckoutButton({
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(
             planCode
-              ? { planCode, months, seatNumber, membershipStartDate, ...(couponCode ? { couponCode } : {}) }
+              ? {
+                  planCode,
+                  months,
+                  seatNumber,
+                  membershipStartDate,
+                  ...(couponCode ? { couponCode } : {}),
+                  ...(creditsToApply && creditsToApply > 0 ? { creditsToApply } : {}),
+                  ...(applyReferral !== undefined ? { applyReferral } : {}),
+                }
               : { planKind, seatNumber, membershipStartDate, durationKey },
           ),
         });
@@ -307,7 +321,7 @@ export default function MembershipCheckoutButton({
     } finally {
       setPhase("idle");
     }
-  }, [planKind, planCode, months, couponCode, seatNumber, router, pathname, membershipStartDate, durationKey, durationLabel, resumeCheckout, phase]);
+  }, [planKind, planCode, months, couponCode, creditsToApply, applyReferral, seatNumber, router, pathname, membershipStartDate, durationKey, durationLabel, resumeCheckout, phase]);
 
   if (isStaff) {
     return (

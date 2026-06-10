@@ -9,9 +9,32 @@ import { formatDateTimeDdMmYyyy } from "@/lib/date-format";
 const DISCOUNT_OPTIONS = [10, 20, 30, 40, 50, 60, 70, 80, 90] as const;
 
 function CouponRow({ c }: { c: LibraryCoupon }) {
+  const [copied, setCopied] = useState(false);
+
+  const copyCode = async () => {
+    try {
+      await navigator.clipboard.writeText(c.code);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // ignore
+    }
+  };
+
   return (
     <tr className="border-t border-ink-50">
-      <td className="py-2 pr-3 font-mono text-sm font-semibold text-ink-900">{c.code}</td>
+      <td className="py-2 pr-3">
+        <div className="flex items-center gap-2">
+          <span className="font-mono text-sm font-semibold text-ink-900">{c.code}</span>
+          <button
+            type="button"
+            onClick={() => void copyCode()}
+            className="shrink-0 rounded-full border border-ink-200 bg-white px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-ink-600 hover:bg-ink-50"
+          >
+            {copied ? "Copied" : "Copy"}
+          </button>
+        </div>
+      </td>
       <td className="py-2 pr-3 text-ink-700">{c.planName}</td>
       <td className="py-2 pr-3 font-semibold text-emerald-700">{c.discountPercent}% off</td>
       <td className="py-2 text-xs text-ink-500">

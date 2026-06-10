@@ -11,6 +11,7 @@ import { useMemberMeBootstrap } from "@/components/dashboard/MemberMeBootstrapPr
 import ProfileIntakeCard from "@/components/dashboard/ProfileIntakeCard";
 import MemberProfileSection from "@/components/dashboard/MemberProfileSection";
 import MemberFeedbackCard from "@/components/dashboard/MemberFeedbackCard";
+import MemberReferralCard from "@/components/dashboard/MemberReferralCard";
 import { CLIENT_DATA_CACHE_TTL_MS, ddcKey, getClientCache, setClientCache } from "@/lib/client-data-cache";
 import { extrasToDisplayFields } from "@/lib/profiles/profile-extras";
 import { profilePhoneFromDb } from "@/lib/profile-phone";
@@ -229,6 +230,13 @@ export default function MemberMembershipHome() {
               />
             </div>
           </div>
+        </section>
+      ) : null}
+
+      {profile && !profile.is_admin ? (
+        <section className="scroll-mt-8 space-y-4" aria-labelledby="referral-heading">
+          {sectionHeading("referral-heading", "Referrals & credits")}
+          <MemberReferralCard />
         </section>
       ) : null}
 

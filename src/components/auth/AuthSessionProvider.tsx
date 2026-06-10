@@ -42,46 +42,9 @@ export function AuthSessionProvider({ children }: { children: React.ReactNode })
   const refresh = useCallback(async () => {
     await syncBrowserAuthSession();
     const supabase = createClient();
-    const {
-      data: { session: localSession },
-    } = await supabase.auth.getSession();
-    const sessionUser = localSession?.user;
-    if (sessionUser?.email) {
-      const navKey = ddcKey.profileNav(sessionUser.id);
-      const cached = getClientCache<{
-        full_name?: string | null;
-        is_admin?: boolean | null;
-        is_superadmin?: boolean | null;
-        avatar_url?: string | null;
-      }>(navKey);
-      const fromMeta =
-        typeof sessionUser.user_metadata?.full_name === "string"
-          ? sessionUser.user_metadata.full_name.trim()
-          : "";
-      setSession({
-        ready: true,
-        signedIn: true,
-        userId: sessionUser.id,
-        email: sessionUser.email,
-        displayName:
-          cached?.full_name?.trim() ||
-          fromMeta ||
-          displayPersonName(null, sessionUser.email.split("@")[0] ?? "Member"),
-        avatarUrl: cached?.avatar_url ?? null,
-        isAdmin: cached?.is_admin === true,
-        isSuperAdmin: cached?.is_superadmin === true,
-      });
-    }
-
-    let user = await getBrowserUser();
-    if (!user?.email && sessionUser?.email) {
-      await new Promise((r) => setTimeout(r, 300));
-      user = await getBrowserUser();
-    }
+    const user = await getBrowserUser();
     if (!user?.email) {
-      if (!sessionUser?.email) {
-        setSession({ ...empty, ready: true });
-      }
+      setSession({ ...empty, ready: true });
       return;
     }
 

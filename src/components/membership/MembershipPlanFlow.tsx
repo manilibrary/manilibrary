@@ -10,6 +10,11 @@ import { MEMBER_MEMBERSHIP_PATH } from "@/lib/auth-landing";
 import { resolveMemberSeatDisplayLabel } from "@/lib/membership/seat-label";
 import { DEFAULT_LIBRARY_TZ, todayYmdInTz } from "@/lib/membership/windows";
 import { applyCouponDiscount } from "@/lib/coupons/library-coupons";
+import {
+  maxRedeemableCredits,
+  type MemberReferralSummary,
+  type RefereeSignupReferral,
+} from "@/lib/referrals/library-referrals";
 import { floorLabel, type LibraryPlan, type PlanDurationKey } from "@/lib/plans/library-plans";
 import { isPlanMonths, planCodeToKind } from "@/lib/plans/plan-checkout";
 import ActiveMembershipBanner, { type ActiveMembership } from "./ActiveMembershipBanner";
@@ -63,6 +68,11 @@ export default function MembershipPlanFlow() {
   const [couponBusy, setCouponBusy] = useState(false);
   const [couponErr, setCouponErr] = useState<string | null>(null);
 
+  const [referral, setReferral] = useState<MemberReferralSummary | null>(null);
+  const [signupReferral, setSignupReferral] = useState<RefereeSignupReferral | null>(null);
+  const [referralApplied, setReferralApplied] = useState(false);
+  const [creditsToApply, setCreditsToApply] = useState(0);
+
   const { membership: hookMembership } = useActiveMembership();
   const [activeMembership, setActiveMembership] = useState<ActiveMembership | null>(null);
 
@@ -104,6 +114,31 @@ export default function MembershipPlanFlow() {
   }, [hookMembership]);
 
   useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const res = await fetch("/api/referrals/me", { credentials: "include" });
+        const j = (await res.json()) as {
+          ok?: boolean;
+          referral?: MemberReferralSummary | null;
+          signupReferral?: RefereeSignupReferral | null;
+        };
+        if (!cancelled && res.ok && j.ok) {
+          setReferral(j.referral ?? null);
+          const pending = j.signupReferral ?? null;
+          setSignupReferral(pending);
+          setReferralApplied(pending != null);
+        }
+      } catch {
+        // ignore
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
     if (!code || !planKind) return;
     let cancelled = false;
     void (async () => {
@@ -143,9 +178,16 @@ export default function MembershipPlanFlow() {
       : "—";
 
   const basePrice = duration?.price ?? 0;
-  const payable = appliedCoupon ? applyCouponDiscount(basePrice, appliedCoupon.discountPercent) : basePrice;
+  const priceAfterCoupon = appliedCoupon ? applyCouponDiscount(basePrice, appliedCoupon.discountPercent) : basePrice;
+  const maxCredits = appliedCoupon ? 0 : maxRedeemableCredits(priceAfterCoupon, referral?.creditBalance ?? 0);
+  const effectiveCredits = appliedCoupon ? 0 : Math.min(creditsToApply, maxCredits);
+  const payable = Math.max(1, priceAfterCoupon - effectiveCredits);
 
   const applyCoupon = async () => {
+    if (referralApplied) {
+      setCouponErr("Uncheck referral to use a coupon.");
+      return;
+    }
     const code = couponInput.trim().toUpperCase();
     if (!code || !plan) return;
     setCouponBusy(true);
@@ -163,6 +205,7 @@ export default function MembershipPlanFlow() {
       }
       setAppliedCoupon({ code: j.code ?? code, discountPercent: j.discountPercent });
       setCouponInput(j.code ?? code);
+      setCreditsToApply(0);
     } catch (e) {
       setAppliedCoupon(null);
       setCouponErr(e instanceof Error ? e.message : "Could not apply coupon.");
@@ -351,12 +394,35 @@ export default function MembershipPlanFlow() {
                         <dt className="text-ink-500">Duration</dt>
                         <dd className="text-ink-900">{duration?.label ?? `${months} months`}</dd>
                       </div>
+                      {signupReferral ? (
+                        <div className="flex justify-between gap-4 border-b border-ink-100 pb-3">
+                          <dt className="text-ink-500">Referral code</dt>
+                          <dd className="text-right">
+                            <span className="font-mono font-semibold text-ink-900">{signupReferral.code}</span>
+                            <span
+                              className={
+                                referralApplied
+                                  ? "ml-2 text-xs font-medium text-emerald-700"
+                                  : "ml-2 text-xs font-medium text-ink-500"
+                              }
+                            >
+                              {referralApplied ? "Applied" : "Not applied"}
+                            </span>
+                          </dd>
+                        </div>
+                      ) : null}
                       {appliedCoupon ? (
                         <div className="flex justify-between gap-4 border-b border-ink-100 pb-3">
                           <dt className="text-ink-500">
                             Coupon <span className="font-mono font-semibold text-ink-800">{appliedCoupon.code}</span>
                           </dt>
                           <dd className="font-semibold text-emerald-700">−{appliedCoupon.discountPercent}%</dd>
+                        </div>
+                      ) : null}
+                      {!appliedCoupon && effectiveCredits > 0 ? (
+                        <div className="flex justify-between gap-4 border-b border-ink-100 pb-3">
+                          <dt className="text-ink-500">Credits applied</dt>
+                          <dd className="font-semibold text-emerald-700">−₹{inr(effectiveCredits)}</dd>
                         </div>
                       ) : null}
                       <div className="flex items-baseline justify-between gap-4 pt-1">
@@ -372,6 +438,41 @@ export default function MembershipPlanFlow() {
                       </div>
                     </dl>
 
+                    {signupReferral ? (
+                      <div className="mt-4 border-t border-ink-100 pt-4">
+                        <p className="font-mono text-[10px] uppercase tracking-widest text-ink-500">
+                          Referral code
+                        </p>
+                        <input
+                          readOnly
+                          value={signupReferral.code}
+                          aria-label="Referral code"
+                          className="mt-2 w-full rounded-lg border border-ink-200 bg-ink-50 px-3 py-2.5 font-mono text-base font-semibold tracking-wide text-ink-900"
+                        />
+                        <label className="mt-3 flex cursor-pointer items-start gap-3">
+                          <input
+                            type="checkbox"
+                            checked={referralApplied}
+                            onChange={(e) => {
+                              const checked = e.target.checked;
+                              setReferralApplied(checked);
+                              if (checked) {
+                                removeCoupon();
+                                setCouponErr(null);
+                              }
+                            }}
+                            className="mt-0.5 h-4 w-4 rounded border-ink-300 text-azure-500 focus:ring-azure-500/30"
+                          />
+                          <span className="text-sm text-ink-800">
+                            Apply referral on this payment
+                            <span className="mt-1 block text-xs text-ink-500">
+                              Your friend earns credits when you pay. Uncheck to use a coupon instead.
+                            </span>
+                          </span>
+                        </label>
+                      </div>
+                    ) : null}
+
                     <div className="mt-4 border-t border-ink-100 pt-4">
                       <label
                         htmlFor="coupon-code"
@@ -383,7 +484,7 @@ export default function MembershipPlanFlow() {
                         <input
                           id="coupon-code"
                           value={couponInput}
-                          disabled={couponBusy || appliedCoupon != null}
+                          disabled={couponBusy || appliedCoupon != null || referralApplied}
                           onChange={(e) => setCouponInput(e.target.value.toUpperCase())}
                           placeholder="MANI…"
                           className="min-w-0 flex-1 rounded-lg border border-ink-200 px-3 py-2 font-mono text-sm text-ink-900 outline-none focus:border-azure-500 focus:ring-2 focus:ring-azure-500/15 disabled:bg-ink-50 disabled:text-ink-500"
@@ -399,7 +500,7 @@ export default function MembershipPlanFlow() {
                         ) : (
                           <button
                             type="button"
-                            disabled={couponBusy || !couponInput.trim()}
+                            disabled={couponBusy || !couponInput.trim() || referralApplied}
                             onClick={() => void applyCoupon()}
                             className="rounded-full bg-ink-900 px-4 py-2 text-sm font-semibold text-white hover:bg-ink-800 disabled:opacity-50"
                           >
@@ -414,6 +515,38 @@ export default function MembershipPlanFlow() {
                         </p>
                       ) : null}
                     </div>
+
+                    {!appliedCoupon && referral && referral.creditBalance > 0 ? (
+                      <div className="mt-4 border-t border-ink-100 pt-4">
+                        <label
+                          htmlFor="credits-to-apply"
+                          className="font-mono text-[10px] uppercase tracking-widest text-ink-500"
+                        >
+                          Use referral credits (₹{inr(referral.creditBalance)} available)
+                        </label>
+                        <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:items-center">
+                          <input
+                            id="credits-to-apply"
+                            type="number"
+                            min={0}
+                            max={maxCredits}
+                            step={1}
+                            value={creditsToApply}
+                            onChange={(e) => setCreditsToApply(Math.max(0, Math.min(maxCredits, Number(e.target.value) || 0)))}
+                            className="min-w-0 flex-1 rounded-lg border border-ink-200 px-3 py-2 text-sm text-ink-900 outline-none focus:border-azure-500 focus:ring-2 focus:ring-azure-500/15"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setCreditsToApply(maxCredits)}
+                            disabled={maxCredits <= 0}
+                            className="rounded-full border border-ink-200 bg-white px-4 py-2 text-sm font-semibold text-ink-700 hover:bg-ink-50 disabled:opacity-50"
+                          >
+                            Use max
+                          </button>
+                        </div>
+                        <p className="mt-2 text-xs text-ink-500">1 credit = ₹1. Cannot combine with coupons.</p>
+                      </div>
+                    ) : null}
                   </div>
 
                   <MembershipPayTipsDisclosure />
@@ -428,6 +561,8 @@ export default function MembershipPlanFlow() {
                     durationLabel={duration?.label ?? `${months} months`}
                     quotedAmountRupees={payable}
                     couponCode={appliedCoupon?.code}
+                    creditsToApply={effectiveCredits}
+                    applyReferral={signupReferral ? referralApplied : undefined}
                     fullWidth
                     quietFooter
                   />
