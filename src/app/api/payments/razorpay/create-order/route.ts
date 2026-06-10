@@ -24,6 +24,12 @@ import {
   applyCouponDiscount,
   fetchActiveCouponForPlan,
 } from "@/lib/coupons/library-coupons";
+import {
+  PAYMENT_METADATA_CREDITS_KEY,
+  PAYMENT_METADATA_REFERRAL_KEY,
+  applyCreditsToOrderAmount,
+  resolveCheckoutReferral,
+} from "@/lib/referrals/library-referrals";
 import { formatMembershipEndForDisplay } from "@/lib/date-format";
 import { membershipHostedCheckoutUrl } from "@/lib/payments/hosted-checkout-url";
 import {
@@ -139,6 +145,15 @@ export async function POST(request: Request) {
 
   let prepared: PreparedMembership;
   let couponMeta: { id: string; code: string; discount_percent: number } | null = null;
+  let referralMeta: { applied: boolean; referralId?: string } | null = null;
+  let creditsApplied = 0;
+  const applyReferral = raw.applyReferral !== false;
+  const creditsRequested =
+    typeof raw.creditsToApply === "number"
+      ? Math.round(raw.creditsToApply)
+      : typeof raw.creditsToApply === "string"
+        ? Math.round(Number(raw.creditsToApply))
+        : 0;
 
   if (usePlanCode) {
     const months = typeof raw.months === "number" ? raw.months : Number(raw.months);
@@ -160,6 +175,26 @@ export async function POST(request: Request) {
         code: check.coupon.code,
         discount_percent: check.coupon.discount_percent,
       };
+    }
+
+    const referralResult = await resolveCheckoutReferral(admin, userId, {
+      applyReferral,
+      hasCoupon: couponMeta != null,
+    });
+    if (!referralResult.ok) return apiError(referralResult.error, 400);
+    referralMeta = referralResult.meta;
+
+    if (creditsRequested > 0) {
+      const creditResult = await applyCreditsToOrderAmount(
+        admin,
+        userId,
+        amountRupees,
+        creditsRequested,
+        couponMeta != null,
+      );
+      if (!creditResult.ok) return apiError(creditResult.error, 400);
+      amountRupees = creditResult.amountRupees;
+      creditsApplied = creditResult.creditsApplied;
     }
 
     const validUntil = longTermInclusiveUntil(membershipStartDate, resolved.months);
@@ -275,6 +310,8 @@ export async function POST(request: Request) {
       metadata: {
         [PAYMENT_METADATA_PLANNED_SEAT_KEY]: plannedSeatToken,
         ...(couponMeta ? { [PAYMENT_METADATA_COUPON_KEY]: couponMeta } : {}),
+        ...(referralMeta ? { [PAYMENT_METADATA_REFERRAL_KEY]: referralMeta } : {}),
+        ...(creditsApplied > 0 ? { [PAYMENT_METADATA_CREDITS_KEY]: { amount: creditsApplied } } : {}),
       },
     })
     .select("id")
@@ -309,6 +346,8 @@ export async function POST(request: Request) {
       metadata: {
         [PAYMENT_METADATA_PLANNED_SEAT_KEY]: plannedSeatToken,
         ...(couponMeta ? { [PAYMENT_METADATA_COUPON_KEY]: couponMeta } : {}),
+        ...(referralMeta ? { [PAYMENT_METADATA_REFERRAL_KEY]: referralMeta } : {}),
+        ...(creditsApplied > 0 ? { [PAYMENT_METADATA_CREDITS_KEY]: { amount: creditsApplied } } : {}),
         razorpay_order_id: order.id,
       },
       provider_payment_id: order.id,

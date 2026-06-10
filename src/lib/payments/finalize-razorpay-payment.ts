@@ -3,6 +3,11 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { safeClientErrorMessage } from "@/lib/api/json-response";
 import { PAYMENT_METADATA_COUPON_KEY } from "@/lib/coupons/library-coupons";
 import {
+  PAYMENT_METADATA_CREDITS_KEY,
+  creditReferrerOnFirstPayment,
+  redeemCreditsOnPayment,
+} from "@/lib/referrals/library-referrals";
+import {
   PAYMENT_METADATA_PLANNED_SEAT_KEY,
   isPendingMembershipSeatPlaceholder,
 } from "@/lib/membership/seat-label";
@@ -139,6 +144,22 @@ export async function finalizeRazorpayPaymentRow(
       .eq("id", coupon.id)
       .eq("status", "active");
   }
+
+  const creditsMeta = couponMeta[PAYMENT_METADATA_CREDITS_KEY] as { amount?: unknown } | undefined;
+  const creditsApplied =
+    typeof creditsMeta?.amount === "number" && creditsMeta.amount > 0
+      ? Math.round(creditsMeta.amount)
+      : 0;
+  if (creditsApplied > 0) {
+    await redeemCreditsOnPayment(admin, input.expectedUserId, input.paymentId, creditsApplied);
+  }
+
+  await creditReferrerOnFirstPayment(
+    admin,
+    input.expectedUserId,
+    input.paymentId,
+    (pay.metadata ?? {}) as Record<string, unknown>,
+  );
 
   return { ok: true };
 }

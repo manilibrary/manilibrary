@@ -68,6 +68,12 @@ function pathNeedsSessionRefresh(path: string): boolean {
   );
 }
 
+function hasSupabaseAuthCookies(request: NextRequest): boolean {
+  return request.cookies.getAll().some(
+    (c) => c.name.includes("-auth-token") || c.name.startsWith("sb-"),
+  );
+}
+
 export async function proxy(request: NextRequest) {
   const blocked = guardApiRequest(request);
   if (blocked) {
@@ -75,7 +81,8 @@ export async function proxy(request: NextRequest) {
   }
 
   const path = request.nextUrl.pathname;
-  if (!pathNeedsSessionRefresh(path)) {
+  const needsRouteAuth = pathNeedsSessionRefresh(path);
+  if (!needsRouteAuth && !hasSupabaseAuthCookies(request)) {
     return applySecurityHeaders(NextResponse.next({ request }));
   }
 
@@ -127,6 +134,10 @@ export async function proxy(request: NextRequest) {
       url.searchParams.set("message", "Your session expired. Please sign in again.");
       return applySecurityHeaders(NextResponse.redirect(url));
     }
+    return applySecurityHeaders(supabaseResponse);
+  }
+
+  if (!needsRouteAuth) {
     return applySecurityHeaders(supabaseResponse);
   }
 

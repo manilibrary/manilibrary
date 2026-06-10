@@ -1,6 +1,7 @@
 import DashboardAccountPhotoCard from "@/components/dashboard/DashboardAccountPhotoCard";
 import PageHeader from "@/components/dashboard/PageHeader";
 import StaffCouponsPanel from "@/components/dashboard/StaffCouponsPanel";
+import StaffReferralSettingsPanel from "@/components/dashboard/StaffReferralSettingsPanel";
 import StaffHeroSettingsPanel from "@/components/dashboard/StaffHeroSettingsPanel";
 import StaffPlanPricingPanel from "@/components/dashboard/StaffPlanPricingPanel";
 import libraryInfo from "@/data/libraryInfo.json";
@@ -65,6 +66,15 @@ export default async function SettingsPage() {
               updates automatically on the homepage.
             </p>
             <StaffPlanPricingPanel />
+          </div>
+
+          <div className="space-y-3">
+            <h2 className="font-mono text-[10px] uppercase tracking-widest text-ink-500">Referral program</h2>
+            <p className="text-sm text-ink-600">
+              Members earn credits when someone signs up with their code and pays for a first membership. Configure
+              reward amount and how many people each member can refer.
+            </p>
+            <StaffReferralSettingsPanel />
           </div>
 
           <div className="space-y-3">

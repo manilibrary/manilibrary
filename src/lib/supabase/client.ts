@@ -16,8 +16,16 @@ function attachStaleSessionRecovery(supabase: SupabaseClient) {
 
   supabase.auth.onAuthStateChange((event, session) => {
     if (clearingStaleSession) return;
-    if (event === "SIGNED_OUT" || (event === "TOKEN_REFRESHED" && !session)) {
+    if (event === "SIGNED_OUT") {
       clearClientCache();
+      return;
+    }
+    if (event === "TOKEN_REFRESHED" && !session) {
+      clearClientCache();
+      clearingStaleSession = true;
+      void clearStaleSupabaseSession(supabase).finally(() => {
+        clearingStaleSession = false;
+      });
     }
   });
 }

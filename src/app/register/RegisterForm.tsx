@@ -44,6 +44,7 @@ export default function RegisterForm() {
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
+  const [referralCode, setReferralCode] = useState("");
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
   const [showPwd, setShowPwd] = useState(false);
@@ -72,6 +73,11 @@ export default function RegisterForm() {
     const id = window.setInterval(sync, 1000);
     return () => window.clearInterval(id);
   }, []);
+
+  useEffect(() => {
+    const ref = searchParams.get("ref")?.trim();
+    if (ref) setReferralCode(ref.toUpperCase());
+  }, [searchParams]);
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -109,6 +115,7 @@ export default function RegisterForm() {
           email: email.trim().toLowerCase(),
           phone: phone.trim(),
           password,
+          ...(referralCode.trim() ? { referralCode: referralCode.trim().toUpperCase() } : {}),
           origin: typeof window !== "undefined" ? window.location.origin : "",
           ...(turnstileToken ? { turnstileToken } : {}),
         }),
@@ -299,6 +306,25 @@ export default function RegisterForm() {
                 Phone <span className="font-sans normal-case text-ink-400">(optional)</span>
               </label>
               <IndianPhoneInput id="phone" value={phone} onChange={setPhone} />
+            </div>
+
+            <div>
+              <label
+                htmlFor="referralCode"
+                className="mb-1.5 block font-mono text-[10px] uppercase tracking-widest text-ink-500"
+              >
+                Referral code <span className="font-sans normal-case text-ink-400">(optional)</span>
+              </label>
+              <input
+                id="referralCode"
+                type="text"
+                autoComplete="off"
+                value={referralCode}
+                onChange={(e) => setReferralCode(e.target.value.toUpperCase())}
+                placeholder="REF…"
+                maxLength={9}
+                className="w-full rounded-xl border border-ink-200 bg-white px-4 py-3 font-mono text-sm uppercase text-ink-900 outline-none transition focus:border-azure-500 focus:ring-4 focus:ring-azure-500/15"
+              />
             </div>
 
             <div>
