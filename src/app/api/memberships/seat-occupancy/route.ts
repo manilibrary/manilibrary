@@ -6,7 +6,7 @@ import {
   shortTermActiveNow,
   shortTermIntervalsOverlap,
 } from "@/lib/membership/seat-occupancy-window";
-import { parseNumericSeatFromStoredSeat } from "@/lib/membership/seat-label";
+import { seatNumbersFromRows } from "@/lib/membership/plan-seat-occupancy";
 import { longTermInclusiveUntil } from "@/lib/membership/windows";
 import type { MembershipPlanKind } from "@/lib/payments/pricing";
 import { isPlanMonths, planCodeShift, planCodeToKind } from "@/lib/plans/plan-checkout";
@@ -30,13 +30,7 @@ function isPlanKind(v: string | null): v is MembershipPlanKind {
 }
 
 function seatNumbersFrom(rows: PlanRow[]): number[] {
-  return Array.from(
-    new Set(
-      rows
-        .map((r) => parseNumericSeatFromStoredSeat(r.seat_number))
-        .filter((n): n is number => n != null),
-    ),
-  ).sort((a, b) => a - b);
+  return seatNumbersFromRows(rows);
 }
 
 export async function GET(request: Request) {
