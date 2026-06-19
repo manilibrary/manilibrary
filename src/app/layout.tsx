@@ -3,6 +3,7 @@ import { Inter, JetBrains_Mono } from "next/font/google";
 import { Toaster } from "react-hot-toast";
 import AuthToastListener from "@/components/AuthToastListener";
 import { AuthSessionProvider } from "@/components/auth/AuthSessionProvider";
+import LibraryChatWidget from "@/components/chat/LibraryChatWidget";
 import { ActiveMembershipProvider } from "@/hooks/useActiveMembership";
 
 import libraryInfo from "@/data/libraryInfo.json";
@@ -72,7 +73,10 @@ export default function RootLayout({
     >
       <body className="min-h-full bg-white text-ink-900 font-sans">
         <AuthSessionProvider>
-          <ActiveMembershipProvider>{children}</ActiveMembershipProvider>
+          <ActiveMembershipProvider>
+            {children}
+            <LibraryChatWidget />
+          </ActiveMembershipProvider>
         </AuthSessionProvider>
         <Toaster position="top-center" />
         <AuthToastListener />

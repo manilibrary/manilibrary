@@ -197,3 +197,42 @@ thead .sticky-col {
     width: 100%;
   }
 }
+
+@keyframes chat-fab-label-in {
+  0% {
+    opacity: 0;
+    transform: translateY(8px) scale(0.96);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes chat-fab-icon-in {
+  0% {
+    opacity: 0;
+    transform: scale(0.55);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.chat-fab-label-in {
+  animation: chat-fab-label-in 0.45s ease-out forwards;
+}
+
+.chat-fab-icon-in {
+  animation: chat-fab-icon-in 0.55s cubic-bezier(0.34, 1.4, 0.64, 1) forwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chat-fab-label-in,
+  .chat-fab-icon-in {
+    animation: none;
+    opacity: 1;
+    transform: none;
+  }
+}
