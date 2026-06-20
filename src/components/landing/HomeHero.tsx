@@ -2,10 +2,13 @@ import ActiveMembershipHeroNote from "@/components/landing/ActiveMembershipHeroN
 import HeroCollage from "@/components/landing/HeroCollage";
 import HeroCTAs from "@/components/landing/HeroCTAs";
 import { getPublicHeroSettings } from "@/lib/hero/get-public-hero";
+import { cheapestEffectivePlan, formatPlanInr } from "@/lib/plans/library-plans";
+import { getPublicLibraryPlans } from "@/lib/plans/get-public-library-plans";
 import libraryInfo from "@/data/libraryInfo.json";
 
 export default async function HomeHero() {
-  const hero = await getPublicHeroSettings();
+  const [hero, plans] = await Promise.all([getPublicHeroSettings(), getPublicLibraryPlans()]);
+  const startingOffer = cheapestEffectivePlan(plans, "6m");
 
   return (
     <section className="relative bg-white">
@@ -28,6 +31,12 @@ export default async function HomeHero() {
             <p className="mx-auto mt-6 max-w-xl text-base leading-relaxed text-ink-600 md:text-lg lg:mx-0">
               {libraryInfo.shortDescription}
             </p>
+            {startingOffer ? (
+              <p className="mx-auto mt-4 max-w-xl text-base font-semibold text-ink-900 lg:mx-0">
+                Monthly plans from ₹{formatPlanInr(startingOffer.effectiveMonthly)}/month on{" "}
+                {startingOffer.duration.label} plans.
+              </p>
+            ) : null}
             <div className="mt-8 flex justify-center lg:justify-start">
               <HeroCTAs align="start" />
             </div>
