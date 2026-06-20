@@ -69,6 +69,49 @@ export function floorLabel(floor: 1 | 2): string {
   return floor === 1 ? "1st floor" : "2nd floor";
 }
 
+export function formatPlanInr(amount: number): string {
+  return amount.toLocaleString("en-IN");
+}
+
+export function planDurationByKey(
+  plan: LibraryPlan,
+  durationKey: PlanDurationKey,
+): PlanDurationPrice {
+  return plan.durations.find((d) => d.key === durationKey) ?? plan.durations[0];
+}
+
+/** Rounded effective monthly rate for a lump-sum duration price. */
+export function effectiveMonthlyPrice(totalPrice: number, months: number): number {
+  if (months <= 0) return totalPrice;
+  return Math.round(totalPrice / months);
+}
+
+export type CheapestEffectivePlan = {
+  plan: LibraryPlan;
+  duration: PlanDurationPrice;
+  effectiveMonthly: number;
+};
+
+/** Lowest effective ₹/month across plans for a billing duration (default 6 months). */
+export function cheapestEffectivePlan(
+  plans: LibraryPlan[],
+  durationKey: PlanDurationKey = "6m",
+): CheapestEffectivePlan | null {
+  let best: CheapestEffectivePlan | null = null;
+  for (const plan of plans) {
+    const duration = planDurationByKey(plan, durationKey);
+    const effectiveMonthly = effectiveMonthlyPrice(duration.price, duration.months);
+    if (!best || effectiveMonthly < best.effectiveMonthly) {
+      best = { plan, duration, effectiveMonthly };
+    }
+  }
+  return best;
+}
+
+export function bestValuePlanCode(plans: LibraryPlan[], durationKey: PlanDurationKey): string | null {
+  return cheapestEffectivePlan(plans, durationKey)?.plan.code ?? null;
+}
+
 export const LIBRARY_PLANS_SELECT =
   "id, code, name, floor, access_label, is_24hour, sort_order, price_1m, mrp_1m, price_3m, mrp_3m, price_6m, mrp_6m";
 

@@ -15,7 +15,7 @@ import {
   type MemberReferralSummary,
   type RefereeSignupReferral,
 } from "@/lib/referrals/library-referrals";
-import { floorLabel, type LibraryPlan, type PlanDurationKey } from "@/lib/plans/library-plans";
+import { effectiveMonthlyPrice, floorLabel, type LibraryPlan, type PlanDurationKey } from "@/lib/plans/library-plans";
 import { isPlanMonths, planCodeToKind } from "@/lib/plans/plan-checkout";
 import ActiveMembershipBanner, { type ActiveMembership } from "./ActiveMembershipBanner";
 import MembershipCheckoutButton from "./MembershipCheckoutButton";
@@ -59,7 +59,7 @@ export default function MembershipPlanFlow() {
   const [occupied, setOccupied] = useState<number[]>([]);
   const [months, setMonths] = useState<1 | 3 | 6>(() => {
     const m = Number(searchParams.get("months"));
-    return isPlanMonths(m) ? m : 1;
+    return isPlanMonths(m) ? m : 6;
   });
   const [membershipStartDate, setMembershipStartDate] = useState(() => todayYmdInTz(DEFAULT_LIBRARY_TZ));
 
@@ -392,7 +392,14 @@ export default function MembershipPlanFlow() {
                       </div>
                       <div className="flex justify-between gap-4 border-b border-ink-100 pb-3">
                         <dt className="text-ink-500">Duration</dt>
-                        <dd className="text-ink-900">{duration?.label ?? `${months} months`}</dd>
+                        <dd className="text-right text-ink-900">
+                          <span>{duration?.label ?? `${months} months`}</span>
+                          {duration && duration.months > 1 ? (
+                            <span className="mt-0.5 block text-xs text-ink-500">
+                              ₹{inr(effectiveMonthlyPrice(duration.price, duration.months))}/month effective
+                            </span>
+                          ) : null}
+                        </dd>
                       </div>
                       {signupReferral ? (
                         <div className="flex justify-between gap-4 border-b border-ink-100 pb-3">
@@ -426,7 +433,7 @@ export default function MembershipPlanFlow() {
                         </div>
                       ) : null}
                       <div className="flex items-baseline justify-between gap-4 pt-1">
-                        <dt className="text-ink-500">Total</dt>
+                        <dt className="text-ink-500">Total due today</dt>
                         <dd className="text-right">
                           <span className="font-semibold text-ink-900">₹{inr(payable)}</span>
                           {appliedCoupon ? (

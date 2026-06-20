@@ -5,40 +5,53 @@ import PlanChooseCTA from "@/components/landing/PlanChooseCTA";
 import { HOME_SECTION_PAD } from "@/lib/landing/home-section-spacing";
 import {
   PLAN_DURATIONS,
+  bestValuePlanCode,
+  cheapestEffectivePlan,
+  effectiveMonthlyPrice,
   floorLabel,
+  formatPlanInr,
+  planDurationByKey,
   type LibraryPlan,
   type PlanDurationKey,
 } from "@/lib/plans/library-plans";
 
 const CURRENCY = "₹";
 
-function inr(n: number): string {
-  return n.toLocaleString("en-IN");
-}
-
 function PlanCard({
   plan,
   durationKey,
   popular,
+  bestValue,
 }: {
   plan: LibraryPlan;
   durationKey: PlanDurationKey;
   popular: boolean;
+  bestValue: boolean;
 }) {
-  const d = plan.durations.find((x) => x.key === durationKey) ?? plan.durations[0];
+  const d = planDurationByKey(plan, durationKey);
+  const oneMonth = planDurationByKey(plan, "1m");
   const hasDiscount = d.discountPercent > 0 && d.mrp > d.price;
+  const effectiveMonthly = effectiveMonthlyPrice(d.price, d.months);
+  const savesVsOneMonth =
+    d.months > 1 && oneMonth.price > effectiveMonthly ? oneMonth.price - effectiveMonthly : 0;
 
   return (
     <article
       className={`relative flex flex-col rounded-2xl border bg-white p-6 ${
         popular
           ? "border-azure-500 shadow-card-hover ring-1 ring-azure-500"
-          : "border-ink-100 shadow-card"
+          : bestValue
+            ? "border-emerald-500 shadow-card ring-1 ring-emerald-500/60"
+            : "border-ink-100 shadow-card"
       }`}
     >
       {popular ? (
         <span className="absolute -top-3 left-6 inline-flex items-center rounded-full bg-azure-500 px-3 py-1 text-[10px] font-semibold uppercase tracking-widest text-white">
           Most popular
+        </span>
+      ) : bestValue ? (
+        <span className="absolute -top-3 left-6 inline-flex items-center rounded-full bg-emerald-600 px-3 py-1 text-[10px] font-semibold uppercase tracking-widest text-white">
+          Best value
         </span>
       ) : null}
 
@@ -66,19 +79,30 @@ function PlanCard({
           <p className="flex items-baseline gap-1.5">
             <span className="text-3xl font-semibold tracking-tight text-ink-900">
               {CURRENCY}
-              {inr(d.price)}
+              {formatPlanInr(effectiveMonthly)}
             </span>
-            <span className="text-sm text-ink-500">/ {d.label}</span>
+            <span className="text-sm text-ink-500">/ month</span>
           </p>
+          <p className="mt-1 text-sm text-ink-600">
+            Billed {CURRENCY}
+            {formatPlanInr(d.price)} for {d.label}
+          </p>
+          {savesVsOneMonth > 0 ? (
+            <p className="mt-1 text-xs font-medium text-emerald-700">
+              Save {CURRENCY}
+              {formatPlanInr(savesVsOneMonth)}/mo vs 1-month plan ({CURRENCY}
+              {formatPlanInr(oneMonth.price)}/mo)
+            </p>
+          ) : null}
           {hasDiscount ? (
             <p className="mt-1 text-sm text-ink-400">
               <span className="line-through">
                 {CURRENCY}
-                {inr(d.mrp)}
+                {formatPlanInr(d.mrp)}
               </span>{" "}
               <span className="text-emerald-600">
                 Save {CURRENCY}
-                {inr(d.mrp - d.price)}
+                {formatPlanInr(d.mrp - d.price)}
               </span>
             </p>
           ) : null}
@@ -95,7 +119,7 @@ function PlanCard({
 export default function PlansSection() {
   const [plans, setPlans] = useState<LibraryPlan[]>([]);
   const [loaded, setLoaded] = useState(false);
-  const [durationKey, setDurationKey] = useState<PlanDurationKey>("1m");
+  const [durationKey, setDurationKey] = useState<PlanDurationKey>("6m");
 
   useEffect(() => {
     let cancelled = false;
@@ -118,6 +142,10 @@ export default function PlansSection() {
     return fixed?.code ?? null;
   }, [plans]);
 
+  const bestValueCode = useMemo(() => bestValuePlanCode(plans, durationKey), [plans, durationKey]);
+
+  const headlineOffer = useMemo(() => cheapestEffectivePlan(plans, "6m"), [plans]);
+
   return (
     <section id="plans" className="bg-white">
       <div className={`mx-auto max-w-7xl ${HOME_SECTION_PAD}`}>
@@ -126,8 +154,16 @@ export default function PlansSection() {
           <h2 className="mt-3 text-3xl font-semibold tracking-tight text-ink-900 md:text-4xl">
             Simple plans, no surprises.
           </h2>
-          <p className="mt-4 text-base text-ink-600">
-            Shift seats on the 2nd floor, or a reserved 24-hour seat on the 1st floor.
+          {headlineOffer ? (
+            <p className="mt-4 text-lg font-semibold text-ink-900">
+              Plans from {CURRENCY}
+              {formatPlanInr(headlineOffer.effectiveMonthly)}/month
+            </p>
+          ) : null}
+          <p className={`${headlineOffer ? "mt-2" : "mt-4"} text-base text-ink-600`}>
+            {headlineOffer
+              ? `On ${headlineOffer.duration.label} plans — e.g. ${headlineOffer.plan.name} billed ${CURRENCY}${formatPlanInr(headlineOffer.duration.price)} upfront. Shift seats on the 2nd floor, or a reserved 24-hour seat on the 1st floor.`
+              : "Shift seats on the 2nd floor, or a reserved 24-hour seat on the 1st floor."}
           </p>
         </div>
 
@@ -145,6 +181,11 @@ export default function PlansSection() {
                 }`}
               >
                 {d.label}
+                {d.key === "6m" ? (
+                  <span className="ml-1 hidden text-[10px] font-semibold uppercase tracking-wide text-emerald-600 sm:inline">
+                    · best value
+                  </span>
+                ) : null}
               </button>
             ))}
           </div>
@@ -164,6 +205,7 @@ export default function PlansSection() {
                 plan={plan}
                 durationKey={durationKey}
                 popular={plan.code === popularCode}
+                bestValue={plan.code === bestValueCode && plan.code !== popularCode}
               />
             ))}
           </div>
